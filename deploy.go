@@ -16,7 +16,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/user"
+	"path"
 )
+
+var port string = "8080"
 
 func getPrivateKey(filename string) []byte {
 	content, err := ioutil.ReadFile(filename)
@@ -81,8 +85,11 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) []byte {
 }
 
 func latestDeployedCommit(hostname string) []byte {
-	// TODO: change this
-	privateKey := string(getPrivateKey("path-to-private-key"))
+	usr, err := user.Current()
+	if err != nil {
+		log.Fatal(err)
+	}
+	privateKey := string(getPrivateKey(path.Join(usr.HomeDir, "/.ssh/id_rsa")))
 	output := remoteCmdOutput("deployer", hostname, privateKey, "whoami")
 
 	return output
@@ -101,9 +108,10 @@ func main() {
 	client := github.NewClient(t.Client())
 	fmt.Println(client)
 	output := latestDeployedCommit("www-qa-02.gengo.com:22")
-    fmt.Println(output)
+	fmt.Println(output)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", HomeHandler)
-	http.ListenAndServe(":8080", r)
+	fmt.Println("Running on localhost:" + port)
+	http.ListenAndServe(":"+port, r)
 }
