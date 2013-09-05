@@ -22,8 +22,8 @@ import (
 )
 
 var (
-	port       string = "8080"
-	configFile        = "config.yml"
+	port       = "8080"
+	configFile = "config.yml"
 )
 
 func getPrivateKey(filename string) []byte {
