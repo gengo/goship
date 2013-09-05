@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/google/go-github/github"
 	"github.com/gorilla/mux"
+	"github.com/kylelemons/go-gypsy/yaml"
 	"html/template"
 	"io"
 	"io/ioutil"
@@ -20,7 +21,10 @@ import (
 	"path"
 )
 
-var port string = "8080"
+var (
+	port       string = "8080"
+	configFile        = "config.yml"
+)
 
 func getPrivateKey(filename string) []byte {
 	content, err := ioutil.ReadFile(filename)
@@ -100,7 +104,60 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	t.Execute(w, nil)
 }
 
+type environment struct {
+	name     string
+	repoPath string
+	hosts    []string
+	branch   string
+}
+
+type project struct {
+	name         string
+	githubURL    string
+	environments []environment
+}
+
+func parseEnvironment(m yaml.Node) environment {
+	e := environment{}
+	for k, v := range m.(yaml.Map) {
+		e.name = k
+		e.branch = v.(yaml.Map)["branch"].(yaml.Scalar).String()
+		e.repoPath = v.(yaml.Map)["repo_path"].(yaml.Scalar).String()
+		for _, v := range v.(yaml.Map)["hosts"].(yaml.List) {
+			e.hosts = append(e.hosts, v.(yaml.Scalar).String())
+		}
+	}
+	return e
+}
+
+func parseYAML() (allProjects []project, deployUser string) {
+	config, err := yaml.ReadFile(configFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	deployUser, err = config.Get("deploy_user")
+	if err != nil {
+		log.Fatal("config.yml is missing deploy_user: " + err.Error())
+	}
+	configRoot, _ := config.Root.(yaml.Map)
+	projects, _ := configRoot["projects"].(yaml.List)
+	allProjects = []project{}
+	for _, p := range projects {
+		for k, v := range p.(yaml.Map) {
+			proj := project{name: k, githubURL: v.(yaml.Map)["github_url"].(yaml.Scalar).String()}
+			for _, v := range v.(yaml.Map)["environments"].(yaml.List) {
+				proj.environments = append(proj.environments, parseEnvironment(v))
+			}
+			allProjects = append(allProjects, proj)
+		}
+	}
+	return allProjects, deployUser
+}
+
 func main() {
+	allProjects, deployUser := parseYAML()
+	fmt.Println(allProjects)
+	fmt.Println(deployUser)
 	githubToken := os.Getenv("GITHUB_API_TOKEN")
 	t := &oauth.Transport{
 		Token: &oauth.Token{AccessToken: githubToken},
