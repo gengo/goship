@@ -50,6 +50,10 @@ type Project struct {
 	Environments []Environment
 }
 
+func (h *Host) ShortCommitHash() string {
+	return h.LatestCommit[:7]
+}
+
 func getPrivateKey(filename string) []byte {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
