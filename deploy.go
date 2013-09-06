@@ -164,13 +164,13 @@ func parseYAML() (allProjects []Project, deployUser string) {
 }
 
 func retrieveCommits(projects []Project, deployUser string) []Project {
-	for i, p := range projects {
-		for j, e := range p.Environments {
-			for k, h := range e.Hosts {
-				h.LatestCommit = string(latestDeployedCommit(deployUser, h.URI+":"+sshPort, e))
-				projects[i].Environments[j].Hosts[k] = h
+	for i, project := range projects {
+		for j, environment := range project.Environments {
+			for k, host := range environment.Hosts {
+				host.LatestCommit = string(latestDeployedCommit(deployUser, host.URI+":"+sshPort, environment))
+				projects[i].Environments[j].Hosts[k] = host
 			}
-			projects[i].Environments[j] = e
+			projects[i].Environments[j] = environment
 		}
 	}
 	return projects
