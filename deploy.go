@@ -165,36 +165,28 @@ func parseYAML() (allProjects []Project, deployUser string) {
 	return allProjects, deployUser
 }
 
-func doStuff(wg *sync.WaitGroup, projects []Project, env Environment, host Host, deployUser string, i, j, k int) {
+func getCommit(wg *sync.WaitGroup, projects []Project, env Environment, host Host, deployUser string, i, j, k int) {
 	defer wg.Done()
 	host.LatestCommit = string(latestDeployedCommit(deployUser, host.URI+":"+sshPort, env))
 	host.LatestCommit = strings.Trim(host.LatestCommit, "\n\r")
 	projects[i].Environments[j].Hosts[k] = host
-	fmt.Println("Retrieved commit for", host)
 }
 
 func retrieveCommits(projects []Project, deployUser string) []Project {
 	// define a wait group to wait for all goroutines to finish
 	var wg sync.WaitGroup
-	fmt.Println("Retrieving commits...")
 	for i, project := range projects {
-		fmt.Println("Project", i)
 		for j, environment := range project.Environments {
-			fmt.Println("Environment", j)
 			for k, host := range environment.Hosts {
-				fmt.Println("Host", k)
 				// start a goroutine for SSH-ing on to the machine
 				wg.Add(1)
-				go doStuff(&wg, projects, environment, host, deployUser, i, j, k)
+				go getCommit(&wg, projects, environment, host, deployUser, i, j, k)
 			}
 			projects[i].Environments[j] = environment
 		}
 	}
-	fmt.Println("All done! Waiting...")
 	// wait for goroutines to finish
 	wg.Wait()
-
-	fmt.Println("Done!!")
 	return projects
 }
 
