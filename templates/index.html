@@ -22,7 +22,7 @@
             <div>
               <h4>{{.Name}}</h4>
               {{range $host := $environment.Hosts}}
-              <li>{{$host.URI}}: <a href="{{$project.GitHubURL}}/compare/{{$environment.LatestGitHubCommit}}">{{$host.LatestCommit}}</a> (<a href="{{$project.GitHubURL}}/compare/{{$environment.LatestGitHubCommit}}...{{$host.LatestCommit}}">diff</a>)</li>
+              <li>{{$host.URI}}: <a href="{{$project.GitHubURL}}/commit/{{$environment.LatestGitHubCommit}}">{{$host.LatestCommit}}</a> (<a href="{{$project.GitHubURL}}/compare/{{$environment.LatestGitHubCommit}}...{{$host.LatestCommit}}">diff</a>)</li>
               {{end}}
             </div>
             {{end}}
