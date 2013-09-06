@@ -89,56 +89,57 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) []byte {
 	return output
 }
 
-func latestDeployedCommit(username, hostname string, e environment) []byte {
+func latestDeployedCommit(username, hostname string, e Environment) []byte {
 	usr, err := user.Current()
-	fmt.Println(hostname)
 	if err != nil {
 		log.Fatal(err)
 	}
 	privateKey := string(getPrivateKey(path.Join(usr.HomeDir, "/.ssh/id_rsa")))
-	output := remoteCmdOutput(username, hostname, privateKey, fmt.Sprintf("git --git-dir=%s rev-parse %s", e.repoPath, e.branch))
+	output := remoteCmdOutput(username, hostname, privateKey, fmt.Sprintf("git --git-dir=%s rev-parse %s", e.RepoPath, e.Branch))
 
 	return output
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
+	projects, deployUser := parseYAML()
+	projects = retrieveCommits(projects, deployUser)
 	t, _ := template.ParseFiles("templates/index.html")
-	t.Execute(w, nil)
+	t.Execute(w, map[string]interface{}{"Projects": projects})
 }
 
-type host struct {
-	uri          string
-	latestCommit string
+type Host struct {
+	URI          string
+	LatestCommit string
 }
 
-type environment struct {
-	name     string
-	repoPath string
-	hosts    []host
-	branch   string
+type Environment struct {
+	Name     string
+	RepoPath string
+	Hosts    []Host
+	Branch   string
 }
 
-type project struct {
-	name         string
-	githubURL    string
-	environments []environment
+type Project struct {
+	Name         string
+	GitHubURL    string
+	Environments []Environment
 }
 
-func parseYAMLEnvironment(m yaml.Node) environment {
-	e := environment{}
+func parseYAMLEnvironment(m yaml.Node) Environment {
+	e := Environment{}
 	for k, v := range m.(yaml.Map) {
-		e.name = k
-		e.branch = v.(yaml.Map)["branch"].(yaml.Scalar).String()
-		e.repoPath = v.(yaml.Map)["repo_path"].(yaml.Scalar).String()
+		e.Name = k
+		e.Branch = v.(yaml.Map)["branch"].(yaml.Scalar).String()
+		e.RepoPath = v.(yaml.Map)["repo_path"].(yaml.Scalar).String()
 		for _, v := range v.(yaml.Map)["hosts"].(yaml.List) {
-			h := host{uri: v.(yaml.Scalar).String()}
-			e.hosts = append(e.hosts, h)
+			h := Host{URI: v.(yaml.Scalar).String()}
+			e.Hosts = append(e.Hosts, h)
 		}
 	}
 	return e
 }
 
-func parseYAML() (allProjects []project, deployUser string) {
+func parseYAML() (allProjects []Project, deployUser string) {
 	config, err := yaml.ReadFile(configFile)
 	if err != nil {
 		log.Fatal(err)
@@ -149,12 +150,12 @@ func parseYAML() (allProjects []project, deployUser string) {
 	}
 	configRoot, _ := config.Root.(yaml.Map)
 	projects, _ := configRoot["projects"].(yaml.List)
-	allProjects = []project{}
+	allProjects = []Project{}
 	for _, p := range projects {
 		for k, v := range p.(yaml.Map) {
-			proj := project{name: k, githubURL: v.(yaml.Map)["github_url"].(yaml.Scalar).String()}
+			proj := Project{Name: k, GitHubURL: v.(yaml.Map)["github_url"].(yaml.Scalar).String()}
 			for _, v := range v.(yaml.Map)["environments"].(yaml.List) {
-				proj.environments = append(proj.environments, parseYAMLEnvironment(v))
+				proj.Environments = append(proj.Environments, parseYAMLEnvironment(v))
 			}
 			allProjects = append(allProjects, proj)
 		}
@@ -162,23 +163,20 @@ func parseYAML() (allProjects []project, deployUser string) {
 	return allProjects, deployUser
 }
 
-func retrieveCommits(projects []project, deployUser string) []project {
+func retrieveCommits(projects []Project, deployUser string) []Project {
 	for i, p := range projects {
-		for j, e := range p.environments {
-			for k, h := range e.hosts {
-				h.latestCommit = string(latestDeployedCommit(deployUser, h.uri+":"+sshPort, e))
-				projects[i].environments[j].hosts[k] = h
+		for j, e := range p.Environments {
+			for k, h := range e.Hosts {
+				h.LatestCommit = string(latestDeployedCommit(deployUser, h.URI+":"+sshPort, e))
+				projects[i].Environments[j].Hosts[k] = h
 			}
-			projects[i].environments[j] = e
+			projects[i].Environments[j] = e
 		}
 	}
 	return projects
 }
 
 func main() {
-	projects, deployUser := parseYAML()
-	projects = retrieveCommits(projects, deployUser)
-	fmt.Println(projects)
 	githubToken := os.Getenv("GITHUB_API_TOKEN")
 	t := &oauth.Transport{
 		Token: &oauth.Token{AccessToken: githubToken},
