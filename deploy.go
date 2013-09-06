@@ -77,14 +77,14 @@ func (k *keychain) Sign(i int, rand io.Reader, data []byte) (sig []byte, err err
 }
 
 //  Get the most recent commit hash on a given branch from GitHub
-func latestGitHubCommit(c *github.Client, repoOwner, repoName, branchName string) *string {
+func latestGitHubCommit(c *github.Client, repoOwner, repoName, branchName string) string {
 	opts := &github.CommitsListOptions{SHA: branchName}
 	commits, _, err := c.Repositories.ListCommits(repoOwner, repoName, opts)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	return commits[0].SHA
+	return *commits[0].SHA
 }
 
 func remoteCmdOutput(username, hostname, privateKey, cmd string) []byte {
@@ -178,7 +178,7 @@ func retrieveCommits(projects []Project, deployUser string) []Project {
 				host.LatestCommit = strings.Trim(host.LatestCommit, "\n\r")
 				projects[i].Environments[j].Hosts[k] = host
 			}
-			environment.LatestGitHubCommit = *latestGitHubCommit(client, project.RepoOwner, project.RepoName, environment.Branch)
+			environment.LatestGitHubCommit = latestGitHubCommit(client, project.RepoOwner, project.RepoName, environment.Branch)
 			projects[i].Environments[j] = environment
 		}
 	}
