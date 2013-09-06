@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/user"
 	"path"
+	"strings"
 )
 
 var (
@@ -168,6 +169,7 @@ func retrieveCommits(projects []Project, deployUser string) []Project {
 		for j, environment := range project.Environments {
 			for k, host := range environment.Hosts {
 				host.LatestCommit = string(latestDeployedCommit(deployUser, host.URI+":"+sshPort, environment))
+				host.LatestCommit = strings.Trim(host.LatestCommit, "\n\r")
 				projects[i].Environments[j].Hosts[k] = host
 			}
 			projects[i].Environments[j] = environment
