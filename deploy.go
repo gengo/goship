@@ -34,15 +34,18 @@ type Host struct {
 }
 
 type Environment struct {
-	Name     string
-	RepoPath string
-	Hosts    []Host
-	Branch   string
+	Name               string
+	RepoPath           string
+	Hosts              []Host
+	Branch             string
+	LatestGitHubCommit string
 }
 
 type Project struct {
 	Name         string
 	GitHubURL    string
+	RepoName     string
+	RepoOwner    string
 	Environments []Environment
 }
 
@@ -73,13 +76,15 @@ func (k *keychain) Sign(i int, rand io.Reader, data []byte) (sig []byte, err err
 	return rsa.SignPKCS1v15(rand, k.key, hashFunc, digest)
 }
 
-//  Will return the latest commit hash, waiting on https://github.com/google/go-github/pull/49
-func latestGitHubCommit(c *github.Client, repoName string) *github.Repository {
-	repo, _, err := c.Repositories.Get("gengo", repoName)
+//  Get the most recent commit hash on a given branch from GitHub
+func latestGitHubCommit(c *github.Client, repoOwner, repoName, branchName string) *string {
+	opts := &github.CommitsListOptions{SHA: branchName}
+	commits, _, err := c.Repositories.ListCommits(repoOwner, repoName, opts)
 	if err != nil {
 		log.Panic(err)
 	}
-	return repo
+
+	return commits[0].SHA
 }
 
 func remoteCmdOutput(username, hostname, privateKey, cmd string) []byte {
@@ -146,8 +151,11 @@ func parseYAML() (allProjects []Project, deployUser string) {
 	projects, _ := configRoot["projects"].(yaml.List)
 	allProjects = []Project{}
 	for _, p := range projects {
-		for k, v := range p.(yaml.Map) {
-			proj := Project{Name: k, GitHubURL: v.(yaml.Map)["github_url"].(yaml.Scalar).String()}
+		for _, v := range p.(yaml.Map) {
+			proj := Project{Name: v.(yaml.Map)["project_name"].(yaml.Scalar).String(),
+				GitHubURL: v.(yaml.Map)["github_url"].(yaml.Scalar).String(),
+				RepoName:  v.(yaml.Map)["repo_name"].(yaml.Scalar).String(),
+				RepoOwner: v.(yaml.Map)["repo_owner"].(yaml.Scalar).String()}
 			for _, v := range v.(yaml.Map)["environments"].(yaml.List) {
 				proj.Environments = append(proj.Environments, parseYAMLEnvironment(v))
 			}
@@ -158,6 +166,11 @@ func parseYAML() (allProjects []Project, deployUser string) {
 }
 
 func retrieveCommits(projects []Project, deployUser string) []Project {
+	githubToken := os.Getenv("GITHUB_API_TOKEN")
+	t := &oauth.Transport{
+		Token: &oauth.Token{AccessToken: githubToken},
+	}
+	client := github.NewClient(t.Client())
 	for i, project := range projects {
 		for j, environment := range project.Environments {
 			for k, host := range environment.Hosts {
@@ -165,6 +178,7 @@ func retrieveCommits(projects []Project, deployUser string) []Project {
 				host.LatestCommit = strings.Trim(host.LatestCommit, "\n\r")
 				projects[i].Environments[j].Hosts[k] = host
 			}
+			environment.LatestGitHubCommit = *latestGitHubCommit(client, project.RepoOwner, project.RepoName, environment.Branch)
 			projects[i].Environments[j] = environment
 		}
 	}
@@ -179,13 +193,6 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	githubToken := os.Getenv("GITHUB_API_TOKEN")
-	t := &oauth.Transport{
-		Token: &oauth.Token{AccessToken: githubToken},
-	}
-	client := github.NewClient(t.Client())
-	fmt.Println(client)
-
 	r := mux.NewRouter()
 	r.HandleFunc("/", HomeHandler)
 	fmt.Println("Running on localhost:" + port)
