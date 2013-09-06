@@ -28,6 +28,24 @@ var (
 	configFile = "config.yml"
 )
 
+type Host struct {
+	URI          string
+	LatestCommit string
+}
+
+type Environment struct {
+	Name     string
+	RepoPath string
+	Hosts    []Host
+	Branch   string
+}
+
+type Project struct {
+	Name         string
+	GitHubURL    string
+	Environments []Environment
+}
+
 func getPrivateKey(filename string) []byte {
 	content, err := ioutil.ReadFile(filename)
 	if err != nil {
@@ -101,31 +119,6 @@ func latestDeployedCommit(username, hostname string, e Environment) []byte {
 	return output
 }
 
-func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	projects, deployUser := parseYAML()
-	projects = retrieveCommits(projects, deployUser)
-	t, _ := template.ParseFiles("templates/index.html")
-	t.Execute(w, map[string]interface{}{"Projects": projects})
-}
-
-type Host struct {
-	URI          string
-	LatestCommit string
-}
-
-type Environment struct {
-	Name     string
-	RepoPath string
-	Hosts    []Host
-	Branch   string
-}
-
-type Project struct {
-	Name         string
-	GitHubURL    string
-	Environments []Environment
-}
-
 func parseYAMLEnvironment(m yaml.Node) Environment {
 	e := Environment{}
 	for k, v := range m.(yaml.Map) {
@@ -176,6 +169,13 @@ func retrieveCommits(projects []Project, deployUser string) []Project {
 		}
 	}
 	return projects
+}
+
+func HomeHandler(w http.ResponseWriter, r *http.Request) {
+	projects, deployUser := parseYAML()
+	projects = retrieveCommits(projects, deployUser)
+	t, _ := template.ParseFiles("templates/index.html")
+	t.Execute(w, map[string]interface{}{"Projects": projects})
 }
 
 func main() {
