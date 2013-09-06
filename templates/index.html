@@ -14,22 +14,18 @@
         <h1>Deploy</h1>
       </div>
       <div class="span6">
-        {{range .Projects}}
+        {{range $project := .Projects}}
         <div class="project">
           <h3>{{.Name}}</h3>
           <div class="deployments">
+            {{range $environment := .Environments}}
             <div>
-              <h4>QA</h4>
-              <p>Currently deployed <a href="">[commit hash]</a></p>
+              <h4>{{.Name}}</h4>
+              {{range $host := $environment.Hosts}}
+              <li>{{$host.URI}}: <a href="{{$project.GitHubURL}}/commit/{{$host.LatestCommit}}">{{$host.LatestCommit}}</a></li>
+              {{end}}
             </div>
-            <div>
-              <h4>Staging</h4>
-              <p>Currently deployed <a href="">[commit hash]</a></p>
-            </div>
-            <div>
-              <h4>Live</h4>
-              <p>Currently deployed <a href="">[commit hash]</a></p>
-            </div>
+            {{end}}
           </div>
         </div>
         {{end}}
