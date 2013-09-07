@@ -129,12 +129,16 @@ func latestDeployedCommit(username, hostname string, e Environment) []byte {
 	return output
 }
 
+func getYAMLString(n yaml.Node, key string) string {
+	return n.(yaml.Map)[key].(yaml.Scalar).String()
+}
+
 func parseYAMLEnvironment(m yaml.Node) Environment {
 	e := Environment{}
 	for k, v := range m.(yaml.Map) {
 		e.Name = k
-		e.Branch = v.(yaml.Map)["branch"].(yaml.Scalar).String()
-		e.RepoPath = v.(yaml.Map)["repo_path"].(yaml.Scalar).String()
+		e.Branch = getYAMLString(v, "branch")
+		e.RepoPath = getYAMLString(v, "repo_path")
 		for _, v := range v.(yaml.Map)["hosts"].(yaml.List) {
 			h := Host{URI: v.(yaml.Scalar).String()}
 			e.Hosts = append(e.Hosts, h)
@@ -157,10 +161,10 @@ func parseYAML() (allProjects []Project, deployUser string) {
 	allProjects = []Project{}
 	for _, p := range projects {
 		for _, v := range p.(yaml.Map) {
-			proj := Project{Name: v.(yaml.Map)["project_name"].(yaml.Scalar).String(),
-				GitHubURL: v.(yaml.Map)["github_url"].(yaml.Scalar).String(),
-				RepoName:  v.(yaml.Map)["repo_name"].(yaml.Scalar).String(),
-				RepoOwner: v.(yaml.Map)["repo_owner"].(yaml.Scalar).String()}
+			proj := Project{Name: getYAMLString(v, "project_name"),
+				GitHubURL: getYAMLString(v, "github_url"),
+				RepoName:  getYAMLString(v, "repo_name"),
+				RepoOwner: getYAMLString(v, "repo_owner")}
 			for _, v := range v.(yaml.Map)["environments"].(yaml.List) {
 				proj.Environments = append(proj.Environments, parseYAMLEnvironment(v))
 			}
