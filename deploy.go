@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/user"
 	"path"
+	"reflect"
 	"strings"
 	"sync"
 )
@@ -48,6 +49,34 @@ type Project struct {
 	RepoName     string
 	RepoOwner    string
 	Environments []Environment
+}
+
+/*
+Thanks to Russ Cox: https://groups.google.com/d/msg/golang-nuts/OEdSDgEC7js/iyhU9DW_IKcJ
+eq reports whether the first argument is equal to
+any of the remaining arguments. (for use in templates)
+*/
+func eq(args ...interface{}) bool {
+	if len(args) == 0 {
+		return false
+	}
+	x := args[0]
+	switch x := x.(type) {
+	case string, int, int64, byte, float32, float64:
+		for _, y := range args[1:] {
+			if x == y {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, y := range args[1:] {
+		if reflect.DeepEqual(x, y) {
+			return true
+		}
+	}
+	return false
 }
 
 func (h *Host) ShortCommitHash() string {
@@ -208,8 +237,14 @@ func retrieveCommits(projects []Project, deployUser string) []Project {
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	projects, deployUser := parseYAML()
 	projects = retrieveCommits(projects, deployUser)
-	t, _ := template.ParseFiles("templates/index.html")
-	t.Execute(w, map[string]interface{}{"Projects": projects})
+	t, err := template.New("index.html").Funcs(template.FuncMap{"eq": eq}).ParseFiles("templates/index.html")
+	if err != nil {
+		log.Panic(err)
+	}
+	err = t.Execute(w, map[string]interface{}{"Projects": projects})
+	if err != nil {
+		log.Panic(err)
+	}
 }
 
 func main() {
