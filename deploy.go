@@ -110,17 +110,6 @@ func (k *keychain) Sign(i int, rand io.Reader, data []byte) (sig []byte, err err
 	return rsa.SignPKCS1v15(rand, k.key, hashFunc, digest)
 }
 
-//  Get the most recent commit hash on a given branch from GitHub
-func latestGitHubCommit(c *github.Client, repoOwner, repoName, branchName string) string {
-	opts := &github.CommitsListOptions{SHA: branchName}
-	commits, _, err := c.Repositories.ListCommits(repoOwner, repoName, opts)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	return *commits[0].SHA
-}
-
 func remoteCmdOutput(username, hostname, privateKey, cmd string) []byte {
 	block, _ := pem.Decode([]byte(privateKey))
 	rsakey, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
@@ -210,6 +199,18 @@ func getCommit(wg *sync.WaitGroup, projects []Project, env Environment, host Hos
 	projects[i].Environments[j].Hosts[k] = host
 }
 
+//  Get the most recent commit hash on a given branch from GitHub
+func getLatestGitHubCommit(wg *sync.WaitGroup, projects []Project, environment Environment, c *github.Client, repoOwner, repoName string, i, j int) {
+	defer wg.Done()
+	opts := &github.CommitsListOptions{SHA: environment.Branch}
+	commits, _, err := c.Repositories.ListCommits(repoOwner, repoName, opts)
+	if err != nil {
+		log.Panic(err)
+	}
+	environment.LatestGitHubCommit = *commits[0].SHA
+	projects[i].Environments[j] = environment
+}
+
 func retrieveCommits(projects []Project, deployUser string) []Project {
 	// define a wait group to wait for all goroutines to finish
 	var wg sync.WaitGroup
@@ -225,8 +226,8 @@ func retrieveCommits(projects []Project, deployUser string) []Project {
 				wg.Add(1)
 				go getCommit(&wg, projects, environment, host, deployUser, i, j, k)
 			}
-			environment.LatestGitHubCommit = latestGitHubCommit(client, project.RepoOwner, project.RepoName, environment.Branch)
-			projects[i].Environments[j] = environment
+			wg.Add(1)
+			go getLatestGitHubCommit(&wg, projects, environment, client, project.RepoOwner, project.RepoName, i, j)
 		}
 	}
 	// wait for goroutines to finish
