@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"code.google.com/p/go.crypto/ssh"
 	"code.google.com/p/goauth2/oauth"
 	"crypto"
@@ -39,6 +40,7 @@ type Host struct {
 
 type Environment struct {
 	Name               string
+	Deploy             string
 	RepoPath           string
 	Hosts              []Host
 	Branch             string
@@ -159,6 +161,7 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 		e.Name = k
 		e.Branch = getYAMLString(v, "branch")
 		e.RepoPath = getYAMLString(v, "repo_path")
+		e.Deploy = getYAMLString(v, "deploy")
 		for _, v := range v.(yaml.Map)["hosts"].(yaml.List) {
 			h := Host{URI: v.(yaml.Scalar).String()}
 			e.Hosts = append(e.Hosts, h)
@@ -252,14 +255,26 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	project := r.FormValue("project")
-	environment := r.FormValue("environment")
-	command := strings.Split(projects[project][environment]["deploy_command"], " ")
-	fmt.Println(command)
-	cmd := exec.Command(command)
+	var command []string
+	p := r.FormValue("project")
+	env := r.FormValue("environment")
+	for i, project := range projects {
+		if project.Name == p {
+			for j, environment := range project.Environments {
+				if environment.Name == env {
+					command = strings.Split(projects[i].Environments[j].Deploy, " ")
+				}
+			}
+		}
+	}
+	var out bytes.Buffer
+	cmd := exec.Command(command[0], command[1:]...)
+	cmd.Stdout = &out
+	err := cmd.Run()
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println(out.String())
 }
 
 func main() {
