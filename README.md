@@ -1,21 +1,50 @@
-GoShip
-======
+# GoShip
 
-Deployment tool for deploying code to servers and seeing what is deployed.
+A simple tool for deploying code to servers.
 
-Installation
-------------
+### Installation
 
-To clone this project:
+    go get github.com/gengo/goship
 
-    git clone git@github.com:gengo/goship.git
+### Usage
 
-This is a Go project, so a prerequisite is to have a working Go environment and `GOPATH` set up.
-
-Before you can use GoShip, you will need to export your Github token:
+Export your GitHub API token:
 
     export GITHUB_API_TOKEN="your-organization-github-token-here"
 
-and also install the dependencies:
+Create a config.yml file:
 
-    go get ./...
+```yaml
+deploy_user: deployer
+projects:
+    - my_project:
+        project_name: My Project
+        repo_owner: github-user
+        repo_name: my-project
+        environments:
+            - qa: 
+                deploy: "knife solo cook -i %s %s"
+                repo_path: /path/to/myproject/.git
+                hosts:
+                    - qa.myproject.com
+                branch: sprint_branch
+            - staging:
+                deploy: "knife solo cook -i %s %s"
+                repo_path: /path/to/myproject/.git
+                hosts:
+                    - staging.myproject.com
+                branch: code_freeze
+            - production:
+                deploy: "knife solo cook -i %s %s"
+                repo_path: /path/to/myproject/.git
+                hosts:
+                    - prod-01.myproject.com
+                    - prod-02.myproject.com
+                branch: master
+```
+
+Then run the server:
+
+```shell
+$GOPATH/bin/goship
+```
