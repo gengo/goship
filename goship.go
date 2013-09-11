@@ -17,6 +17,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/user"
 	"path"
 	"reflect"
@@ -28,6 +29,7 @@ var (
 	port       = "8080"
 	sshPort    = "22"
 	configFile = "config.yml"
+	projects   []Project
 )
 
 type Host struct {
@@ -236,7 +238,8 @@ func retrieveCommits(projects []Project, deployUser string) []Project {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	projects, deployUser := parseYAML()
+	var deployUser string
+	projects, deployUser = parseYAML()
 	projects = retrieveCommits(projects, deployUser)
 	t, err := template.New("index.html").Funcs(template.FuncMap{"eq": eq}).ParseFiles("templates/index.html")
 	if err != nil {
@@ -248,9 +251,21 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func DeployHandler(w http.ResponseWriter, r *http.Request) {
+	project := r.FormValue("project")
+	environment := r.FormValue("environment")
+	command := strings.Split(projects[project][environment]["deploy_command"], " ")
+	fmt.Println(command)
+	cmd := exec.Command(command)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/", HomeHandler)
+	r.HandleFunc("/deploy", DeployHandler)
 	fmt.Println("Running on localhost:" + port)
 	log.Fatal(http.ListenAndServe(":"+port, r))
 }
