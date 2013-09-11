@@ -23,9 +23,13 @@
               <h4>{{.Name}}</h4>
               {{range $host := $environment.Hosts}}
                 {{if eq $environment.LatestGitHubCommit $host.LatestCommit}}
-                <li>{{$host.URI}}: <a href="{{$project.GitHubURL}}/commit/{{$environment.LatestGitHubCommit}}">{{$host.ShortCommitHash}}</a></li>
+                    <li>{{$host.URI}}: <a href="{{$project.GitHubURL}}/commit/{{$environment.LatestGitHubCommit}}">{{$host.ShortCommitHash}}</a></li>
                 {{else}}
-                <li>{{$host.URI}}: <a href="{{$project.GitHubURL}}/commit/{{$environment.LatestGitHubCommit}}">{{$host.ShortCommitHash}}</a> (<a href="{{$project.GitHubURL}}/compare/{{$host.LatestCommit}}...{{$environment.LatestGitHubCommit}}">diff</a>)</li>
+                    <form method="POST" action="/deploy">
+                        <input type="hidden" name="environment" value="{{$environment.Name}}"/>
+                        <input type="hidden" name="project" value="{{$project.Name}}"/>
+                    <li>{{$host.URI}}: <a href="{{$project.GitHubURL}}/commit/{{$environment.LatestGitHubCommit}}">{{$host.ShortCommitHash}}</a> (<a href="{{$project.GitHubURL}}/compare/{{$host.LatestCommit}}...{{$environment.LatestGitHubCommit}}">diff</a>) <input type="submit" class="btn btn-success" value="Deploy" / ></li>
+                    </form>
                 {{end}}
               {{end}}
             </div>
