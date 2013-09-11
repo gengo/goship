@@ -23,19 +23,19 @@ projects:
         repo_name: my-project
         environments:
             - qa: 
-                deploy: "knife solo cook -i %s %s"
+                deploy: knife solo cook -i %s %s
                 repo_path: /path/to/myproject/.git
                 hosts:
                     - qa.myproject.com
                 branch: sprint_branch
             - staging:
-                deploy: "knife solo cook -i %s %s"
+                deploy: knife solo cook -i %s %s
                 repo_path: /path/to/myproject/.git
                 hosts:
                     - staging.myproject.com
                 branch: code_freeze
             - production:
-                deploy: "knife solo cook -i %s %s"
+                deploy: knife solo cook -i %s %s
                 repo_path: /path/to/myproject/.git
                 hosts:
                     - prod-01.myproject.com
