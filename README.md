@@ -2,6 +2,8 @@
 
 A simple tool for deploying code to servers.
 
+GoShip was inspired by [Rackspace's Dreadnot] (https://github.com/racker/dreadnot) and [Etsy's Deployinator](https://github.com/etsy/deployinator/).
+
 ### Installation
 
     go get github.com/gengo/goship
