@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"code.google.com/p/go.crypto/ssh"
 	"code.google.com/p/goauth2/oauth"
 	"crypto"
@@ -17,6 +18,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/user"
 	"path"
 	"reflect"
@@ -37,6 +39,7 @@ type Host struct {
 
 type Environment struct {
 	Name               string
+	Deploy             string
 	RepoPath           string
 	Hosts              []Host
 	Branch             string
@@ -142,7 +145,7 @@ func latestDeployedCommit(username, hostname string, e Environment) []byte {
 		log.Fatal(err)
 	}
 	privateKey := string(getPrivateKey(path.Join(usr.HomeDir, "/.ssh/id_rsa")))
-	output := remoteCmdOutput(username, hostname, privateKey, fmt.Sprintf("git --git-dir=%s rev-parse %s", e.RepoPath, e.Branch))
+	output := remoteCmdOutput(username, hostname, privateKey, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath))
 
 	return output
 }
@@ -157,6 +160,7 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 		e.Name = k
 		e.Branch = getYAMLString(v, "branch")
 		e.RepoPath = getYAMLString(v, "repo_path")
+		e.Deploy = getYAMLString(v, "deploy")
 		for _, v := range v.(yaml.Map)["hosts"].(yaml.List) {
 			h := Host{URI: v.(yaml.Scalar).String()}
 			e.Hosts = append(e.Hosts, h)
@@ -248,9 +252,34 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func DeployHandler(w http.ResponseWriter, r *http.Request) {
+	var command []string
+	projects, _ := parseYAML()
+	p := r.FormValue("project")
+	env := r.FormValue("environment")
+	for i, project := range projects {
+		if project.Name == p {
+			for j, environment := range project.Environments {
+				if environment.Name == env {
+					command = strings.Split(projects[i].Environments[j].Deploy, " ")
+				}
+			}
+		}
+	}
+	var out bytes.Buffer
+	cmd := exec.Command(command[0], command[1:]...)
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(out.String())
+}
+
 func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/", HomeHandler)
+	r.HandleFunc("/deploy", DeployHandler)
 	fmt.Println("Running on localhost:" + port)
 	log.Fatal(http.ListenAndServe(":"+port, r))
 }
