@@ -30,7 +30,6 @@ var (
 	port       = "8080"
 	sshPort    = "22"
 	configFile = "config.yml"
-	projects   []Project
 )
 
 type Host struct {
@@ -146,7 +145,7 @@ func latestDeployedCommit(username, hostname string, e Environment) []byte {
 		log.Fatal(err)
 	}
 	privateKey := string(getPrivateKey(path.Join(usr.HomeDir, "/.ssh/id_rsa")))
-	output := remoteCmdOutput(username, hostname, privateKey, fmt.Sprintf("git --git-dir=%s rev-parse %s", e.RepoPath, e.Branch))
+	output := remoteCmdOutput(username, hostname, privateKey, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath))
 
 	return output
 }
@@ -241,8 +240,7 @@ func retrieveCommits(projects []Project, deployUser string) []Project {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	var deployUser string
-	projects, deployUser = parseYAML()
+	projects, deployUser := parseYAML()
 	projects = retrieveCommits(projects, deployUser)
 	t, err := template.New("index.html").Funcs(template.FuncMap{"eq": eq}).ParseFiles("templates/index.html")
 	if err != nil {
@@ -256,6 +254,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	var command []string
+	projects, _ := parseYAML()
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	for i, project := range projects {
