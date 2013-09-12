@@ -83,6 +83,9 @@ func eq(args ...interface{}) bool {
 }
 
 func (h *Host) ShortCommitHash() string {
+	if len(h.LatestCommit) == 0 {
+		return ""
+	}
 	return h.LatestCommit[:7]
 }
 
@@ -125,16 +128,16 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) []byte {
 	}
 	client, err := ssh.Dial("tcp", hostname, clientConfig)
 	if err != nil {
-		log.Panic("Failed to dial: " + err.Error())
+		log.Println("ERROR: Failed to dial: " + err.Error())
 	}
 	session, err := client.NewSession()
 	if err != nil {
-		log.Panic("Failed to create session: " + err.Error())
+		log.Println("ERROR: Failed to create session: " + err.Error())
 	}
 	defer session.Close()
 	output, err := session.Output(cmd)
 	if err != nil {
-		log.Panic("Failed to run cmd: " + err.Error())
+		log.Printf("ERROR: Failed to run cmd on host %s: %s", hostname, err.Error())
 	}
 	return output
 }
