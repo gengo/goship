@@ -201,8 +201,8 @@ func parseYAML() (allProjects []Project, deployUser string) {
 
 func getCommit(wg *sync.WaitGroup, projects []Project, env Environment, host Host, deployUser string, i, j, k int) {
 	defer wg.Done()
-	host.LatestCommit = string(latestDeployedCommit(deployUser, host.URI+":"+sshPort, env))
-	host.LatestCommit = strings.Trim(host.LatestCommit, "\n\r")
+	lc := string(latestDeployedCommit(deployUser, host.URI+":"+sshPort, env))
+	host.LatestCommit = strings.Trim(lc, "\n\r")
 	projects[i].Environments[j].Hosts[k] = host
 }
 
