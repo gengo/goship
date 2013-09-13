@@ -21,13 +21,12 @@ import (
 	"os/exec"
 	"os/user"
 	"path"
-	"reflect"
 	"strings"
 	"sync"
 )
 
 var (
-	port       = "8080"
+	port       = "8888"
 	sshPort    = "22"
 	configFile = "config.yml"
 )
@@ -69,34 +68,6 @@ func (h *Host) GitHubDiffURL(p Project, e Environment) *string {
 func (e *Environment) Deployable() bool {
 	for _, h := range e.Hosts {
 		if e.LatestGitHubCommit != h.LatestCommit {
-			return true
-		}
-	}
-	return false
-}
-
-/*
-Thanks to Russ Cox: https://groups.google.com/d/msg/golang-nuts/OEdSDgEC7js/iyhU9DW_IKcJ
-eq reports whether the first argument is equal to
-any of the remaining arguments. (for use in templates)
-*/
-func eq(args ...interface{}) bool {
-	if len(args) == 0 {
-		return false
-	}
-	x := args[0]
-	switch x := x.(type) {
-	case string, int, int64, byte, float32, float64:
-		for _, y := range args[1:] {
-			if x == y {
-				return true
-			}
-		}
-		return false
-	}
-
-	for _, y := range args[1:] {
-		if reflect.DeepEqual(x, y) {
 			return true
 		}
 	}
@@ -264,19 +235,6 @@ func retrieveCommits(projects []Project, deployUser string) []Project {
 	return projects
 }
 
-func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	projects, deployUser := parseYAML()
-	projects = retrieveCommits(projects, deployUser)
-	t, err := template.New("index.html").Funcs(template.FuncMap{"eq": eq}).ParseFiles("templates/index.html")
-	if err != nil {
-		log.Panic(err)
-	}
-	err = t.Execute(w, map[string]interface{}{"Projects": projects})
-	if err != nil {
-		log.Panic(err)
-	}
-}
-
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	var command []string
 	projects, _ := parseYAML()
@@ -299,6 +257,22 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 	fmt.Println(out.String())
+}
+
+func HomeHandler(w http.ResponseWriter, r *http.Request) {
+	projects, deployUser := parseYAML()
+	// Get the most recently-deployed commits from each server, as well as the most recent commit from GitHub
+	projects = retrieveCommits(projects, deployUser)
+    // Create and parse Template
+	t, err := template.New("index.html").ParseFiles("templates/index.html")
+	if err != nil {
+		log.Panic(err)
+	}
+    // Render the template
+	err = t.Execute(w, map[string]interface{}{"Projects": projects})
+	if err != nil {
+		log.Panic(err)
+	}
 }
 
 func main() {
