@@ -48,7 +48,7 @@
                 </td>
                 <td>
                 {{if $environment.Deployable }}
-                  <form method="POST" action="/deploy">
+                  <form method="POST" action="/deploy" style="margin-bottom: 0">
                     <input type="hidden" name="environment" value="{{$environment.Name}}"/>
                     <input type="hidden" name="project" value="{{$project.Name}}"/>
                     <input type="submit" class="btn btn-success" value="Deploy" />
