@@ -186,10 +186,11 @@ func parseYAML() (allProjects []Project, deployUser string) {
 	allProjects = []Project{}
 	for _, p := range projects {
 		for _, v := range p.(yaml.Map) {
-			proj := Project{Name: getYAMLString(v, "project_name"),
-				GitHubURL: getYAMLString(v, "github_url"),
-				RepoName:  getYAMLString(v, "repo_name"),
-				RepoOwner: getYAMLString(v, "repo_owner")}
+			name := getYAMLString(v, "project_name")
+			repoOwner := getYAMLString(v, "repo_owner")
+			repoName := getYAMLString(v, "repo_name")
+			githubUrl := fmt.Sprintf("https://github.com/%s/%s", repoOwner, repoName)
+			proj := Project{Name: name, GitHubURL: githubUrl, RepoName: repoName, RepoOwner: repoOwner}
 			for _, v := range v.(yaml.Map)["environments"].(yaml.List) {
 				proj.Environments = append(proj.Environments, parseYAMLEnvironment(v))
 			}
