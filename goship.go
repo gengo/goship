@@ -54,15 +54,6 @@ type Project struct {
 	Environments []Environment
 }
 
-func (e *Environment) Deployable() bool {
-	for _, h := range e.Hosts {
-		if e.LatestGitHubCommit != h.LatestCommit {
-			return true
-		}
-	}
-	return false
-}
-
 func (h *Host) GitHubCommitURL(p Project) string {
 	return fmt.Sprintf("%s/commit/%s", p.GitHubURL, h.LatestCommit)
 }
@@ -73,6 +64,15 @@ func (h *Host) GitHubDiffURL(p Project, e Environment) *string {
 		return &s
 	}
 	return nil
+}
+
+func (e *Environment) Deployable() bool {
+	for _, h := range e.Hosts {
+		if e.LatestGitHubCommit != h.LatestCommit {
+			return true
+		}
+	}
+	return false
 }
 
 /*
