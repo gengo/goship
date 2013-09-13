@@ -11,29 +11,53 @@
   <div class="container">
     <div class="row">
       <div class="span12 header">
-        <h1>Deploy</h1>
+        <h1>GoShip</h1>
       </div>
       <div class="span6">
         {{range $project := .Projects}}
         <div class="project">
           <h3>{{.Name}}</h3>
           <div class="deployments">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Environment</th>
+                <th>Hosts</th>
+                <th>Deployed Revision</th>
+                <th>Deploy</th>
+              </tr>
+            </thead>
+            <tbody>
             {{range $environment := .Environments}}
-            <div>
-              <h4>{{.Name}}</h4>
-              {{range $host := $environment.Hosts}}
-                {{if eq $environment.LatestGitHubCommit $host.LatestCommit}}
-                    <div>{{$host.URI}}: <a href="{{$project.GitHubURL}}/commit/{{$environment.LatestGitHubCommit}}">{{$host.ShortCommitHash}}</a></div>
-                {{else}}
-                    <form method="POST" action="/deploy">
-                        <input type="hidden" name="environment" value="{{$environment.Name}}"/>
-                        <input type="hidden" name="project" value="{{$project.Name}}"/>
-                    <div>{{$host.URI}}: <a href="{{$project.GitHubURL}}/commit/{{$environment.LatestGitHubCommit}}">{{$host.ShortCommitHash}}</a> (<a href="{{$project.GitHubURL}}/compare/{{$host.LatestCommit}}...{{$environment.LatestGitHubCommit}}">diff</a>) <input type="submit" class="btn btn-success" value="Deploy" /></div>
-                    </form>
+              <tr>
+              <td>{{.Name}}</td>
+              <td>
+                {{range $host := $environment.Hosts}}
+                  <div>{{$host.URI}}</div>
                 {{end}}
+              </td>
+              <td>
+                {{range $host := $environment.Hosts}}
+                  {{if $environment.Deployable}}
+                    <div><a href="{{$host.GitHubCommitURL $project}}">{{$host.ShortCommitHash}}</a> (<a href="{{$host.GitHubDiffURL $project $environment}}">diff</a>)</div>
+                  {{else}}
+                    <div><a href="{{$host.GitHubCommitURL $project}}">{{$host.ShortCommitHash}}</a></div>
+                  {{end}}
+                {{end}}
+              </td>
+              <td>
+              {{if $environment.Deployable }}
+                <form method="POST" action="/deploy" style="margin-bottom: 0">
+                  <input type="hidden" name="environment" value="{{$environment.Name}}"/>
+                  <input type="hidden" name="project" value="{{$project.Name}}"/>
+                  <input type="submit" class="btn btn-success" value="Deploy" />
+                </form>
               {{end}}
-            </div>
+              </td>
+              </tr>
             {{end}}
+            </tbody>
+          </table>
           </div>
         </div>
         {{end}}
