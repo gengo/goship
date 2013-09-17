@@ -95,11 +95,11 @@ type keychain struct {
 	key *rsa.PrivateKey
 }
 
-func (k *keychain) Key(i int) (interface{}, error) {
+func (k *keychain) Key(i int) (ssh.PublicKey, error) {
 	if i != 0 {
 		return nil, nil
 	}
-	return &k.key.PublicKey, nil
+	return ssh.NewRSAPublicKey(&k.key.PublicKey), nil
 }
 
 func (k *keychain) Sign(i int, rand io.Reader, data []byte) (sig []byte, err error) {
