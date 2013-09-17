@@ -29,6 +29,8 @@ var (
 	port       = "8888"
 	sshPort    = "22"
 	configFile = "config.yml"
+	// The path to your private SSH key. Home directory will be prepended
+	keyPath = ".ssh/id_rsa"
 )
 
 type Host struct {
@@ -139,7 +141,7 @@ func latestDeployedCommit(username, hostname string, e Environment) []byte {
 	if err != nil {
 		log.Fatal(err)
 	}
-	privateKey := string(getPrivateKey(path.Join(usr.HomeDir, "/.ssh/id_rsa")))
+	privateKey := string(getPrivateKey(path.Join(usr.HomeDir, keyPath)))
 	output := remoteCmdOutput(username, hostname, privateKey, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath))
 
 	return output
@@ -263,12 +265,12 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	projects, deployUser := parseYAML()
 	// Get the most recently-deployed commits from each server, as well as the most recent commit from GitHub
 	projects = retrieveCommits(projects, deployUser)
-    // Create and parse Template
+	// Create and parse Template
 	t, err := template.New("index.html").ParseFiles("templates/index.html")
 	if err != nil {
 		log.Panic(err)
 	}
-    // Render the template
+	// Render the template
 	err = t.Execute(w, map[string]interface{}{"Projects": projects})
 	if err != nil {
 		log.Panic(err)
