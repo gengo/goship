@@ -258,7 +258,15 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(out.String())
+	t, err := template.New("deploy.html").ParseFiles("templates/deploy.html")
+	if err != nil {
+		log.Panic(err)
+	}
+	// Render the template
+	err = t.Execute(w, out.String())
+	if err != nil {
+		log.Panic(err)
+	}
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
