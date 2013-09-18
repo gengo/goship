@@ -270,6 +270,19 @@ func getDeployCommand(projects []Project, projectName, environmentName string) [
 	return command
 }
 
+func createDb() {
+	db, err := sql.Open("sqlite3", "./deploy_log.db")
+	if err != nil {
+		log.Fatal("Error opening or creating deploy_log.db: " + err.Error())
+	}
+	defer db.Close()
+	sql := `create table if not exists logs (id integer not null primary key autoincrement, environment text, diff_url text, user text, timestamp datetime default current_timestamp, success boolean);`
+	_, err = db.Exec(sql)
+	if err != nil {
+		log.Fatal("Error creating logs table: " + err.Error())
+	}
+}
+
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := sql.Open("sqlite3", "./deploy_log.db")
 	if err != nil {
@@ -316,19 +329,6 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	err = t.Execute(w, map[string]interface{}{"Projects": projects})
 	if err != nil {
 		log.Panic(err)
-	}
-}
-
-func createDb() {
-	db, err := sql.Open("sqlite3", "./deploy_log.db")
-	if err != nil {
-		log.Fatal("Error opening or creating deploy_log.db: " + err.Error())
-	}
-	defer db.Close()
-	sql := `create table if not exists logs (id integer not null primary key autoincrement, environment text, diff_url text, user text, timestamp datetime default current_timestamp, success boolean);`
-	_, err = db.Exec(sql)
-	if err != nil {
-		log.Fatal("Error creating logs table: " + err.Error())
 	}
 }
 
