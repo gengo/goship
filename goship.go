@@ -7,12 +7,14 @@ import (
 	"crypto"
 	"crypto/rsa"
 	"crypto/x509"
+	"database/sql"
 	"encoding/pem"
 	"flag"
 	"fmt"
 	"github.com/google/go-github/github"
 	"github.com/gorilla/mux"
 	"github.com/kylelemons/go-gypsy/yaml"
+	_ "github.com/mattn/go-sqlite3"
 	"html/template"
 	"io"
 	"io/ioutil"
@@ -237,27 +239,59 @@ func retrieveCommits(projects []Project, deployUser string) []Project {
 	return projects
 }
 
-func DeployHandler(w http.ResponseWriter, r *http.Request) {
+func insertDeployLogEntry(db sql.DB, environment, diffUrl, user string, success int) {
+	tx, err := db.Begin()
+	if err != nil {
+		log.Fatal(err)
+	}
+	stmt, err := tx.Prepare("insert into logs(environment, diff_url, user, success) values(?, ?, ?, ?)")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer stmt.Close()
+	_, err = stmt.Exec(environment, diffUrl, user, success)
+	if err != nil {
+		log.Fatal(err)
+	}
+	tx.Commit()
+}
+
+func getDeployCommand(projects []Project, projectName, environmentName string) []string {
 	var command []string
-	projects, _ := parseYAML()
-	p := r.FormValue("project")
-	env := r.FormValue("environment")
 	for i, project := range projects {
-		if project.Name == p {
+		if project.Name == projectName {
 			for j, environment := range project.Environments {
-				if environment.Name == env {
+				if environment.Name == environmentName {
 					command = strings.Split(projects[i].Environments[j].Deploy, " ")
 				}
 			}
 		}
 	}
+	return command
+}
+
+func DeployHandler(w http.ResponseWriter, r *http.Request) {
+	db, err := sql.Open("sqlite3", "./deploy_log.db")
+	if err != nil {
+		log.Fatal("Error opening sqlite db to write to deploy log: " + err.Error())
+	}
+	defer db.Close()
+	projects, _ := parseYAML()
+	p := r.FormValue("project")
+	env := r.FormValue("environment")
+	diffUrl := r.FormValue("diffUrl")
+	user := r.FormValue("user")
+	success := 1
+	command := getDeployCommand(projects, p, env)
 	var out bytes.Buffer
 	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Stdout = &out
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
-		log.Fatal(err)
+		success = 0
+		log.Println("Deployment failed: " + err.Error())
 	}
+	insertDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
 	t, err := template.New("deploy.html").ParseFiles("templates/deploy.html")
 	if err != nil {
 		log.Panic(err)
@@ -285,7 +319,21 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func createDb() {
+	db, err := sql.Open("sqlite3", "./deploy_log.db")
+	if err != nil {
+		log.Fatal("Error opening or creating deploy_log.db: " + err.Error())
+	}
+	defer db.Close()
+	sql := `create table if not exists logs (id integer not null primary key autoincrement, environment text, diff_url text, user text, timestamp datetime default current_timestamp, success boolean);`
+	_, err = db.Exec(sql)
+	if err != nil {
+		log.Fatal("Error creating logs table: " + err.Error())
+	}
+}
+
 func main() {
+	createDb()
 	flag.Parse()
 	r := mux.NewRouter()
 	r.HandleFunc("/", HomeHandler)
