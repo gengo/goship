@@ -8,6 +8,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"flag"
 	"fmt"
 	"github.com/google/go-github/github"
 	"github.com/gorilla/mux"
@@ -26,11 +27,10 @@ import (
 )
 
 var (
-	port       = "8888"
+	port       = flag.String("p", "8000", "Port number (default 8000)")
 	sshPort    = "22"
 	configFile = "config.yml"
-	// The path to your private SSH key. Home directory will be prepended
-	keyPath = ".ssh/id_rsa"
+	keyPath    = ".ssh/id_rsa" // The path to your private SSH key. Home directory will be prepended
 )
 
 type Host struct {
@@ -286,9 +286,10 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	flag.Parse()
 	r := mux.NewRouter()
 	r.HandleFunc("/", HomeHandler)
 	r.HandleFunc("/deploy", DeployHandler)
-	fmt.Println("Running on localhost:" + port)
-	log.Fatal(http.ListenAndServe(":"+port, r))
+	fmt.Println("Running on localhost:" + *port)
+	log.Fatal(http.ListenAndServe(":"+*port, r))
 }
