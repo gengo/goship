@@ -292,8 +292,8 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	projects, _ := parseYAML()
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
-	diffUrl := r.FormValue("diffUrl")
 	user := r.FormValue("user")
+	diffUrl := r.FormValue("diffUrl")
 	success := 1
 	command := getDeployCommand(projects, p, env)
 	var out bytes.Buffer
