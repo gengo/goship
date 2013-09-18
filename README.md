@@ -7,6 +7,7 @@ GoShip was inspired by [Rackspace's Dreadnot](https://github.com/racker/dreadnot
 ### Installation
 
     go get github.com/gengo/goship
+    go install github.com/gengo/goship
 
 ### Usage
 
