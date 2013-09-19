@@ -64,7 +64,7 @@
                   <input type="hidden" name="project" value="{{$project.Name}}"/>
                   <input type="hidden" name="user" value="PlaceholderUser"/>
                     {{range $i, $host := $environment.Hosts}}
-                    {{if not $e}}
+                    {{if not $i}}
                     {{end}}
                     <input type="hidden" name="diffUrl" value="{{$host.GitHubDiffURL $project $environment}}"/>
                     {{end}}
