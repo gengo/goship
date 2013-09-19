@@ -62,6 +62,12 @@
                 <form method="POST" action="/deploy" style="margin-bottom: 0">
                   <input type="hidden" name="environment" value="{{$environment.Name}}"/>
                   <input type="hidden" name="project" value="{{$project.Name}}"/>
+                  <input type="hidden" name="user" value="PlaceholderUser"/>
+                    {{range $i, $host := $environment.Hosts}}
+                    {{if not $i}}
+                      <input type="hidden" name="diffUrl" value="{{$host.GitHubDiffURL $project $environment}}"/>
+                    {{end}}
+                    {{end}}
                   <input type="submit" class="btn btn-success" value="Deploy" />
                 </form>
               {{end}}
