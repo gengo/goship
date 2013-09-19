@@ -256,17 +256,29 @@ func insertDeployLogEntry(db sql.DB, environment, diffUrl, user string, success 
 	tx.Commit()
 }
 
-func getDeployCommand(projects []Project, projectName, environmentName string) []string {
-	var command []string
-	for i, project := range projects {
+func getProjectFromName(projects []Project, projectName string) *Project {
+	for _, project := range projects {
 		if project.Name == projectName {
-			for j, environment := range project.Environments {
-				if environment.Name == environmentName {
-					command = strings.Split(projects[i].Environments[j].Deploy, " ")
-				}
-			}
+			return &project
 		}
 	}
+	return nil
+}
+
+func getEnvironmentFromName(projects []Project, projectName, environmentName string) *Environment {
+	p := getProjectFromName(projects, projectName)
+	for _, environment := range p.Environments {
+		if environment.Name == environmentName {
+			return &environment
+		}
+	}
+	return nil
+}
+
+func getDeployCommand(projects []Project, projectName, environmentName string) []string {
+	var command []string
+	e := getEnvironmentFromName(projects, projectName, environmentName)
+	command = strings.Split(e.Deploy, " ")
 	return command
 }
 
@@ -292,8 +304,8 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	projects, _ := parseYAML()
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
-	diffUrl := r.FormValue("diffUrl")
 	user := r.FormValue("user")
+	diffUrl := r.FormValue("diffUrl")
 	success := 1
 	command := getDeployCommand(projects, p, env)
 	var out bytes.Buffer
