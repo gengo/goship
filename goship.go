@@ -327,17 +327,16 @@ func ProjCommitsHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	projName := vars["project"]
 	proj := getProjectFromName(projects, projName)
+
 	p := retrieveCommits(*proj, deployUser)
-	t, err := template.New("project.html").ParseFiles("templates/project.html")
-	if err != nil {
-		log.Panic(err)
-	}
+
 	// Render the template
 	j, err := json.Marshal(p)
 	if err != nil {
 		log.Panic(err)
 	}
-	err = t.Execute(w, string(j))
+	w.Header().Set("Content-Type", "application/json")
+	_, err = w.Write(j)
 	if err != nil {
 		log.Panic(err)
 	}
