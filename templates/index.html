@@ -41,31 +41,25 @@
             </thead>
             <tbody>
             {{range $environment := .Environments}}
-              <tr>
-              <td>{{.Name}}</td>
-              <td>
-                {{range $host := $environment.Hosts}}
-                  <div>{{$host.URI}}</div>
-                {{end}}
-              </td>
-              <td>
-                {{range $host := $environment.Hosts}}
-                <div><a href=""></a> <span class="hidden"> (<a href="">diff</a>)</span></div>
-                {{end}}
-              </td>
-              <td>
-                <form class="hidden" method="POST" action="/deploy" style="margin-bottom: 0">
-                  <input type="hidden" name="environment" value="{{$environment.Name}}"/>
-                  <input type="hidden" name="project" value="{{$project.Name}}"/>
-                  <input type="hidden" name="user" value="PlaceholderUser"/>
-                    {{range $i, $host := $environment.Hosts}}
-                      {{if not $i}}
-                        <input type="hidden" name="diffUrl" value="{{$host.GitHubDiffURL}}"/>
-                      {{end}}
-                    {{end}}
-                  <input type="submit" class="btn btn-success" value="Deploy" />
-                </form>
-              </td>
+              <tr class="environment" data-id="{{$environment.Name}}">
+                <td>{{.Name}}</td>
+                <td>
+                  {{range $host := $environment.Hosts}}
+                    <div>{{$host.URI}}</div>
+                  {{end}}
+                </td>
+                <td class="hosts">
+                  Loading...
+                </td>
+                <td>
+                  <form class="form-deploy hidden" method="POST" action="/deploy" style="margin-bottom: 0">
+                    <input type="hidden" name="environment" value="{{$environment.Name}}"/>
+                    <input type="hidden" name="project" value="{{$project.Name}}"/>
+                    <input type="hidden" name="user" value="PlaceholderUser"/>
+                    <input type="hidden" name="diffUrl" value=""/>
+                    <input type="submit" class="btn btn-success" value="Deploy" />
+                  </form>
+                </td>
               </tr>
             {{end}}
             </tbody>
@@ -78,5 +72,58 @@
       </div>
     </div>
   </div>
+
+  <div class="hidden" id="host-skeleton"><a class="GitHubCommitURL" href=""></a> <span class="hidden"> (<a class="GitHubDiffURL" href="">diff</a>)</span></div>
+
+  <script type="text/javascript">
+
+  $(function(){
+    var $hostSkeleton = $("#host-skeleton");
+
+    // make ajax queries for each project
+    $('.project').each(function(){
+      var $project = $(this),
+          projectId = $project.attr('data-id');
+      $.ajax({
+        type: 'GET',
+        url: '/commits/' + projectId, 
+        dataType: 'json',
+        success: function(response) {
+          var environments = response.Environments,
+            project = response.Name,
+            $project = $("[data-id='" + project +"']");
+
+          for (var e = 0; e < environments.length; e++) {
+            var env = environments[e];
+            var $env = $project.find('.environment[data-id="'+ env.Name +'"]');
+            var $hosts = $env.find('.hosts');
+            $hosts.text('');
+
+            for (var h = 0; h < env.Hosts.length; h++) {
+              var host = env.Hosts[h];
+              var $host = $hostSkeleton.clone().removeClass('hidden');
+              $host.find('.GitHubCommitURL').attr({
+                'href': host.GitHubCommitURL
+              }).text(host.ShortCommitHash);
+              $hosts.append($host);
+              if (host.GitHubDiffURL) {
+                $host.find('.GitHubDiffURL').attr('href', host.GitHubDiffURL).closest('span.hidden').removeClass('hidden');
+              }
+            }
+            if (env.IsDeployable) {
+              for (var h = 0; h < env.Hosts.length; h++) {
+                var host = env.Hosts[h];
+                if (host.GitHubDiffURL) {
+                  $env.find(".form-deploy").removeClass('hidden').find('[name="diffUrl"]').val(host.GitHubDiffURL);
+                  break;
+                }
+              }
+            }
+          }
+        }
+      });
+    });
+  });
+  </script>
 </body>
 </html>
