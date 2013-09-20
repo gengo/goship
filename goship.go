@@ -8,6 +8,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"database/sql"
+	"encoding/json"
 	"encoding/pem"
 	"flag"
 	"fmt"
@@ -36,8 +37,11 @@ var (
 )
 
 type Host struct {
-	URI          string
-	LatestCommit string
+	URI             string
+	LatestCommit    string
+	GitHubCommitURL string
+	GitHubDiffURL   *string
+	ShortCommitHash string
 }
 
 type Environment struct {
@@ -47,6 +51,7 @@ type Environment struct {
 	Hosts              []Host
 	Branch             string
 	LatestGitHubCommit string
+	IsDeployable       bool
 }
 
 type Project struct {
@@ -57,11 +62,11 @@ type Project struct {
 	Environments []Environment
 }
 
-func (h *Host) GitHubCommitURL(p Project) string {
+func (h *Host) GetGitHubCommitURL(p Project) string {
 	return fmt.Sprintf("%s/commit/%s", p.GitHubURL, h.LatestCommit)
 }
 
-func (h *Host) GitHubDiffURL(p Project, e Environment) *string {
+func (h *Host) GetGitHubDiffURL(p Project, e Environment) *string {
 	if h.LatestCommit != e.LatestGitHubCommit {
 		s := fmt.Sprintf("%s/compare/%s...%s", p.GitHubURL, h.LatestCommit, e.LatestGitHubCommit)
 		return &s
@@ -78,7 +83,7 @@ func (e *Environment) Deployable() bool {
 	return false
 }
 
-func (h *Host) ShortCommitHash() string {
+func (h *Host) GetShortCommitHash() string {
 	if len(h.LatestCommit) == 0 {
 		return ""
 	}
@@ -237,6 +242,17 @@ func retrieveCommits(project Project, deployUser string) Project {
 	}
 	// wait for goroutines to finish
 	wg.Wait()
+	for i, e := range project.Environments {
+		if e.Deployable() {
+			e.IsDeployable = true
+		}
+		for j, host := range e.Hosts {
+			host.GitHubCommitURL = host.GetGitHubCommitURL(project)
+			host.GitHubDiffURL = host.GetGitHubDiffURL(project, e)
+			host.ShortCommitHash = host.GetShortCommitHash()
+			project.Environments[i].Hosts[j] = host
+		}
+	}
 	return project
 }
 
@@ -313,7 +329,11 @@ func ProjCommitsHandler(w http.ResponseWriter, r *http.Request) {
 		log.Panic(err)
 	}
 	// Render the template
-	err = t.Execute(w, p)
+	j, err := json.Marshal(p)
+	if err != nil {
+		log.Panic(err)
+	}
+	err = t.Execute(w, string(j))
 	if err != nil {
 		log.Panic(err)
 	}
