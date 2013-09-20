@@ -125,18 +125,18 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) []byte {
 	client, err := ssh.Dial("tcp", hostname, clientConfig)
 	if err != nil {
 		log.Println("ERROR: Failed to dial: " + err.Error())
-        return []byte{}
+		return []byte{}
 	}
 	session, err := client.NewSession()
 	if err != nil {
 		log.Println("ERROR: Failed to create session: " + err.Error())
-        return []byte{}
+		return []byte{}
 	}
 	defer session.Close()
 	output, err := session.Output(cmd)
 	if err != nil {
 		log.Printf("ERROR: Failed to run cmd on host %s: %s", hostname, err.Error())
-        return []byte{}
+		return []byte{}
 	}
 	return output
 }
