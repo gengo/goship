@@ -8,6 +8,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"database/sql"
+	"encoding/json"
 	"encoding/pem"
 	"flag"
 	"fmt"
@@ -36,8 +37,11 @@ var (
 )
 
 type Host struct {
-	URI          string
-	LatestCommit string
+	URI             string
+	LatestCommit    string
+	GitHubCommitURL string
+	GitHubDiffURL   *string
+	ShortCommitHash string
 }
 
 type Environment struct {
@@ -47,6 +51,7 @@ type Environment struct {
 	Hosts              []Host
 	Branch             string
 	LatestGitHubCommit string
+	IsDeployable       bool
 }
 
 type Project struct {
@@ -57,11 +62,11 @@ type Project struct {
 	Environments []Environment
 }
 
-func (h *Host) GitHubCommitURL(p Project) string {
+func (h *Host) GetGitHubCommitURL(p Project) string {
 	return fmt.Sprintf("%s/commit/%s", p.GitHubURL, h.LatestCommit)
 }
 
-func (h *Host) GitHubDiffURL(p Project, e Environment) *string {
+func (h *Host) GetGitHubDiffURL(p Project, e Environment) *string {
 	if h.LatestCommit != e.LatestGitHubCommit {
 		s := fmt.Sprintf("%s/compare/%s...%s", p.GitHubURL, h.LatestCommit, e.LatestGitHubCommit)
 		return &s
@@ -78,7 +83,7 @@ func (e *Environment) Deployable() bool {
 	return false
 }
 
-func (h *Host) ShortCommitHash() string {
+func (h *Host) GetShortCommitHash() string {
 	if len(h.LatestCommit) == 0 {
 		return ""
 	}
@@ -125,15 +130,18 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) []byte {
 	client, err := ssh.Dial("tcp", hostname, clientConfig)
 	if err != nil {
 		log.Println("ERROR: Failed to dial: " + err.Error())
+		return []byte{}
 	}
 	session, err := client.NewSession()
 	if err != nil {
 		log.Println("ERROR: Failed to create session: " + err.Error())
+		return []byte{}
 	}
 	defer session.Close()
 	output, err := session.Output(cmd)
 	if err != nil {
 		log.Printf("ERROR: Failed to run cmd on host %s: %s", hostname, err.Error())
+		return []byte{}
 	}
 	return output
 }
@@ -196,15 +204,15 @@ func parseYAML() (allProjects []Project, deployUser string) {
 	return allProjects, deployUser
 }
 
-func getCommit(wg *sync.WaitGroup, projects []Project, env Environment, host Host, deployUser string, i, j, k int) {
+func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, deployUser string, i, j int) {
 	defer wg.Done()
 	lc := string(latestDeployedCommit(deployUser, host.URI+":"+sshPort, env))
 	host.LatestCommit = strings.Trim(lc, "\n\r")
-	projects[i].Environments[j].Hosts[k] = host
+	project.Environments[i].Hosts[j] = host
 }
 
 //  Get the most recent commit hash on a given branch from GitHub
-func getLatestGitHubCommit(wg *sync.WaitGroup, projects []Project, environment Environment, c *github.Client, repoOwner, repoName string, i, j int) {
+func getLatestGitHubCommit(wg *sync.WaitGroup, project Project, environment Environment, c *github.Client, repoOwner, repoName string, i int) {
 	defer wg.Done()
 	opts := &github.CommitsListOptions{SHA: environment.Branch}
 	commits, _, err := c.Repositories.ListCommits(repoOwner, repoName, opts)
@@ -212,10 +220,10 @@ func getLatestGitHubCommit(wg *sync.WaitGroup, projects []Project, environment E
 		log.Panic(err)
 	}
 	environment.LatestGitHubCommit = *commits[0].SHA
-	projects[i].Environments[j] = environment
+	project.Environments[i] = environment
 }
 
-func retrieveCommits(projects []Project, deployUser string) []Project {
+func retrieveCommits(project Project, deployUser string) Project {
 	// define a wait group to wait for all goroutines to finish
 	var wg sync.WaitGroup
 	githubToken := os.Getenv("GITHUB_API_TOKEN")
@@ -223,20 +231,29 @@ func retrieveCommits(projects []Project, deployUser string) []Project {
 		Token: &oauth.Token{AccessToken: githubToken},
 	}
 	client := github.NewClient(t.Client())
-	for i, project := range projects {
-		for j, environment := range project.Environments {
-			for k, host := range environment.Hosts {
-				// start a goroutine for SSH-ing on to the machine
-				wg.Add(1)
-				go getCommit(&wg, projects, environment, host, deployUser, i, j, k)
-			}
+	for i, environment := range project.Environments {
+		for j, host := range environment.Hosts {
+			// start a goroutine for SSHing on to the machine
 			wg.Add(1)
-			go getLatestGitHubCommit(&wg, projects, environment, client, project.RepoOwner, project.RepoName, i, j)
+			go getCommit(&wg, project, environment, host, deployUser, i, j)
 		}
+		wg.Add(1)
+		go getLatestGitHubCommit(&wg, project, environment, client, project.RepoOwner, project.RepoName, i)
 	}
 	// wait for goroutines to finish
 	wg.Wait()
-	return projects
+	for i, e := range project.Environments {
+		if e.Deployable() {
+			e.IsDeployable = true
+		}
+		for j, host := range e.Hosts {
+			host.GitHubCommitURL = host.GetGitHubCommitURL(project)
+			host.GitHubDiffURL = host.GetGitHubDiffURL(project, e)
+			host.ShortCommitHash = host.GetShortCommitHash()
+			project.Environments[i].Hosts[j] = host
+		}
+	}
+	return project
 }
 
 func insertDeployLogEntry(db sql.DB, environment, diffUrl, user string, success int) {
@@ -295,6 +312,33 @@ func createDb() {
 	}
 }
 
+func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	environment := vars["environment"]
+	fmt.Println(environment)
+}
+
+func ProjCommitsHandler(w http.ResponseWriter, r *http.Request) {
+	projects, deployUser := parseYAML()
+	vars := mux.Vars(r)
+	projName := vars["project"]
+	proj := getProjectFromName(projects, projName)
+	p := retrieveCommits(*proj, deployUser)
+	t, err := template.New("project.html").ParseFiles("templates/project.html")
+	if err != nil {
+		log.Panic(err)
+	}
+	// Render the template
+	j, err := json.Marshal(p)
+	if err != nil {
+		log.Panic(err)
+	}
+	err = t.Execute(w, string(j))
+	if err != nil {
+		log.Panic(err)
+	}
+}
+
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := sql.Open("sqlite3", "./deploy_log.db")
 	if err != nil {
@@ -329,9 +373,8 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	projects, deployUser := parseYAML()
-	// Get the most recently-deployed commits from each server, as well as the most recent commit from GitHub
-	projects = retrieveCommits(projects, deployUser)
+	//projects, deployUser := parseYAML()
+	projects, _ := parseYAML()
 	// Create and parse Template
 	t, err := template.New("index.html").ParseFiles("templates/index.html")
 	if err != nil {
@@ -350,6 +393,8 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/", HomeHandler)
 	r.HandleFunc("/deploy", DeployHandler)
+	r.HandleFunc("/deployLog/{environment}", DeployLogHandler)
+	r.HandleFunc("/commits/{project}", ProjCommitsHandler)
 	fmt.Println("Running on localhost:" + *port)
 	log.Fatal(http.ListenAndServe(":"+*port, r))
 }
