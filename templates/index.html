@@ -1,6 +1,7 @@
 <html>
 <head>
   <link href="//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css" rel="stylesheet">
+  <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
   <script src="//netdna.bootstrapcdn.com/bootstrap/3.0.0/js/bootstrap.min.js"></script>
   <style type="text/css">
   .header {
@@ -27,7 +28,7 @@
       </div>
       <div class="span6">
         {{range $project := .Projects}}
-        <div class="project" id="{{$project.Name}}">
+        <div class="project" data-id="{{$project.Name}}">
           <h3>{{.Name}}</h3>
           <div class="deployments">
           <table class="table table-striped">
@@ -41,31 +42,25 @@
             </thead>
             <tbody>
             {{range $environment := .Environments}}
-              <tr>
-              <td>{{.Name}}</td>
-              <td>
-                {{range $host := $environment.Hosts}}
-                  <div>{{$host.URI}}</div>
-                {{end}}
-              </td>
-              <td>
-                {{range $host := $environment.Hosts}}
-                <div><a href=""></a> <span class="hidden"> (<a href="">diff</a>)</span></div>
-                {{end}}
-              </td>
-              <td>
-                <form class="hidden" method="POST" action="/deploy" style="margin-bottom: 0">
-                  <input type="hidden" name="environment" value="{{$environment.Name}}"/>
-                  <input type="hidden" name="project" value="{{$project.Name}}"/>
-                  <input type="hidden" name="user" value="PlaceholderUser"/>
-                    {{range $i, $host := $environment.Hosts}}
-                      {{if not $i}}
-                        <input type="hidden" name="diffUrl" value="{{$host.GitHubDiffURL}}"/>
-                      {{end}}
-                    {{end}}
-                  <input type="submit" class="btn btn-success" value="Deploy" />
-                </form>
-              </td>
+              <tr class="environment" data-id="{{$environment.Name}}">
+                <td>{{.Name}}</td>
+                <td>
+                  {{range $host := $environment.Hosts}}
+                    <div>{{$host.URI}}</div>
+                  {{end}}
+                </td>
+                <td class="hosts">
+                  
+                </td>
+                <td>
+                  <form class="form-deploy hidden" method="POST" action="/deploy" style="margin-bottom: 0">
+                    <input type="hidden" name="environment" value="{{$environment.Name}}"/>
+                    <input type="hidden" name="project" value="{{$project.Name}}"/>
+                    <input type="hidden" name="user" value="PlaceholderUser"/>
+                    <input type="hidden" name="diffUrl" value=""/>
+                    <input type="submit" class="btn btn-success" value="Deploy" />
+                  </form>
+                </td>
               </tr>
             {{end}}
             </tbody>
@@ -78,5 +73,85 @@
       </div>
     </div>
   </div>
+
+  <div class="hidden" id="host-skeleton"><a class="GitHubCommitURL" href=""></a> <span class="hidden"> (<a class="GitHubDiffURL" href="">diff</a>)</span></div>
+
+  <script type="text/javascript">
+
+// Object {Name: "Express", GitHubURL: "https://github.com/myGengo/translate-core", RepoName: "translate-core", RepoOwner: "myGengo", Environments: Array[1]}
+// Environments: Array[1]
+// 0: Object
+// Branch: "sprint_branch"
+// Deploy: "echo 'hi'"
+// Hosts: Array[1]
+// 0: Object
+// GitHubCommitURL: "https://github.com/myGengo/translate-core/commit/2af2d52814ece9c2c37a796785cb50c6abff61cf"
+// GitHubDiffURL: "https://github.com/myGengo/translate-core/compare/2af2d52814ece9c2c37a796785cb50c6abff61cf...9da1d59793f15b0a233669ef13ce854896b0e866"
+// LatestCommit: "2af2d52814ece9c2c37a796785cb50c6abff61cf"
+// ShortCommitHash: "2af2d52"
+// URI: "www-qa-02.gengo.com"
+// __proto__: Object
+// length: 1
+// __proto__: Array[0]
+// IsDeployable: false
+// LatestGitHubCommit: "9da1d59793f15b0a233669ef13ce854896b0e866"
+// Name: "qa"
+// RepoPath: "/srv/http/qa.mygengo.com/express/repo/.git"
+// __proto__: Object
+// length: 1
+// __proto__: Array[0]
+// GitHubURL: "https://github.com/myGengo/translate-core"
+// Name: "Express"
+// RepoName: "translate-core"
+// RepoOwner: "myGengo"
+// __proto__: Object
+
+  $(function(){
+    var $hostSkeleton = $("#host-skeleton");
+
+    // make ajax queries for each project
+    $('.project').each(function(){
+      var $project = $(this),
+          projectId = $project.attr('data-id');
+      $.ajax({
+        type: 'GET',
+        url: '/commits/' + projectId, 
+        dataType: 'json',
+        success: function(response) {
+          var environments = response.Environments,
+            project = response.Name,
+            $project = $("[data-id='" + project +"']");
+
+          for (var e = 0; e < environments.length; e++) {
+            var env = environments[e];
+            var $env = $project.find('.environment[data-id="'+ env.Name +'"]');
+            var $hosts = $env.find('.hosts');
+
+            for (var h = 0; h < env.Hosts.length; h++) {
+              var host = env.Hosts[h];
+              var $host = $hostSkeleton.clone().removeClass('hidden');
+              $host.find('.GitHubCommitURL').attr({
+                'href': host.GitHubCommitURL
+              }).text(host.ShortCommitHash);
+              $hosts.append($host);
+              if (host.GitHubDiffURL) {
+                $host.find('.GitHubDiffURL').attr('href', host.GitHubDiffURL).closest('span.hidden').removeClass('hidden');
+              }
+            }
+            if (env.IsDeployable) {
+              for (var h = 0; h < env.Hosts.length; h++) {
+                var host = env.Hosts[h];
+                if (host.GitHubDiffURL) {
+                  $env.find(".form-deploy").removeClass('hidden').find('[name="diffUrl"]').val(host.GitHubDiffURL);
+                  break;
+                }
+              }
+            }
+          }
+        }
+      });
+    });
+  });
+  </script>
 </body>
 </html>
