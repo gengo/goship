@@ -106,7 +106,11 @@ func (k *keychain) Key(i int) (ssh.PublicKey, error) {
 	if i != 0 {
 		return nil, nil
 	}
-	return ssh.NewRSAPublicKey(&k.key.PublicKey), nil
+	pubkey, err := ssh.NewPublicKey(&k.key.PublicKey)
+	if err != nil {
+		log.Panic(err)
+	}
+	return pubkey, nil
 }
 
 func (k *keychain) Sign(i int, rand io.Reader, data []byte) (sig []byte, err error) {
