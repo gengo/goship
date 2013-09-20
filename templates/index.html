@@ -60,7 +60,7 @@
                   <input type="hidden" name="user" value="PlaceholderUser"/>
                     {{range $i, $host := $environment.Hosts}}
                       {{if not $i}}
-                        <input type="hidden" name="diffUrl" value="{{$host.GitHubDiffURL $project $environment}}"/>
+                        <input type="hidden" name="diffUrl" value="{{$host.GitHubDiffURL}}"/>
                       {{end}}
                     {{end}}
                   <input type="submit" class="btn btn-success" value="Deploy" />
