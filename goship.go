@@ -162,7 +162,7 @@ func latestDeployedCommit(username, hostname string, e Environment) []byte {
 }
 
 func getYAMLString(n yaml.Node, key string) string {
-	return n.(yaml.Map)[key].(yaml.Scalar).String()
+	return strings.TrimSpace(n.(yaml.Map)[key].(yaml.Scalar).String())
 }
 
 func parseYAMLEnvironment(m yaml.Node) Environment {
@@ -211,7 +211,7 @@ func parseYAML() (allProjects []Project, deployUser string) {
 func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, deployUser string, i, j int) {
 	defer wg.Done()
 	lc := string(latestDeployedCommit(deployUser, host.URI+":"+sshPort, env))
-	host.LatestCommit = strings.Trim(lc, "\n\r")
+	host.LatestCommit = strings.TrimSpace(lc)
 	project.Environments[i].Hosts[j] = host
 }
 
