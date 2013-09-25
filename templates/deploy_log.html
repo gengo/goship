@@ -4,9 +4,10 @@
   <script src="//netdna.bootstrapcdn.com/bootstrap/3.0.0/js/bootstrap.min.js"></script>
 </head>
 <body>
+  <h1>Deployment Log </h1>
   <div class="container">
    {{range $deployment := .Deployments}}
-    <div> {{.}} </div>
+     <div> {{.User}} deployed at {{.Timestamp}}: <a href="{{.DiffUrl}}">Diff</a></div>
   {{end}}
   </div>
 </body>
