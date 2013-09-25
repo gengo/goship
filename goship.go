@@ -27,6 +27,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 )
 
 var (
@@ -261,7 +262,7 @@ func retrieveCommits(project Project, deployUser string) Project {
 	return project
 }
 
-func insertDeployLogEntry(db sql.DB, environment, diffUrl, user string, success int) {
+func insertDeployLogEntry(db sql.DB, environment, diffUrl, user string, success bool) {
 	tx, err := db.Begin()
 	if err != nil {
 		log.Fatal(err)
@@ -320,7 +321,23 @@ func createDb() {
 func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	environment := vars["environment"]
-	fmt.Println(environment)
+	db, err := sql.Open("sqlite3", "./deploy_log.db")
+	if err != nil {
+		log.Fatal("Error opening sqlite db to write to deploy log: " + err.Error())
+	}
+	defer db.Close()
+	q := fmt.Sprintf("select diff_url, user, timestamp, success from logs where environment = \"%s\"", environment)
+	rows, err := db.Query(q)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var success bool
+		var diffUrl, user string
+		var timestamp time.Time
+		rows.Scan(&diffUrl, &user, &timestamp, &success)
+	}
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request) {
@@ -354,14 +371,14 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
 	diffUrl := r.FormValue("diffUrl")
-	success := 1
+	success := true
 	command := getDeployCommand(projects, p, env)
 	var out bytes.Buffer
 	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Stdout = &out
 	err = cmd.Run()
 	if err != nil {
-		success = 0
+		success = false
 		log.Println("Deployment failed: " + err.Error())
 	}
 	insertDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
@@ -377,7 +394,6 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	//projects, deployUser := parseYAML()
 	projects, _ := parseYAML()
 	// Create and parse Template
 	t, err := template.New("index.html").ParseFiles("templates/index.html")
