@@ -43,7 +43,7 @@
             <tbody>
             {{range $environment := .Environments}}
               <tr class="environment" data-id="{{$environment.Name}}">
-                <td>{{.Name}}</td>
+                <td><a href="/deployLog/{{$project.Name}}-{{.Name}}">{{.Name}}</a></td>
                 <td>
                   {{range $host := $environment.Hosts}}
                     <div>{{$host.URI}}</div>
