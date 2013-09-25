@@ -1,0 +1,33 @@
+<html>
+<head>
+  <link href="//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css" rel="stylesheet">
+  <script src="//netdna.bootstrapcdn.com/bootstrap/3.0.0/js/bootstrap.min.js"></script>
+</head>
+<body>
+  <div class="container">
+  <h1>Deployment Log </h1>
+  <table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>User</th>
+      <th>Diff</th>
+      <th>Result</th>
+    </tr>
+  </thead>
+  <tbody>
+   {{range $deployment := .Deployments}}
+     <td>{{.Timestamp}}</td>
+     <td>{{.User}}</td>
+     <td><a href="{{.DiffUrl}}">Diff</a></td>
+     {{if .Success}}
+     <td><span class="label label-success">Success</span></td>
+     {{else}}
+     <td><span class="label label-danger">Failure</span></td>
+     {{end}}
+  {{end}}
+  </tbody>
+  </table>
+  </div>
+</body>
+</html>

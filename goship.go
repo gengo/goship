@@ -331,12 +331,35 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	type Deploy struct {
+		DiffUrl   string
+		User      string
+		Timestamp time.Time
+		Success   bool
+	}
+	deployments := []Deploy{}
 	defer rows.Close()
 	for rows.Next() {
+		d := Deploy{}
 		var success bool
 		var diffUrl, user string
 		var timestamp time.Time
 		rows.Scan(&diffUrl, &user, &timestamp, &success)
+		d.DiffUrl = diffUrl
+		d.User = user
+		d.Timestamp = timestamp
+		d.Success = success
+		deployments = append(deployments, d)
+	}
+	// Create and parse Template
+	t, err := template.New("deploy_log.html").ParseFiles("templates/deploy_log.html")
+	if err != nil {
+		log.Panic(err)
+	}
+	// Render the template
+	err = t.Execute(w, map[string]interface{}{"Deployments": deployments})
+	if err != nil {
+		log.Panic(err)
 	}
 }
 
