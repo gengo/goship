@@ -6,8 +6,26 @@
 <body>
   <h1>Deployment Log </h1>
   <div class="container">
+  <table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>User</th>
+      <th>Diff</th>
+      <th>Result</th>
+    </tr>
+  </thead>
+  <tbody>
    {{range $deployment := .Deployments}}
-     <div> {{.User}} deployed at {{.Timestamp}}: <a href="{{.DiffUrl}}">Diff</a></div>
+     <td>{{.Timestamp}}</td>
+     <td>{{.User}}</td>
+     <td><a href="{{.DiffUrl}}">Diff</a></td>
+     {{if .Success}}
+     <td><span class="label label-success">Success</span></td>
+     {{else}}
+     <td><span class="label label-danger">Failure</span></td>
+     {{end}}
+     </div>
   {{end}}
   </div>
 </body>
