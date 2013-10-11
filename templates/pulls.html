@@ -15,12 +15,13 @@
         <li>{{$org.Name}}</li>
           <ul>
             {{range $repo := $org.Repositories}}
-            <li>{{$repo.Name}}</li>
+            <li>{{$repo.Name}}
               <ul>
                 {{range $pr := $repo.PullRequests}}
                 <li><img src="{{$pr.User.AvatarURL}}" style="width:25px">{{$pr.User.Login}}<br/> {{$pr.Title}}: <a href="{{$pr.HtmlURL}}">{{$pr.HtmlURL}}</a></li>
                 {{end}}
               </ul>
+            </li>
             {{end}}
           </ul>
         {{end}}
