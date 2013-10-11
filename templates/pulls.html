@@ -1,0 +1,32 @@
+<html>
+<head>
+  <link href="//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css" rel="stylesheet">
+  <script src="//netdna.bootstrapcdn.com/bootstrap/3.0.0/js/bootstrap.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="row">
+      <div class="span12 header">
+        <h1>Pulls Web</h1>
+      </div>
+      <div class="span6">
+        <ul>
+        {{range $org := .Orgs}}
+        <li>{{$org.Name}}</li>
+          <ul>
+            {{range $repo := $org.Repositories}}
+            <li>{{$repo.Name}}</li>
+              <ul>
+              {{range $pr := $repo.PullRequests}}
+                <li><img src="{{$pr.User.AvatarURL}}" style="width:25px">{{$pr.User.Login}}<br/> {{$pr.Title}}: <a href="{{$pr.HtmlURL}}">{{$pr.HtmlURL}}</a></li>
+              {{end}}
+            </ul>
+            {{end}}
+          </ul>
+        {{end}}
+        </ul>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

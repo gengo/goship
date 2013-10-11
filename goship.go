@@ -63,6 +63,16 @@ type Project struct {
 	Environments []Environment
 }
 
+type Organization struct {
+	Name         string
+	Repositories []Repository
+}
+
+type Repository struct {
+	Name         string
+	PullRequests []github.PullRequest
+}
+
 func (h *Host) GetGitHubCommitURL(p Project) string {
 	return fmt.Sprintf("%s/commit/%s", p.GitHubURL, h.LatestCommit)
 }
@@ -173,15 +183,15 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 		e.Branch = getYAMLString(v, "branch")
 		e.RepoPath = getYAMLString(v, "repo_path")
 		e.Deploy = getYAMLString(v, "deploy")
-		for _, v := range v.(yaml.Map)["hosts"].(yaml.List) {
-			h := Host{URI: v.(yaml.Scalar).String()}
+		for _, host := range v.(yaml.Map)["hosts"].(yaml.List) {
+			h := Host{URI: host.(yaml.Scalar).String()}
 			e.Hosts = append(e.Hosts, h)
 		}
 	}
 	return e
 }
 
-func parseYAML() (allProjects []Project, deployUser string) {
+func parseYAML() (allProjects []Project, deployUser string, orgs *[]Organization) {
 	config, err := yaml.ReadFile(configFile)
 	if err != nil {
 		log.Fatal(err)
@@ -191,6 +201,12 @@ func parseYAML() (allProjects []Project, deployUser string) {
 		log.Fatal("config.yml is missing deploy_user: " + err.Error())
 	}
 	configRoot, _ := config.Root.(yaml.Map)
+	allOrgs := []Organization{}
+	for _, o := range configRoot["orgs"].(yaml.List) {
+		org := Organization{}
+		org.Name = strings.TrimSpace(o.(yaml.Scalar).String())
+		allOrgs = append(allOrgs, org)
+	}
 	projects, _ := configRoot["projects"].(yaml.List)
 	allProjects = []Project{}
 	for _, p := range projects {
@@ -206,7 +222,7 @@ func parseYAML() (allProjects []Project, deployUser string) {
 			allProjects = append(allProjects, proj)
 		}
 	}
-	return allProjects, deployUser
+	return allProjects, deployUser, &allOrgs
 }
 
 func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, deployUser string, i, j int) {
@@ -364,7 +380,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request) {
-	projects, deployUser := parseYAML()
+	projects, deployUser, _ := parseYAML()
 	vars := mux.Vars(r)
 	projName := vars["project"]
 	proj := getProjectFromName(projects, projName)
@@ -389,7 +405,7 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		log.Fatal("Error opening sqlite db to write to deploy log: " + err.Error())
 	}
 	defer db.Close()
-	projects, _ := parseYAML()
+	projects, _, _ := parseYAML()
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
@@ -416,8 +432,64 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func getPullsForRepo(wg *sync.WaitGroup, c *github.Client, orgName string, repoName string, repos []Repository, i int) {
+	defer wg.Done()
+	repo := Repository{}
+	pulls, _, err := c.PullRequests.List(orgName, repoName, nil)
+	if err != nil {
+		fmt.Println(err)
+	}
+	repo.Name = repoName
+	repo.PullRequests = pulls
+	repos[i] = repo
+}
+
+func getReposForOrg(orgName string) []Repository {
+	var wg sync.WaitGroup
+	githubToken := os.Getenv("GITHUB_API_TOKEN")
+	t := &oauth.Transport{
+		Token: &oauth.Token{AccessToken: githubToken},
+	}
+	client := github.NewClient(t.Client())
+	gitHubRepos, _, err := client.Repositories.ListByOrg(orgName, nil)
+	repos := make([]Repository, len(gitHubRepos))
+	if err != nil {
+		fmt.Println(err)
+	}
+	for i, repo := range gitHubRepos {
+		wg.Add(1)
+		go getPullsForRepo(&wg, client, orgName, *repo.Name, repos, i)
+	}
+	wg.Wait()
+	return repos
+}
+
+func getOrgs(orgs []Organization) []Organization {
+	for i, org := range orgs {
+		repos := getReposForOrg(org.Name)
+		org.Repositories = repos
+		orgs[i] = org
+	}
+	return orgs
+}
+
+func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
+	_, _, allOrgs := parseYAML()
+	orgs := getOrgs(*allOrgs)
+	// Create and parse Template
+	t, err := template.New("pulls.html").ParseFiles("templates/pulls.html")
+	if err != nil {
+		log.Panic(err)
+	}
+	// Render the template
+	err = t.Execute(w, map[string]interface{}{"Orgs": orgs})
+	if err != nil {
+		log.Panic(err)
+	}
+}
+
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	projects, _ := parseYAML()
+	projects, _, _ := parseYAML()
 	// Create and parse Template
 	t, err := template.New("index.html").ParseFiles("templates/index.html")
 	if err != nil {
@@ -438,6 +510,7 @@ func main() {
 	r.HandleFunc("/deploy", DeployHandler)
 	r.HandleFunc("/deployLog/{environment}", DeployLogHandler)
 	r.HandleFunc("/commits/{project}", ProjCommitsHandler)
+	r.HandleFunc("/pulls", PullRequestsHandler)
 	fmt.Println("Running on localhost:" + *port)
 	log.Fatal(http.ListenAndServe(":"+*port, r))
 }
