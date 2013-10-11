@@ -202,10 +202,13 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]Organization
 	}
 	configRoot, _ := config.Root.(yaml.Map)
 	allOrgs := []Organization{}
-	for _, o := range configRoot["orgs"].(yaml.List) {
-		org := Organization{}
-		org.Name = strings.TrimSpace(o.(yaml.Scalar).String())
-		allOrgs = append(allOrgs, org)
+	yamlOrgs := configRoot["orgs"]
+	if yamlOrgs != nil {
+		for _, o := range configRoot["orgs"].(yaml.List) {
+			org := Organization{}
+			org.Name = strings.TrimSpace(o.(yaml.Scalar).String())
+			allOrgs = append(allOrgs, org)
+		}
 	}
 	projects, _ := configRoot["projects"].(yaml.List)
 	allProjects = []Project{}
