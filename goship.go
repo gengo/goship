@@ -492,14 +492,15 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	projects, _, _ := parseYAML()
+	projects, _, orgs := parseYAML()
+	showPullsLink := len(*orgs) != 0
 	// Create and parse Template
 	t, err := template.New("index.html").ParseFiles("templates/index.html")
 	if err != nil {
 		log.Panic(err)
 	}
 	// Render the template
-	err = t.Execute(w, map[string]interface{}{"Projects": projects})
+	err = t.Execute(w, map[string]interface{}{"Projects": projects, "ShowPullsLink": showPullsLink})
 	if err != nil {
 		log.Panic(err)
 	}
