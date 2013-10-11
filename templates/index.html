@@ -25,6 +25,9 @@
     <div class="row">
       <div class="span12 header">
         <h1>GoShip</h1>
+        {{if .ShowPullsLink}}
+        <a href="/pulls">Pull Requests</a>
+        {{end}}
       </div>
       <div class="span6">
         {{range $project := .Projects}}
