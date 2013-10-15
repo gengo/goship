@@ -63,13 +63,13 @@ type Project struct {
 	Environments []Environment
 }
 
-type Organization struct {
-	Name         string
+type Org struct {
+	github.Organization
 	Repositories []Repository
 }
 
 type Repository struct {
-	Name         string
+	github.Repository
 	PullRequests []github.PullRequest
 }
 
@@ -191,7 +191,7 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 	return e
 }
 
-func parseYAML() (allProjects []Project, deployUser string, orgs *[]Organization) {
+func parseYAML() (allProjects []Project, deployUser string, orgs *[]string) {
 	config, err := yaml.ReadFile(configFile)
 	if err != nil {
 		log.Fatal(err)
@@ -201,13 +201,11 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]Organization
 		log.Fatal("config.yml is missing deploy_user: " + err.Error())
 	}
 	configRoot, _ := config.Root.(yaml.Map)
-	allOrgs := []Organization{}
 	yamlOrgs := configRoot["orgs"]
+	allOrgs := []string{}
 	if yamlOrgs != nil {
-		for _, o := range configRoot["orgs"].(yaml.List) {
-			org := Organization{}
-			org.Name = strings.TrimSpace(o.(yaml.Scalar).String())
-			allOrgs = append(allOrgs, org)
+		for _, o := range yamlOrgs.(yaml.List) {
+			allOrgs = append(allOrgs, o.(yaml.Scalar).String())
 		}
 	}
 	projects, _ := configRoot["projects"].(yaml.List)
@@ -435,41 +433,41 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getPullsForRepo(wg *sync.WaitGroup, c *github.Client, orgName string, repoName string, repos []Repository, i int) {
+func getPullsForRepo(wg *sync.WaitGroup, c *github.Client, orgName string, gitHubRepo github.Repository, repos []Repository, i int) {
 	defer wg.Done()
 	repo := Repository{}
-	pulls, _, err := c.PullRequests.List(orgName, repoName, nil)
+	repo.Repository = gitHubRepo
+	pulls, _, err := c.PullRequests.List(orgName, *gitHubRepo.Name, nil)
 	if err != nil {
 		fmt.Println(err)
 	}
-	repo.Name = repoName
 	repo.PullRequests = pulls
 	repos[i] = repo
 }
 
-func getReposForOrg(orgName string) []Repository {
+func getReposForOrg(c *github.Client, orgName string) []Repository {
 	var wg sync.WaitGroup
-	githubToken := os.Getenv("GITHUB_API_TOKEN")
-	t := &oauth.Transport{
-		Token: &oauth.Token{AccessToken: githubToken},
-	}
-	client := github.NewClient(t.Client())
-	gitHubRepos, _, err := client.Repositories.ListByOrg(orgName, nil)
+	gitHubRepos, _, err := c.Repositories.ListByOrg(orgName, nil)
 	repos := make([]Repository, len(gitHubRepos))
 	if err != nil {
 		fmt.Println(err)
 	}
 	for i, repo := range gitHubRepos {
 		wg.Add(1)
-		go getPullsForRepo(&wg, client, orgName, *repo.Name, repos, i)
+		go getPullsForRepo(&wg, c, orgName, repo, repos, i)
 	}
 	wg.Wait()
 	return repos
 }
 
-func getOrgs(orgs []Organization) []Organization {
-	for i, org := range orgs {
-		repos := getReposForOrg(org.Name)
+func getOrgs(c *github.Client, orgNames []string) []Org {
+	orgs := []Org{}
+	for _, o := range orgNames {
+		gitHubOrg, _, err := c.Organizations.Get(o)
+		if err != nil {
+			log.Panic(err)
+		}
+		repos := getReposForOrg(c, o)
 		// Filter out repos that have no PRs
 		orgRepos := []Repository{}
 		for _, r := range repos {
@@ -477,22 +475,29 @@ func getOrgs(orgs []Organization) []Organization {
 				orgRepos = append(orgRepos, r)
 			}
 		}
+		org := Org{}
+		org.Organization = *gitHubOrg
 		org.Repositories = orgRepos
-		orgs[i] = org
+		orgs = append(orgs, org)
 	}
 	return orgs
 }
 
 func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
-	_, _, allOrgs := parseYAML()
-	orgs := getOrgs(*allOrgs)
+	githubToken := os.Getenv("GITHUB_API_TOKEN")
+	t := &oauth.Transport{
+		Token: &oauth.Token{AccessToken: githubToken},
+	}
+	c := github.NewClient(t.Client())
+	_, _, orgNames := parseYAML()
+	orgs := getOrgs(c, *orgNames)
 	// Create and parse Template
-	t, err := template.New("pulls.html").ParseFiles("templates/pulls.html")
+	tmpl, err := template.New("pulls.html").ParseFiles("templates/pulls.html")
 	if err != nil {
 		log.Panic(err)
 	}
 	// Render the template
-	err = t.Execute(w, map[string]interface{}{"Orgs": orgs})
+	err = tmpl.Execute(w, map[string]interface{}{"Orgs": orgs})
 	if err != nil {
 		log.Panic(err)
 	}
