@@ -19,6 +19,9 @@ Create a config.yml file:
 
 ```yaml
 deploy_user: deployer
+# orgs is optional, it's for showing open pull requests across repositories
+orgs:
+    - myOrg
 projects:
     - my_project:
         project_name: My Project
