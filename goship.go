@@ -433,14 +433,29 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func getPull(wg *sync.WaitGroup, c *github.Client, orgName, repoName string, pulls []github.PullRequest, prNumber, i int) {
+	defer wg.Done()
+	pr, _, err := c.PullRequests.Get(orgName, repoName, prNumber)
+	if err != nil {
+		fmt.Println(err)
+	}
+	pulls[i] = *pr
+}
+
 func getPullsForRepo(wg *sync.WaitGroup, c *github.Client, orgName string, gitHubRepo github.Repository, repos []Repository, i int) {
 	defer wg.Done()
+	var prWg sync.WaitGroup
 	repo := Repository{}
 	repo.Repository = gitHubRepo
 	pulls, _, err := c.PullRequests.List(orgName, *gitHubRepo.Name, nil)
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
+	for i, pull := range pulls {
+		prWg.Add(1)
+		go getPull(&prWg, c, orgName, *gitHubRepo.Name, pulls, *pull.Number, i)
+	}
+	prWg.Wait()
 	repo.PullRequests = pulls
 	repos[i] = repo
 }
@@ -450,7 +465,7 @@ func getReposForOrg(c *github.Client, orgName string) []Repository {
 	gitHubRepos, _, err := c.Repositories.ListByOrg(orgName, nil)
 	repos := make([]Repository, len(gitHubRepos))
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 	}
 	for i, repo := range gitHubRepos {
 		wg.Add(1)
