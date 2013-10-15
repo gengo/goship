@@ -36,7 +36,7 @@
           <tbody>
           {{range $repo := $org.Repositories}}
             <tr>
-              <td>{{$repo.Name}}</td>
+              <td><a href="{{$repo.HTMLURL}}">{{$repo.Name}}</a></td>
               <td>
               {{range $pr := $repo.PullRequests}}
               <div><a href="{{$pr.HTMLURL}}">{{$pr.Title}}</a></div>
