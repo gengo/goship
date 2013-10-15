@@ -18,7 +18,7 @@
             <li>{{$repo.Name}}
               <ul>
                 {{range $pr := $repo.PullRequests}}
-                <li><img src="{{$pr.User.AvatarURL}}" style="width:25px">{{$pr.User.Login}}<br/> {{$pr.Title}}: <a href="{{$pr.HTMLURL}}">{{$pr.HtmlURL}}</a></li>
+                <li><img src="{{$pr.User.AvatarURL}}" style="width:25px">{{$pr.User.Login}}<br/> {{$pr.Title}}: <a href="{{$pr.HTMLURL}}">{{$pr.HTMLURL}}</a></li>
                 {{end}}
               </ul>
             </li>
