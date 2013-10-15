@@ -511,6 +511,12 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Panic(err)
 	}
+	// Remove orgs with no open PRs
+	for i, o := range orgs {
+		if len(o.Repositories) == 0 {
+			orgs = append(orgs[:i], orgs[i+1:]...)
+		}
+	}
 	// Render the template
 	err = tmpl.Execute(w, map[string]interface{}{"Orgs": orgs})
 	if err != nil {
