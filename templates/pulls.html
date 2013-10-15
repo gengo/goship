@@ -2,6 +2,19 @@
 <head>
   <link href="//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css" rel="stylesheet">
   <script src="//netdna.bootstrapcdn.com/bootstrap/3.0.0/js/bootstrap.min.js"></script>
+  <style type="text/css">
+  .header {
+  }
+  .column-repository {
+    width: 15%;
+  }
+  .column-pull-requests {
+    width: 70%;
+  }
+  .column-user {
+    width: 15%;
+  }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -10,22 +23,35 @@
         <h1>Pulls Web</h1>
       </div>
       <div class="span6">
-        <ul>
         {{range $org := .Orgs}}
-        <li>{{$org.Name}}</li>
-          <ul>
-            {{range $repo := $org.Repositories}}
-            <li>{{$repo.Name}}
-              <ul>
-                {{range $pr := $repo.PullRequests}}
-                <li><img src="{{$pr.User.AvatarURL}}" style="width:25px">{{$pr.User.Login}}<br/> {{$pr.Title}}: <a href="{{$pr.HTMLURL}}">{{$pr.HTMLURL}}</a></li>
-                {{end}}
-              </ul>
-            </li>
-            {{end}}
-          </ul>
+        <h3>{{$org.Name}}</h3>
+        <table class="table table-striped">
+          <thead>
+            <tr>
+              <th class="column-repository">Repository</th>
+              <th class="column-pull-requests">Pull Requests</th>
+              <th class="column-user">User</th>
+            </tr>
+          </thead>
+          <tbody>
+          {{range $repo := $org.Repositories}}
+            <tr>
+              <td>{{$repo.Name}}</td>
+              <td>
+              {{range $pr := $repo.PullRequests}}
+              <div><a href="{{$pr.HTMLURL}}">{{$pr.Title}}</a></div>
+              {{end}}
+              </td>
+              <td>
+              {{range $pr := $repo.PullRequests}}
+              <img src="{{$pr.User.AvatarURL}}" style="width:25px">{{$pr.User.Login}}<br />
+              {{end}}
+              </td>
+            </tr>
+          {{end}}
+          </tbody>
+        </table>
         {{end}}
-        </ul>
       </div>
     </div>
   </div>

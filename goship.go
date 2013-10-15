@@ -470,7 +470,14 @@ func getReposForOrg(orgName string) []Repository {
 func getOrgs(orgs []Organization) []Organization {
 	for i, org := range orgs {
 		repos := getReposForOrg(org.Name)
-		org.Repositories = repos
+		// Filter out repos that have no PRs
+		orgRepos := []Repository{}
+		for _, r := range repos {
+			if len(r.PullRequests) > 0 {
+				orgRepos = append(orgRepos, r)
+			}
+		}
+		org.Repositories = orgRepos
 		orgs[i] = org
 	}
 	return orgs
