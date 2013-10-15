@@ -63,7 +63,7 @@ type Project struct {
 	Environments []Environment
 }
 
-type Org struct {
+type Organization struct {
 	github.Organization
 	Repositories []Repository
 }
@@ -460,8 +460,8 @@ func getReposForOrg(c *github.Client, orgName string) []Repository {
 	return repos
 }
 
-func getOrgs(c *github.Client, orgNames []string) []Org {
-	orgs := []Org{}
+func getOrgs(c *github.Client, orgNames []string) []Organization {
+	orgs := []Organization{}
 	for _, o := range orgNames {
 		gitHubOrg, _, err := c.Organizations.Get(o)
 		if err != nil {
@@ -475,7 +475,7 @@ func getOrgs(c *github.Client, orgNames []string) []Org {
 				orgRepos = append(orgRepos, r)
 			}
 		}
-		org := Org{}
+		org := Organization{}
 		org.Organization = *gitHubOrg
 		org.Repositories = orgRepos
 		orgs = append(orgs, org)
