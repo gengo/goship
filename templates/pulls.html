@@ -14,6 +14,12 @@
   .column-user {
     width: 15%;
   }
+  .additions {
+    color: green
+  }
+  .deletions {
+    color: red
+  }
   </style>
 </head>
 <body>
@@ -39,7 +45,7 @@
               <td><a href="{{$repo.HTMLURL}}">{{$repo.Name}}</a></td>
               <td>
               {{range $pr := $repo.PullRequests}}
-              <div><a href="{{$pr.HTMLURL}}">{{$pr.Title}}</a></div>
+              <div><a href="{{$pr.HTMLURL}}">{{$pr.Title}}</a> <span class="additions">+{{$pr.Additions}}</span>/<span class="deletions">-{{$pr.Deletions}}</span></div>
               {{end}}
               </td>
               <td>
