@@ -1,11 +1,28 @@
 <html>
 <head>
+  <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
   <link href="//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css" rel="stylesheet">
   <script src="//netdna.bootstrapcdn.com/bootstrap/3.0.0/js/bootstrap.min.js"></script>
+  <script>
+    $(function() {
+      var ws = new WebSocket("ws://localhost:8888/web_push");
+      var project = {{.Project}};
+      var env = {{.Env}};
+      var user = {{.User}};
+      var diffUrl = {{.DiffUrl}};
+      ws.onopen = function () {
+        console.log("on open");
+        $.post('deploy_handler', { project: project, env: env, user: user, diffUrl: diffUrl});
+      }
+      ws.onmessage = function(e) {
+        console.log("受信メッセージ:" + e.data);
+      };
+    });
+  </script>
 </head>
 <body>
   <div class="container">
-    <div> {{.}} </div>
+    <div> test </div>
   </div>
 </body>
 </html>
