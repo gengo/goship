@@ -1,11 +1,31 @@
 <html>
 <head>
+  <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
   <link href="//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css" rel="stylesheet">
   <script src="//netdna.bootstrapcdn.com/bootstrap/3.0.0/js/bootstrap.min.js"></script>
+  <script>
+    $(function() {
+      var ws = new WebSocket("ws://localhost:8888/web_push");
+      var project = {{.Project}};
+      var environment = {{.Env}};
+      var user = {{.User}};
+      var diffUrl = {{.DiffUrl}};
+      ws.onopen = function () {
+        $.post('deploy_handler', { project: project, environment: environment, user: user, diffUrl: diffUrl});
+      }
+      ws.onmessage = function(e) {
+        var obj = jQuery.parseJSON(e.data);
+
+        if(obj.project == project && obj.environment == environment) {
+          $(".main").append("<div>"+obj.stdoutLine+"</div>");
+        }
+      };
+    });
+  </script>
 </head>
 <body>
   <div class="container">
-    <div> {{.}} </div>
+    <div class="main"></div>
   </div>
 </body>
 </html>

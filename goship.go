@@ -1,8 +1,9 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"code.google.com/p/go.crypto/ssh"
+	"code.google.com/p/go.net/websocket"
 	"code.google.com/p/goauth2/oauth"
 	"crypto"
 	"crypto/rsa"
@@ -23,8 +24,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"os/user"
-	"path"
 	"strings"
 	"sync"
 	"time"
@@ -33,8 +32,8 @@ import (
 var (
 	port       = flag.String("p", "8000", "Port number (default 8000)")
 	sshPort    = "22"
-	configFile = "config.yml"
-	keyPath    = ".ssh/id_rsa" // The path to your private SSH key. Home directory will be prepended
+	configFile = flag.String("c", "config.yml", "Config file (default ./config.yml)")
+	keyPath    = flag.String("k", "id_rsa", "Path to private SSH key (default id_rsa)")
 )
 
 type Host struct {
@@ -162,11 +161,7 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) []byte {
 }
 
 func latestDeployedCommit(username, hostname string, e Environment) []byte {
-	usr, err := user.Current()
-	if err != nil {
-		log.Fatal(err)
-	}
-	privateKey := string(getPrivateKey(path.Join(usr.HomeDir, keyPath)))
+	privateKey := string(getPrivateKey(*keyPath))
 	output := remoteCmdOutput(username, hostname, privateKey, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath))
 
 	return output
@@ -192,7 +187,7 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 }
 
 func parseYAML() (allProjects []Project, deployUser string, orgs *[]string) {
-	config, err := yaml.ReadFile(configFile)
+	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -400,34 +395,135 @@ func ProjCommitsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	db, err := sql.Open("sqlite3", "./deploy_log.db")
-	if err != nil {
-		log.Fatal("Error opening sqlite db to write to deploy log: " + err.Error())
+type connection struct {
+	// The websocket connection.
+	ws *websocket.Conn
+
+	// Buffered channel of outbound messages.
+	send chan string
+}
+
+func (c *connection) writer() {
+	for message := range c.send {
+		err := websocket.Message.Send(c.ws, message)
+		if err != nil {
+			break
+		}
 	}
-	defer db.Close()
+	c.ws.Close()
+}
+
+type hub struct {
+	// Registered connections.
+	connections map[*connection]bool
+
+	// Inbound messages from the connections.
+	broadcast chan string
+
+	// Register requests from the connections.
+	register chan *connection
+
+	// Unregister requests from connections.
+	unregister chan *connection
+}
+
+func (h *hub) run() {
+	for {
+		select {
+		case c := <-h.register:
+			h.connections[c] = true
+		case c := <-h.unregister:
+			delete(h.connections, c)
+			close(c.send)
+		case m := <-h.broadcast:
+			for c := range h.connections {
+				select {
+				case c.send <- m:
+				default:
+					delete(h.connections, c)
+					close(c.send)
+					go c.ws.Close()
+				}
+			}
+		}
+	}
+}
+
+func (c *connection) reader() {
+	for {
+		var message string
+		err := websocket.Message.Receive(c.ws, &message)
+		if err != nil {
+			break
+		}
+		h.broadcast <- message
+	}
+	c.ws.Close()
+}
+
+var h = hub{
+	broadcast:   make(chan string),
+	register:    make(chan *connection),
+	unregister:  make(chan *connection),
+	connections: make(map[*connection]bool),
+}
+
+func websocketHandler(ws *websocket.Conn) {
+	c := &connection{send: make(chan string, 256), ws: ws}
+	h.register <- c
+	defer func() { h.unregister <- c }()
+	go c.writer()
+	c.reader()
+}
+
+func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	projects, _, _ := parseYAML()
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
 	diffUrl := r.FormValue("diffUrl")
+	db, err := sql.Open("sqlite3", "./deploy_log.db")
+	if err != nil {
+		log.Fatal("Error opening sqlite db to write to deploy log: " + err.Error())
+	}
+	defer db.Close()
 	success := true
 	command := getDeployCommand(projects, p, env)
-	var out bytes.Buffer
 	cmd := exec.Command(command[0], command[1:]...)
-	cmd.Stdout = &out
-	err = cmd.Run()
+	stdout, err := cmd.StdoutPipe()
+	if err = cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
+	if err != nil {
+		log.Fatal("Could not get stdout of command:" + err.Error())
+	}
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		t := scanner.Text()
+		cmdOutput := fmt.Sprintf(`{"project": "%s", "environment": "%s", "stdoutLine": "%s"}`, p, env, t)
+		h.broadcast <- cmdOutput
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatal(err)
+	}
+	err = cmd.Wait()
 	if err != nil {
 		success = false
 		log.Println("Deployment failed: " + err.Error())
 	}
 	insertDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
+}
+
+func DeployPage(w http.ResponseWriter, r *http.Request) {
+	p := r.FormValue("project")
+	env := r.FormValue("environment")
+	user := r.FormValue("user")
+	diffUrl := r.FormValue("diffUrl")
 	t, err := template.New("deploy.html").ParseFiles("templates/deploy.html")
 	if err != nil {
 		log.Panic(err)
 	}
-	// Render the template
-	err = t.Execute(w, out.String())
+	err = t.Execute(w, map[string]interface{}{"Project": p, "Env": env, "User": user, "DiffUrl": diffUrl})
 	if err != nil {
 		log.Panic(err)
 	}
@@ -544,10 +640,14 @@ func main() {
 	flag.Parse()
 	r := mux.NewRouter()
 	r.HandleFunc("/", HomeHandler)
-	r.HandleFunc("/deploy", DeployHandler)
+	go h.run()
+	http.Handle("/web_push", websocket.Handler(websocketHandler))
+	r.HandleFunc("/deploy", DeployPage)
 	r.HandleFunc("/deployLog/{environment}", DeployLogHandler)
 	r.HandleFunc("/commits/{project}", ProjCommitsHandler)
 	r.HandleFunc("/pulls", PullRequestsHandler)
+	r.HandleFunc("/deploy_handler", DeployHandler)
+	http.Handle("/", r)
 	fmt.Println("Running on localhost:" + *port)
-	log.Fatal(http.ListenAndServe(":"+*port, r))
+	log.Fatal(http.ListenAndServe(":"+*port, nil))
 }
