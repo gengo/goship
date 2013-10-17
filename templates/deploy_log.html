@@ -11,12 +11,13 @@
     <tr>
       <th>Time</th>
       <th>User</th>
-      <th>Diff</th>
+      <th>Deployed Diff</th>
       <th>Result</th>
     </tr>
   </thead>
   <tbody>
    {{range $deployment := .Deployments}}
+     <tr>
      <td>{{.Timestamp}}</td>
      <td>{{.User}}</td>
      <td><a href="{{.DiffUrl}}">Diff</a></td>
@@ -25,6 +26,7 @@
      {{else}}
      <td><span class="label label-danger">Failure</span></td>
      {{end}}
+     </tr>
   {{end}}
   </tbody>
   </table>
