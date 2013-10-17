@@ -1,3 +1,6 @@
 *.swp
 config.yml
 *.db
+run.sh
+src/
+/goship
