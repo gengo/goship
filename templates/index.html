@@ -90,7 +90,7 @@
           projectId = $project.attr('data-id');
       $.ajax({
         type: 'GET',
-        url: '/commits/' + projectId, 
+        url: '/commits/' + projectId,
         dataType: 'json',
         success: function(response) {
           var environments = response.Environments,
