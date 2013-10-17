@@ -46,8 +46,8 @@
               <td>
               {{range $pr := $repo.PullRequests}}
               <div><a href="{{$pr.HTMLURL}}" target="_blank">{{$pr.Title}}</a> <span class="additions">+{{$pr.Additions}}</span>/<span class="deletions">-{{$pr.Deletions}}</span></div>
-              </td>
               {{end}}
+              </td>
               <td>
               {{range $pr := $repo.PullRequests}}
               <img src="{{$pr.User.AvatarURL}}" style="width:25px">{{$pr.User.Login}}<br />
