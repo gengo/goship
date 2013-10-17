@@ -14,7 +14,11 @@
         $.post('deploy_handler', { project: project, environment: environment, user: user, diffUrl: diffUrl});
       }
       ws.onmessage = function(e) {
-         $(".main").append("<div>"+e.data+"</div>");
+        var obj = jQuery.parseJSON(e.data);
+
+        if(obj.project == project && obj.environment == environment) {
+          $(".main").append("<div>"+obj.stdoutLine+"</div>");
+        }
       };
     });
   </script>

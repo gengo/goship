@@ -499,7 +499,9 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
-		h.broadcast <- scanner.Text()
+		t := scanner.Text()
+		cmdOutput := fmt.Sprintf(`{"project": "%s", "environment": "%s", "stdoutLine": "%s"}`, p, env, t)
+		h.broadcast <- cmdOutput
 	}
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
