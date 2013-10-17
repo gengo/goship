@@ -45,7 +45,8 @@
               <td><a href="{{$repo.HTMLURL}}" target="_blank">{{$repo.Name}}</a></td>
               <td>
               {{range $pr := $repo.PullRequests}}
-              <div><a href="{{$pr.HTMLURL}}" target="_blank">{{$pr.Title}}</a> <span class="additions">+{{$pr.Additions}}</span>/<span class="deletions">-{{$pr.Deletions}}</span></div>
+              <div><a href="{{$pr.HTMLURL}}" target="_blank">{{$pr.Title}}</a> <span class="additions">+{{$pr.Additions}}</span>/<span class="deletions">-{{$pr.Deletions}}</span>
+              </div>
               {{end}}
               </td>
               <td>
