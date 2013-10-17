@@ -469,7 +469,6 @@ var h = hub{
 }
 
 func websocketHandler(ws *websocket.Conn) {
-	println("in websocket hadnler")
 	c := &connection{send: make(chan string, 256), ws: ws}
 	h.register <- c
 	defer func() { h.unregister <- c }()
@@ -492,6 +491,9 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	command := getDeployCommand(projects, p, env)
 	cmd := exec.Command(command[0], command[1:]...)
 	stdout, err := cmd.StdoutPipe()
+	if err = cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
 	if err != nil {
 		log.Fatal("Could not get stdout of command:" + err.Error())
 	}
