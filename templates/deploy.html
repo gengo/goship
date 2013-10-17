@@ -7,22 +7,21 @@
     $(function() {
       var ws = new WebSocket("ws://localhost:8888/web_push");
       var project = {{.Project}};
-      var env = {{.Env}};
+      var environment = {{.Env}};
       var user = {{.User}};
       var diffUrl = {{.DiffUrl}};
       ws.onopen = function () {
-        console.log("on open");
-        $.post('deploy_handler', { project: project, env: env, user: user, diffUrl: diffUrl});
+        $.post('deploy_handler', { project: project, environment: environment, user: user, diffUrl: diffUrl});
       }
       ws.onmessage = function(e) {
-        console.log("受信メッセージ:" + e.data);
+         $(".main").append("<div>"+e.data+"</div>");
       };
     });
   </script>
 </head>
 <body>
   <div class="container">
-    <div> test </div>
+    <div class="main"></div>
   </div>
 </body>
 </html>
