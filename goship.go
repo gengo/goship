@@ -24,8 +24,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"os/user"
-	"path"
 	"strings"
 	"sync"
 	"time"
@@ -34,8 +32,8 @@ import (
 var (
 	port       = flag.String("p", "8000", "Port number (default 8000)")
 	sshPort    = "22"
-	configFile = "config.yml"
-	keyPath    = ".ssh/id_rsa" // The path to your private SSH key. Home directory will be prepended
+	configFile = flag.String("c", "config.yml", "Config file (default ./config.yml)")
+	keyPath    = flag.String("k", "id_rsa", "Path to private SSH key (default id_rsa)")
 )
 
 type Host struct {
@@ -163,11 +161,7 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) []byte {
 }
 
 func latestDeployedCommit(username, hostname string, e Environment) []byte {
-	usr, err := user.Current()
-	if err != nil {
-		log.Fatal(err)
-	}
-	privateKey := string(getPrivateKey(path.Join(usr.HomeDir, keyPath)))
+	privateKey := string(getPrivateKey(*keyPath))
 	output := remoteCmdOutput(username, hostname, privateKey, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath))
 
 	return output
@@ -193,7 +187,7 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 }
 
 func parseYAML() (allProjects []Project, deployUser string, orgs *[]string) {
-	config, err := yaml.ReadFile(configFile)
+	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -484,7 +478,6 @@ func websocketHandler(ws *websocket.Conn) {
 }
 
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	println("in deploy handler")
 	projects, _, _ := parseYAML()
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
@@ -645,13 +638,12 @@ func main() {
 	r.HandleFunc("/", HomeHandler)
 	go h.run()
 	http.Handle("/web_push", websocket.Handler(websocketHandler))
-	http.Handle("/", r)
-	//http.Handle("/", http.FileServer(http.Dir(".")))
 	r.HandleFunc("/deploy", DeployPage)
 	r.HandleFunc("/deployLog/{environment}", DeployLogHandler)
 	r.HandleFunc("/commits/{project}", ProjCommitsHandler)
 	r.HandleFunc("/pulls", PullRequestsHandler)
 	r.HandleFunc("/deploy_handler", DeployHandler)
+	http.Handle("/", r)
 	fmt.Println("Running on localhost:" + *port)
-	log.Fatal(http.ListenAndServe(":"+*port, r))
+	log.Fatal(http.ListenAndServe(":"+*port, nil))
 }
