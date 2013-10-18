@@ -262,10 +262,8 @@ func retrieveCommits(project Project, deployUser string) Project {
 	// wait for goroutines to finish
 	wg.Wait()
 	for i, e := range project.Environments {
-		if e.Deployable() {
-			e.IsDeployable = true
-			project.Environments[i] = e
-		}
+		e.IsDeployable = e.Deployable()
+		project.Environments[i] = e
 		for j, host := range e.Hosts {
 			host.GitHubCommitURL = host.GetGitHubCommitURL(project)
 			host.GitHubDiffURL = host.GetGitHubDiffURL(project, e)
