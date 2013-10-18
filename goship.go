@@ -558,12 +558,34 @@ func getPullsForRepo(wg *sync.WaitGroup, c *github.Client, orgName string, gitHu
 
 func getReposForOrg(c *github.Client, orgName string) []Repository {
 	var wg sync.WaitGroup
-	gitHubRepos, _, err := c.Repositories.ListByOrg(orgName, nil)
-	repos := make([]Repository, len(gitHubRepos))
+	page := 0
+	opt := &github.RepositoryListByOrgOptions{"", github.ListOptions{Page: page}}
+	gitHubRepos, _, err := c.Repositories.ListByOrg(orgName, opt)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// GitHub API requests that return multiple items
+	// are paginated to 30 items, so call github.RepositoryListByOrgOptions
+	// untnil we get them all.
+	allGitHubRepos := []github.Repository{}
+getAllRepos:
+	if len(gitHubRepos) < 30 {
+		allGitHubRepos = append(allGitHubRepos, gitHubRepos...)
+	} else {
+		page = page + 1
+		opt := &github.RepositoryListByOrgOptions{"", github.ListOptions{Page: page}}
+		gitHubRepos, _, err = c.Repositories.ListByOrg(orgName, opt)
+		if err != nil {
+			println(err)
+		}
+		allGitHubRepos = append(allGitHubRepos, gitHubRepos...)
+		goto getAllRepos
+	}
+	repos := make([]Repository, len(allGitHubRepos))
 	if err != nil {
 		log.Println(err)
 	}
-	for i, repo := range gitHubRepos {
+	for i, repo := range allGitHubRepos {
 		wg.Add(1)
 		go getPullsForRepo(&wg, c, orgName, repo, repos, i)
 	}
