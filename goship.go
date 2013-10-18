@@ -234,9 +234,11 @@ func getLatestGitHubCommit(wg *sync.WaitGroup, project Project, environment Envi
 	opts := &github.CommitsListOptions{SHA: environment.Branch}
 	commits, _, err := c.Repositories.ListCommits(repoOwner, repoName, opts)
 	if err != nil {
-		log.Panic(err)
+		log.Println("Failed to get commits from GitHub: ", err)
+		environment.LatestGitHubCommit = ""
+	} else {
+		environment.LatestGitHubCommit = *commits[0].SHA
 	}
-	environment.LatestGitHubCommit = *commits[0].SHA
 	project.Environments[i] = environment
 }
 
