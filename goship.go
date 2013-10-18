@@ -576,7 +576,7 @@ getAllRepos:
 		opt := &github.RepositoryListByOrgOptions{"", github.ListOptions{Page: page}}
 		gitHubRepos, _, err = c.Repositories.ListByOrg(orgName, opt)
 		if err != nil {
-			println(err)
+			log.Println("Error listing repositories: ", err.Error())
 		}
 		allGitHubRepos = append(allGitHubRepos, gitHubRepos...)
 		goto getAllRepos
