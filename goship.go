@@ -186,7 +186,7 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 	return e
 }
 
-func parseYAML() (allProjects []Project, deployUser string, orgs *[]string) {
+func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, goshipHost string) {
 	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
 		log.Fatal(err)
@@ -194,6 +194,10 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]string) {
 	deployUser, err = config.Get("deploy_user")
 	if err != nil {
 		log.Fatal("config.yml is missing deploy_user: " + err.Error())
+	}
+	goshipHost, err = config.Get("goship_host")
+	if err != nil {
+		log.Fatal("config.yml is missing goship_host: " + err.Error())
 	}
 	configRoot, _ := config.Root.(yaml.Map)
 	yamlOrgs := configRoot["orgs"]
@@ -218,7 +222,7 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]string) {
 			allProjects = append(allProjects, proj)
 		}
 	}
-	return allProjects, deployUser, &allOrgs
+	return allProjects, deployUser, &allOrgs, goshipHost
 }
 
 func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, deployUser string, i, j int) {
@@ -376,7 +380,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request) {
-	projects, deployUser, _ := parseYAML()
+	projects, deployUser, _, _ := parseYAML()
 	vars := mux.Vars(r)
 	projName := vars["project"]
 	proj := getProjectFromName(projects, projName)
@@ -477,7 +481,7 @@ func websocketHandler(ws *websocket.Conn) {
 }
 
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	projects, _, _ := parseYAML()
+	projects, _, _, _ := parseYAML()
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
@@ -519,11 +523,12 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
 	diffUrl := r.FormValue("diffUrl")
+	goshipHost := r.FormValue("goshipHost")
 	t, err := template.New("deploy.html").ParseFiles("templates/deploy.html")
 	if err != nil {
 		log.Panic(err)
 	}
-	err = t.Execute(w, map[string]interface{}{"Project": p, "Env": env, "User": user, "DiffUrl": diffUrl})
+	err = t.Execute(w, map[string]interface{}{"Project": p, "Env": env, "User": user, "DiffUrl": diffUrl, "GoshipHost": goshipHost, "Port": *port})
 	if err != nil {
 		log.Panic(err)
 	}
@@ -622,7 +627,7 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 		Token: &oauth.Token{AccessToken: githubToken},
 	}
 	c := github.NewClient(t.Client())
-	_, _, orgNames := parseYAML()
+	_, _, orgNames, _ := parseYAML()
 	orgs := getOrgs(c, *orgNames)
 	// Create and parse Template
 	tmpl, err := template.New("pulls.html").ParseFiles("templates/pulls.html")
@@ -643,7 +648,7 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	projects, _, orgs := parseYAML()
+	projects, _, orgs, goshipHost := parseYAML()
 	showPullsLink := len(*orgs) != 0
 	// Create and parse Template
 	t, err := template.New("index.html").ParseFiles("templates/index.html")
@@ -651,7 +656,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		log.Panic(err)
 	}
 	// Render the template
-	err = t.Execute(w, map[string]interface{}{"Projects": projects, "ShowPullsLink": showPullsLink})
+	err = t.Execute(w, map[string]interface{}{"Projects": projects, "ShowPullsLink": showPullsLink, "GoshipHost": goshipHost})
 	if err != nil {
 		log.Panic(err)
 	}

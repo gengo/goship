@@ -29,6 +29,7 @@
         <a href="/pulls">Pull Requests</a>
         {{end}}
       </div>
+      {{$goshipHost := .GoshipHost}}
       <div class="span6">
         {{range $project := .Projects}}
         <div class="project" data-id="{{$project.Name}}">
@@ -61,6 +62,7 @@
                     <input type="hidden" name="project" value="{{$project.Name}}"/>
                     <input type="hidden" name="user" value="PlaceholderUser"/>
                     <input type="hidden" name="diffUrl" value=""/>
+                    <input type="hidden" name="goshipHost" value="{{$goshipHost}}"/>
                     <input type="submit" class="btn btn-success" value="Deploy" />
                   </form>
                 </td>
