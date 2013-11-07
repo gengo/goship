@@ -281,16 +281,19 @@ func retrieveCommits(project Project, deployUser string) Project {
 func insertDeployLogEntry(db sql.DB, environment, diffUrl, user string, success bool) {
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Error connecting to database: " + err.Error())
+		return
 	}
 	stmt, err := tx.Prepare("insert into logs(environment, diff_url, user, success) values(?, ?, ?, ?)")
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Error inserting to database: " + err.Error())
+		return
 	}
 	defer stmt.Close()
 	_, err = stmt.Exec(environment, diffUrl, user, success)
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Error executing statement on database: " + err.Error())
+		return
 	}
 	tx.Commit()
 }
@@ -324,13 +327,15 @@ func getDeployCommand(projects []Project, projectName, environmentName string) [
 func createDb() {
 	db, err := sql.Open("sqlite3", "./deploy_log.db")
 	if err != nil {
-		log.Fatal("Error opening or creating deploy_log.db: " + err.Error())
+		log.Println("Error opening or creating deploy_log.db: " + err.Error())
+		return
 	}
 	defer db.Close()
 	sql := `create table if not exists logs (id integer not null primary key autoincrement, environment text, diff_url text, user text, timestamp datetime default current_timestamp, success boolean);`
 	_, err = db.Exec(sql)
 	if err != nil {
-		log.Fatal("Error creating logs table: " + err.Error())
+		log.Println("Error creating logs table: " + err.Error())
+		return
 	}
 }
 
@@ -339,13 +344,15 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 	environment := vars["environment"]
 	db, err := sql.Open("sqlite3", "./deploy_log.db")
 	if err != nil {
-		log.Fatal("Error opening sqlite db to write to deploy log: " + err.Error())
+		log.Println("Error opening sqlite db to write to deploy log: " + err.Error())
+		return
 	}
 	defer db.Close()
 	q := fmt.Sprintf("select diff_url, user, timestamp, success from logs where environment = \"%s\"", environment)
 	rows, err := db.Query(q)
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Error querying sqlite db: " + err.Error())
+		return
 	}
 	type Deploy struct {
 		DiffUrl   string
@@ -488,7 +495,8 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	diffUrl := r.FormValue("diffUrl")
 	db, err := sql.Open("sqlite3", "./deploy_log.db")
 	if err != nil {
-		log.Fatal("Error opening sqlite db to write to deploy log: " + err.Error())
+		log.Println("Error opening sqlite db to write to deploy log: " + err.Error())
+		return
 	}
 	defer db.Close()
 	success := true
@@ -496,10 +504,12 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	cmd := exec.Command(command[0], command[1:]...)
 	stdout, err := cmd.StdoutPipe()
 	if err = cmd.Start(); err != nil {
-		log.Fatal(err)
+		log.Println("Error running command: " + err.Error())
+		return
 	}
 	if err != nil {
-		log.Fatal("Could not get stdout of command:" + err.Error())
+		log.Println("Could not get stdout of command:" + err.Error())
+		return
 	}
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
@@ -508,7 +518,8 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		h.broadcast <- cmdOutput
 	}
 	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
+		log.Println("Error reading command output: " + err.Error())
+		return
 	}
 	err = cmd.Wait()
 	if err != nil {
@@ -538,7 +549,9 @@ func getPull(wg *sync.WaitGroup, c *github.Client, orgName, repoName string, pul
 	defer wg.Done()
 	pr, _, err := c.PullRequests.Get(orgName, repoName, prNumber)
 	if err != nil {
-		fmt.Println(err)
+		log.Println("Error getting pull request: " + err.Error())
+		pulls[i] = github.PullRequest{}
+		return
 	}
 	pulls[i] = *pr
 }
@@ -550,7 +563,10 @@ func getPullsForRepo(wg *sync.WaitGroup, c *github.Client, orgName string, gitHu
 	repo.Repository = gitHubRepo
 	pulls, _, err := c.PullRequests.List(orgName, *gitHubRepo.Name, nil)
 	if err != nil {
-		log.Println(err)
+		log.Println("Error retrieving pull requests for repo: " + err.Error())
+		repo.PullRequests = []github.PullRequest{}
+		repos[i] = repo
+		return
 	}
 	for i, pull := range pulls {
 		prWg.Add(1)
@@ -567,7 +583,8 @@ func getReposForOrg(c *github.Client, orgName string) []Repository {
 	opt := &github.RepositoryListByOrgOptions{"", github.ListOptions{Page: page}}
 	gitHubRepos, _, err := c.Repositories.ListByOrg(orgName, opt)
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Could not retrieve repositories: " + err.Error())
+		return []Repository{}
 	}
 	// GitHub API requests that return multiple items
 	// are paginated to 30 items, so call github.RepositoryListByOrgOptions
@@ -587,9 +604,6 @@ getAllRepos:
 		goto getAllRepos
 	}
 	repos := make([]Repository, len(allGitHubRepos))
-	if err != nil {
-		log.Println(err)
-	}
 	for i, repo := range allGitHubRepos {
 		wg.Add(1)
 		go getPullsForRepo(&wg, c, orgName, repo, repos, i)
@@ -603,14 +617,17 @@ func getOrgs(c *github.Client, orgNames []string) []Organization {
 	for _, o := range orgNames {
 		gitHubOrg, _, err := c.Organizations.Get(o)
 		if err != nil {
-			log.Panic(err)
+			log.Println("Error getting organizations: " + err.Error())
+			continue
 		}
 		repos := getReposForOrg(c, o)
-		// Filter out repos that have no PRs
 		orgRepos := []Repository{}
-		for _, r := range repos {
-			if len(r.PullRequests) > 0 {
-				orgRepos = append(orgRepos, r)
+		if len(repos) > 0 {
+			// Filter out repos that have no PRs
+			for _, r := range repos {
+				if len(r.PullRequests) > 0 {
+					orgRepos = append(orgRepos, r)
+				}
 			}
 		}
 		org := Organization{}
@@ -619,6 +636,18 @@ func getOrgs(c *github.Client, orgNames []string) []Organization {
 		orgs = append(orgs, org)
 	}
 	return orgs
+}
+
+// filterOrgs returns a new slice of Organization holding only
+// the elements of s that satisfy f()
+func filterOrgs(o []Organization, fn func(Organization) bool) []Organization {
+	var p []Organization // == nil
+	for _, v := range o {
+		if fn(v) {
+			p = append(p, v)
+		}
+	}
+	return p
 }
 
 func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
@@ -635,11 +664,10 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 		log.Panic(err)
 	}
 	// Remove orgs with no open PRs
-	for i, o := range orgs {
-		if len(o.Repositories) == 0 {
-			orgs = append(orgs[:i], orgs[i+1:]...)
-		}
+	orgFilterFunc := func(o Organization) bool {
+		return len(o.Repositories) > 0
 	}
+	orgs = filterOrgs(orgs, orgFilterFunc)
 	// Render the template
 	err = tmpl.Execute(w, map[string]interface{}{"Orgs": orgs})
 	if err != nil {
