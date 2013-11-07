@@ -508,7 +508,7 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		log.Fatal("Could not get stdout of command:" + err.Error())
+		log.Println("Could not get stdout of command:" + err.Error())
 		return
 	}
 	scanner := bufio.NewScanner(stdout)
