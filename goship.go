@@ -618,7 +618,7 @@ func getOrgs(c *github.Client, orgNames []string) []Organization {
 		gitHubOrg, _, err := c.Organizations.Get(o)
 		if err != nil {
 			log.Println("Error getting organizations: " + err.Error())
-			return orgs
+			continue
 		}
 		repos := getReposForOrg(c, o)
 		orgRepos := []Repository{}
