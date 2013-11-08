@@ -605,8 +605,10 @@ getAllRepos:
 	}
 	repos := make([]Repository, len(allGitHubRepos))
 	for i, repo := range allGitHubRepos {
-		wg.Add(1)
-		go getPullsForRepo(&wg, c, orgName, repo, repos, i)
+		if *repo.OpenIssuesCount > 0 {
+			wg.Add(1)
+			go getPullsForRepo(&wg, c, orgName, repo, repos, i)
+		}
 	}
 	wg.Wait()
 	return repos
