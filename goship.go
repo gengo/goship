@@ -36,6 +36,8 @@ var (
 	keyPath    = flag.String("k", "id_rsa", "Path to private SSH key (default id_rsa)")
 )
 
+const GITHUB_PAGINATION_LIMIT = 30
+
 type Host struct {
 	URI             string
 	LatestCommit    string
@@ -590,18 +592,19 @@ func getReposForOrg(c *github.Client, orgName string) []Repository {
 	// are paginated to 30 items, so call github.RepositoryListByOrgOptions
 	// untnil we get them all.
 	allGitHubRepos := []github.Repository{}
-getAllRepos:
-	if len(gitHubRepos) < 30 {
-		allGitHubRepos = append(allGitHubRepos, gitHubRepos...)
-	} else {
-		page = page + 1
-		opt := &github.RepositoryListByOrgOptions{"", github.ListOptions{Page: page}}
-		gitHubRepos, _, err = c.Repositories.ListByOrg(orgName, opt)
-		if err != nil {
-			log.Println("Error listing repositories: ", err.Error())
+	for {
+		if len(gitHubRepos) < GITHUB_PAGINATION_LIMIT {
+			allGitHubRepos = append(allGitHubRepos, gitHubRepos...)
+			break
+		} else {
+			page = page + 1
+			opt := &github.RepositoryListByOrgOptions{"", github.ListOptions{Page: page}}
+			gitHubRepos, _, err = c.Repositories.ListByOrg(orgName, opt)
+			if err != nil {
+				log.Println("Error listing repositories: ", err.Error())
+			}
+			allGitHubRepos = append(allGitHubRepos, gitHubRepos...)
 		}
-		allGitHubRepos = append(allGitHubRepos, gitHubRepos...)
-		goto getAllRepos
 	}
 	repos := make([]Repository, len(allGitHubRepos))
 	for i, repo := range allGitHubRepos {
