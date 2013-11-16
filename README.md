@@ -18,7 +18,10 @@ Export your GitHub API token:
 Create a config.yml file:
 
 ```yaml
+# The user that will SSH into the servers to get the latest git revisions
 deploy_user: deployer
+# Domain you'll host goship on
+goship_host: goship.yourdomain.com
 # orgs is optional, it's for showing open pull requests across repositories
 orgs:
     - myOrg
