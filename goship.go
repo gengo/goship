@@ -581,7 +581,7 @@ func getPullsForRepo(wg *sync.WaitGroup, c *github.Client, orgName string, gitHu
 
 func getReposForOrg(c *github.Client, orgName string) []Repository {
 	var wg sync.WaitGroup
-	page := 0
+	page := 1
 	opt := &github.RepositoryListByOrgOptions{"", github.ListOptions{Page: page}}
 	gitHubRepos, _, err := c.Repositories.ListByOrg(orgName, opt)
 	if err != nil {
