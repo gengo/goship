@@ -596,9 +596,8 @@ func getReposForOrg(c *github.Client, orgName string) []Repository {
 		allGitHubRepos = append(allGitHubRepos, gitHubRepos...)
 		if len(gitHubRepos) < GITHUB_PAGINATION_LIMIT {
 			break
-		} else {
-			page = page + 1
 		}
+		page = page + 1
 	}
 	repos := make([]Repository, len(allGitHubRepos))
 	for i, repo := range allGitHubRepos {
