@@ -581,29 +581,23 @@ func getPullsForRepo(wg *sync.WaitGroup, c *github.Client, orgName string, gitHu
 
 func getReposForOrg(c *github.Client, orgName string) []Repository {
 	var wg sync.WaitGroup
-	page := 1
-	opt := &github.RepositoryListByOrgOptions{"", github.ListOptions{Page: page}}
-	gitHubRepos, _, err := c.Repositories.ListByOrg(orgName, opt)
-	if err != nil {
-		log.Println("Could not retrieve repositories: " + err.Error())
-		return []Repository{}
-	}
 	// GitHub API requests that return multiple items
 	// are paginated to 30 items, so call github.RepositoryListByOrgOptions
 	// untnil we get them all.
+	page := 1
 	allGitHubRepos := []github.Repository{}
 	for {
+		opt := &github.RepositoryListByOrgOptions{"", github.ListOptions{Page: page}}
+		gitHubRepos, _, err := c.Repositories.ListByOrg(orgName, opt)
+		if err != nil {
+			log.Println("Could not retrieve repositories: " + err.Error())
+			return []Repository{}
+		}
+		allGitHubRepos = append(allGitHubRepos, gitHubRepos...)
 		if len(gitHubRepos) < GITHUB_PAGINATION_LIMIT {
-			allGitHubRepos = append(allGitHubRepos, gitHubRepos...)
 			break
 		} else {
 			page = page + 1
-			opt := &github.RepositoryListByOrgOptions{"", github.ListOptions{Page: page}}
-			gitHubRepos, _, err = c.Repositories.ListByOrg(orgName, opt)
-			if err != nil {
-				log.Println("Error listing repositories: ", err.Error())
-			}
-			allGitHubRepos = append(allGitHubRepos, gitHubRepos...)
 		}
 	}
 	repos := make([]Repository, len(allGitHubRepos))
