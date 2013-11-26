@@ -1,10 +1,20 @@
 <html>
 <head>
   <link href="//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css" rel="stylesheet">
+  <link href='http://fonts.googleapis.com/css?family=Roboto+Condensed' rel='stylesheet' type='text/css'>
   <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
   <script src="//netdna.bootstrapcdn.com/bootstrap/3.0.0/js/bootstrap.min.js"></script>
   <style type="text/css">
-  .header {
+  body, h1, h2, h3 {
+    font-family: 'Roboto Condensed', "Helvetica Neue", Helvetica,Arial,sans-serif
+  }
+  .brand {
+    font-size: 32px;
+    margin-left: -20px;
+    color: #fff;
+  }
+  .contents {
+    margin-top: 80px;
   }
   .column-environment {
     width: 15%;
@@ -21,14 +31,27 @@
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="row">
-      <div class="span12 header">
-        <h1><a href="/">GoShip</a></h1>
-        {{if .ShowPullsLink}}
-        <a href="/pulls">Pull Requests</a>
-        {{end}}
+  <div class="navbar navbar-inverse navbar-fixed-top">
+    <div class="navbar-inner">
+      <div class="container">
+        <h1><a class="brand" href="/">GoShip</a></h1>
+        <div class="nav-collapse collapse">
+          <ul class="nav">
+            <li class="active">
+              <a href="/">Home</a>
+            </li>
+            {{if .ShowPullsLink}}
+              <li class="">
+                <a href="/pulls">Pull Requests</a>
+              </li>
+            {{end}}
+          </ul>
+        </div>
       </div>
+    </div>
+  </div>
+  <div class="container contents">
+    <div class="row">
       {{$goshipHost := .GoshipHost}}
       <div class="span6">
         {{range $project := .Projects}}
