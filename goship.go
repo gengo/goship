@@ -489,6 +489,18 @@ func websocketHandler(ws *websocket.Conn) {
 	c.reader()
 }
 
+func sendOutput(scanner *bufio.Scanner, p, e string) {
+	for scanner.Scan() {
+		t := scanner.Text()
+		cmdOutput := fmt.Sprintf(`{"project": "%s", "environment": "%s", "stdoutLine": "%s"}`, p, e, t)
+		h.broadcast <- cmdOutput
+	}
+	if err := scanner.Err(); err != nil {
+		log.Println("Error reading command output: " + err.Error())
+		return
+	}
+}
+
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	projects, _, _, _ := parseYAML()
 	p := r.FormValue("project")
@@ -505,24 +517,23 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	command := getDeployCommand(projects, p, env)
 	cmd := exec.Command(command[0], command[1:]...)
 	stdout, err := cmd.StdoutPipe()
-	if err = cmd.Start(); err != nil {
-		log.Println("Error running command: " + err.Error())
-		return
-	}
 	if err != nil {
 		log.Println("Could not get stdout of command:" + err.Error())
 		return
 	}
-	scanner := bufio.NewScanner(stdout)
-	for scanner.Scan() {
-		t := scanner.Text()
-		cmdOutput := fmt.Sprintf(`{"project": "%s", "environment": "%s", "stdoutLine": "%s"}`, p, env, t)
-		h.broadcast <- cmdOutput
-	}
-	if err := scanner.Err(); err != nil {
-		log.Println("Error reading command output: " + err.Error())
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		log.Println("Could not get stderr of command:" + err.Error())
 		return
 	}
+	if err = cmd.Start(); err != nil {
+		log.Println("Error running command: " + err.Error())
+		return
+	}
+	stdoutScanner := bufio.NewScanner(stdout)
+	go sendOutput(stdoutScanner, p, env)
+	stderrScanner := bufio.NewScanner(stderr)
+	go sendOutput(stderrScanner, p, env)
 	err = cmd.Wait()
 	if err != nil {
 		success = false
