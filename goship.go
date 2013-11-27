@@ -493,11 +493,7 @@ func sendOutput(scanner *bufio.Scanner, p, e string) {
 			Project     string
 			Environment string
 			StdoutLine  string
-		}{
-			p,
-			e,
-			strings.TrimSpace(t),
-		}
+		}{p, e, strings.TrimSpace(t)}
 		cmdOutput, err := json.Marshal(msg)
 		if err != nil {
 			log.Println("ERROR marshalling JSON: ", err.Error())
