@@ -22,7 +22,7 @@ Create a config.yml file:
 deploy_user: deployer
 # Domain you'll host goship on
 goship_host: goship.yourdomain.com
-# orgs is optional, it's for showing open pull requests across repositories
+# used for getting open pull requests across all repos in an org
 orgs:
     - myOrg
 projects:
@@ -31,7 +31,7 @@ projects:
         repo_owner: github-user
         repo_name: my-project
         environments:
-            - qa: 
+            - qa:
                 deploy: knife solo cook -i %s %s
                 repo_path: /path/to/myproject/.git
                 hosts:

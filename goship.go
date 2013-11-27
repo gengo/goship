@@ -377,15 +377,12 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 		deployments = append(deployments, d)
 	}
 	// Create and parse Template
-	t, err := template.New("deploy_log.html").ParseFiles("templates/deploy_log.html")
+	t, err := template.New("deploy_log.html").ParseFiles("templates/deploy_log.html", "templates/base.html")
 	if err != nil {
 		log.Panic(err)
 	}
 	// Render the template
-	err = t.Execute(w, map[string]interface{}{"Deployments": deployments})
-	if err != nil {
-		log.Panic(err)
-	}
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": deployments})
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request) {
@@ -492,8 +489,16 @@ func websocketHandler(ws *websocket.Conn) {
 func sendOutput(scanner *bufio.Scanner, p, e string) {
 	for scanner.Scan() {
 		t := scanner.Text()
-		cmdOutput := fmt.Sprintf(`{"project": "%s", "environment": "%s", "stdoutLine": "%s"}`, p, e, t)
-		h.broadcast <- cmdOutput
+		msg := struct {
+			Project     string
+			Environment string
+			StdoutLine  string
+		}{p, e, strings.TrimSpace(t)}
+		cmdOutput, err := json.Marshal(msg)
+		if err != nil {
+			log.Println("ERROR marshalling JSON: ", err.Error())
+		}
+		h.broadcast <- string(cmdOutput)
 	}
 	if err := scanner.Err(); err != nil {
 		log.Println("Error reading command output: " + err.Error())
@@ -548,14 +553,11 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 	user := r.FormValue("user")
 	diffUrl := r.FormValue("diffUrl")
 	goshipHost := r.FormValue("goshipHost")
-	t, err := template.New("deploy.html").ParseFiles("templates/deploy.html")
+	t, err := template.New("deploy.html").ParseFiles("templates/deploy.html", "templates/base.html")
 	if err != nil {
 		log.Panic(err)
 	}
-	err = t.Execute(w, map[string]interface{}{"Project": p, "Env": env, "User": user, "DiffUrl": diffUrl, "GoshipHost": goshipHost, "Port": *port})
-	if err != nil {
-		log.Panic(err)
-	}
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "DiffUrl": diffUrl, "GoshipHost": goshipHost, "Port": *port})
 }
 
 func getPull(wg *sync.WaitGroup, c *github.Client, orgName, repoName string, pulls []github.PullRequest, prNumber, i int) {
@@ -668,7 +670,7 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 	_, _, orgNames, _ := parseYAML()
 	orgs := getOrgs(c, *orgNames)
 	// Create and parse Template
-	tmpl, err := template.New("pulls.html").ParseFiles("templates/pulls.html")
+	tmpl, err := template.New("pulls.html").ParseFiles("templates/pulls.html", "templates/base.html")
 	if err != nil {
 		log.Panic(err)
 	}
@@ -678,25 +680,18 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	orgs = filterOrgs(orgs, orgFilterFunc)
 	// Render the template
-	err = tmpl.Execute(w, map[string]interface{}{"Orgs": orgs})
-	if err != nil {
-		log.Panic(err)
-	}
+	tmpl.ExecuteTemplate(w, "base", map[string]interface{}{"Orgs": orgs})
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	projects, _, orgs, goshipHost := parseYAML()
-	showPullsLink := len(*orgs) != 0
+	projects, _, _, goshipHost := parseYAML()
 	// Create and parse Template
-	t, err := template.New("index.html").ParseFiles("templates/index.html")
+	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
 		log.Panic(err)
 	}
 	// Render the template
-	err = t.Execute(w, map[string]interface{}{"Projects": projects, "ShowPullsLink": showPullsLink, "GoshipHost": goshipHost})
-	if err != nil {
-		log.Panic(err)
-	}
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": projects, "GoshipHost": goshipHost})
 }
 
 func main() {
