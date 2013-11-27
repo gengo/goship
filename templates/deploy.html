@@ -1,4 +1,15 @@
 {{define "body"}}
+  <style type="text/css">
+  div.main {
+    font-family: monospace;
+    color: white;
+    background-color: black;
+    padding: 5px;
+  }
+  </style>
+  <div class="container contents">
+    <div class="main"></div>
+  </div>
   <script>
     $(function() {
       var ws = new WebSocket("ws://{{.GoshipHost}}:{{.Port}}/web_push");
@@ -18,7 +29,4 @@
       };
     });
   </script>
-  <div class="container contents">
-    <div class="main"></div>
-  </div>
 {{end}}
