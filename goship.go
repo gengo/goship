@@ -492,8 +492,21 @@ func websocketHandler(ws *websocket.Conn) {
 func sendOutput(scanner *bufio.Scanner, p, e string) {
 	for scanner.Scan() {
 		t := scanner.Text()
-		cmdOutput := fmt.Sprintf(`{"project": "%s", "environment": "%s", "stdoutLine": "%s"}`, p, e, t)
-		h.broadcast <- cmdOutput
+		msg := struct {
+			Project     string
+			Environment string
+			StdoutLine  string
+		}{
+			p,
+			e,
+			strings.TrimSpace(t),
+		}
+		//cmdOutput := fmt.Sprintf(`{"project": "%s", "environment": "%s", "stdoutLine": "%s"}`, p, e, t)
+		cmdOutput, err := json.Marshal(msg)
+		if err != nil {
+			log.Println("ERROR marshalling JSON: ", err.Error())
+		}
+		h.broadcast <- string(cmdOutput)
 	}
 	if err := scanner.Err(); err != nil {
 		log.Println("Error reading command output: " + err.Error())
