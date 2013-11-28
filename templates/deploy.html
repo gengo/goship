@@ -1,13 +1,19 @@
 {{define "body"}}
   <style type="text/css">
-  div.main {
+  .main {
     font-family: monospace;
     color: white;
-    background-color: black;
+    background-color: #222;
     padding: 5px;
+    margin: 50px 0;
+    min-height: 200px;
+  }
+  #scroll-toggle-btn {
+    position: fixed;
   }
   </style>
   <div class="container contents">
+    <button id="scroll-toggle-btn" class="btn btn-small btn-primary">Stop auto scroll</button>
     <div class="main"></div>
   </div>
   <script>
@@ -17,6 +23,9 @@
       var environment = {{.Env}};
       var user = {{.User}};
       var diffUrl = {{.DiffUrl}};
+      var $main = $(".main");
+      var $scrollToggleBtn = $('#scroll-toggle-btn');
+
       ws.onopen = function () {
         $.post('deploy_handler', { project: project, environment: environment, user: user, diffUrl: diffUrl});
       }
@@ -24,9 +33,28 @@
         var obj = jQuery.parseJSON(e.data);
 
         if(obj.Project == project && obj.Environment == environment) {
-          $(".main").append($("<div>").text(obj.StdoutLine));
+          $main.append($("<div>").text(obj.StdoutLine));
         }
       };
+
+      //  Scrolling automatically
+      var scrollInterval;
+      function startAutoScroll() {
+        scrollInterval = setInterval(function(){$(window).scrollTop($('body').height())}, 100);
+      }
+      startAutoScroll();
+
+      $scrollToggleBtn.click(function(){
+        if ($scrollToggleBtn.hasClass('stopped'))
+        {
+          $scrollToggleBtn.removeClass('stopped').text('Stop auto scroll');
+          startAutoScroll();
+        }
+        else {
+          $scrollToggleBtn.addClass('stopped').text('Start auto scroll');
+          clearInterval(scrollInterval);
+        }
+      });
     });
   </script>
 {{end}}
