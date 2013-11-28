@@ -3,3 +3,4 @@ config.yml
 *.db
 src/
 /goship
+.DS_Store
