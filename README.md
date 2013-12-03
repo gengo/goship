@@ -32,19 +32,19 @@ projects:
         repo_name: my-project
         environments:
             - qa:
-                deploy: knife solo cook -i %s %s
+                deploy: /path/to/deployscripts/myproj_qa.sh
                 repo_path: /path/to/myproject/.git
                 hosts:
                     - qa.myproject.com
                 branch: sprint_branch
             - staging:
-                deploy: knife solo cook -i %s %s
+                deploy: /path/to/deployscripts/myproj_staging.sh
                 repo_path: /path/to/myproject/.git
                 hosts:
                     - staging.myproject.com
                 branch: code_freeze
             - production:
-                deploy: knife solo cook -i %s %s
+                deploy: /path/to/deployscripts/myproj_live.sh
                 repo_path: /path/to/myproject/.git
                 hosts:
                     - prod-01.myproject.com
