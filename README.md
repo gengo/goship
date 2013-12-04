@@ -52,8 +52,22 @@ projects:
                 branch: master
 ```
 
-Then run the server:
+Then run the server manually
+
+```shell
+go run goship.go -p 8888 -k ~/.ssh/id_rsa
+```
+
+or from the script:
 
 ```shell
 $GOPATH/bin/goship
+```
+
+Available command line flags for the `go run goship.go` command are:
+
+```
+ -p [port]          Port number (default 8000)
+ -c [config file]   Config file (default ./config.yml)
+ -k [id_rsa key]    Path to private SSH key for connecting to Github (default id_rsa)
 ```
