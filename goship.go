@@ -680,7 +680,7 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	orgs = filterOrgs(orgs, orgFilterFunc)
 	// Render the template
-	tmpl.ExecuteTemplate(w, "base", map[string]interface{}{"Orgs": orgs})
+	tmpl.ExecuteTemplate(w, "base", map[string]interface{}{"Orgs": orgs, "Page": "pulls"})
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
@@ -691,7 +691,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		log.Panic(err)
 	}
 	// Render the template
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": projects, "GoshipHost": goshipHost})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": projects, "GoshipHost": goshipHost, "Page": "home"})
 }
 
 func main() {
