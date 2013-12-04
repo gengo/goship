@@ -1,33 +1,10 @@
-<html>
-<head>
-  <link href="//netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap.min.css" rel="stylesheet">
-  <script src="//netdna.bootstrapcdn.com/bootstrap/3.0.0/js/bootstrap.min.js"></script>
-  <style type="text/css">
-  .header {
-  }
-  .column-environment {
-    width: 15%;
-  }
-  .column-hosts {
-    width: 45%;
-  }
-  .column-deployed-revision {
-    width: 25%;
-  }
-  .column-deploy {
-    width: 15%;
-  }
-  </style>
-</head>
-<body>
-  <div class="container">
+{{define "body"}}
+  <div class="container contents">
     <div class="row">
-      <div class="span12 header">
-        <h1>GoShip</h1>
-      </div>
+      {{$goshipHost := .GoshipHost}}
       <div class="span6">
         {{range $project := .Projects}}
-        <div class="project" id="{{$project.Name}}">
+        <div class="project" data-id="{{$project.Name}}">
           <h3>{{.Name}}</h3>
           <div class="deployments">
           <table class="table table-striped">
@@ -42,7 +19,7 @@
             <tbody>
             {{range $environment := .Environments}}
               <tr class="environment" data-id="{{$environment.Name}}">
-                <td>{{.Name}}</td>
+                <td><a href="/deployLog/{{$project.Name}}-{{.Name}}">{{.Name}}</a></td>
                 <td>
                   {{range $host := $environment.Hosts}}
                     <div>{{$host.URI}}</div>
@@ -57,6 +34,7 @@
                     <input type="hidden" name="project" value="{{$project.Name}}"/>
                     <input type="hidden" name="user" value="PlaceholderUser"/>
                     <input type="hidden" name="diffUrl" value=""/>
+                    <input type="hidden" name="goshipHost" value="{{$goshipHost}}"/>
                     <input type="submit" class="btn btn-success" value="Deploy" />
                   </form>
                 </td>
@@ -86,7 +64,7 @@
           projectId = $project.attr('data-id');
       $.ajax({
         type: 'GET',
-        url: '/commits/' + projectId, 
+        url: '/commits/' + projectId,
         dataType: 'json',
         success: function(response) {
           var environments = response.Environments,
@@ -125,5 +103,4 @@
     });
   });
   </script>
-</body>
-</html>
+{{end}}

@@ -1,0 +1,29 @@
+{{define "body"}}
+  <div class="container contents">
+  <h2>Deployment Log</h2>
+  <table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>User</th>
+      <th>Deployed Diff</th>
+      <th>Result</th>
+    </tr>
+  </thead>
+  <tbody>
+   {{range $deployment := .Deployments}}
+     <tr>
+     <td>{{.Timestamp}}</td>
+     <td>{{.User}}</td>
+     <td><a href="{{.DiffUrl}}">Diff</a></td>
+     {{if .Success}}
+     <td><span class="label label-success">Success</span></td>
+     {{else}}
+     <td><span class="label label-danger">Failure</span></td>
+     {{end}}
+     </tr>
+  {{end}}
+  </tbody>
+  </table>
+  </div>
+{{end}}

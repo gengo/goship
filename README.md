@@ -18,27 +18,33 @@ Export your GitHub API token:
 Create a config.yml file:
 
 ```yaml
+# The user that will SSH into the servers to get the latest git revisions
 deploy_user: deployer
+# Domain you'll host goship on
+goship_host: goship.yourdomain.com
+# used for getting open pull requests across all repos in an org
+orgs:
+    - myOrg
 projects:
     - my_project:
         project_name: My Project
         repo_owner: github-user
         repo_name: my-project
         environments:
-            - qa: 
-                deploy: knife solo cook -i %s %s
+            - qa:
+                deploy: /path/to/deployscripts/myproj_qa.sh
                 repo_path: /path/to/myproject/.git
                 hosts:
                     - qa.myproject.com
                 branch: sprint_branch
             - staging:
-                deploy: knife solo cook -i %s %s
+                deploy: /path/to/deployscripts/myproj_staging.sh
                 repo_path: /path/to/myproject/.git
                 hosts:
                     - staging.myproject.com
                 branch: code_freeze
             - production:
-                deploy: knife solo cook -i %s %s
+                deploy: /path/to/deployscripts/myproj_live.sh
                 repo_path: /path/to/myproject/.git
                 hosts:
                     - prod-01.myproject.com
