@@ -43,10 +43,10 @@
         </div>
         <div class="nav-collapse">
           <ul class="nav navbar-nav">
-            <li class="active">
+            <li {{if eq .Page "home"}}class="active"{{end}}>
               <a href="/">Home</a>
             </li>
-            <li class="">
+            <li {{if eq .Page "pulls"}}class="active"{{end}}>
               <a href="/pulls">Pull Requests</a>
             </li>
           </ul>
