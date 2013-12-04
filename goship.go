@@ -661,6 +661,16 @@ func filterOrgs(o []Organization, fn func(Organization) bool) []Organization {
 	return p
 }
 
+func getPRCount(orgs []Organization) int {
+	PRCount := 0
+	for _, o := range orgs {
+		for _, r := range o.Repositories {
+			PRCount = PRCount + len(r.PullRequests)
+		}
+	}
+	return PRCount
+}
+
 func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 	githubToken := os.Getenv("GITHUB_API_TOKEN")
 	t := &oauth.Transport{
@@ -679,8 +689,9 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 		return len(o.Repositories) > 0
 	}
 	orgs = filterOrgs(orgs, orgFilterFunc)
+	PRCount := getPRCount(orgs)
 	// Render the template
-	tmpl.ExecuteTemplate(w, "base", map[string]interface{}{"Orgs": orgs, "Page": "pulls"})
+	tmpl.ExecuteTemplate(w, "base", map[string]interface{}{"Orgs": orgs, "Page": "pulls", "PRCount": PRCount})
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {

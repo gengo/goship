@@ -1,7 +1,8 @@
 {{define "body"}}
   <div class="container contents">
     <div class="row">
-      <div class="span6">
+      <div style="float:right"><h3>Open: {{.PRCount}}</h3></div>
+      <div class="span12">
         {{range $org := .Orgs}}
         <h3>{{$org.Name}}</h3>
         <table class="table table-striped">
