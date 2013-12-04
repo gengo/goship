@@ -64,10 +64,10 @@ or from the script:
 $GOPATH/bin/goship
 ```
 
-Command line flags are:
+Available command line flags for the `go run goship.go` command are:
 
 ```
  -p [port]          Port number (default 8000)
  -c [config file]   Config file (default ./config.yml)
- -k [id_rsa key]    Path to private SSH key (default id_rsa) for connecting to Github
+ -k [id_rsa key]    Path to private SSH key for connecting to Github (default id_rsa)
 ```
