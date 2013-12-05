@@ -694,6 +694,20 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 	tmpl.ExecuteTemplate(w, "base", map[string]interface{}{"Orgs": orgs, "Page": "pulls", "PRCount": PRCount})
 }
 
+func ProjectHandler(w http.ResponseWriter, r *http.Request) {
+	projects, _, _, goshipHost := parseYAML()
+	vars := mux.Vars(r)
+	projName := vars["project"]
+	p := getProjectFromName(projects, projName)
+	// Create and parse Template
+	t, err := template.New("project.html").ParseFiles("templates/project.html", "templates/base.html")
+	if err != nil {
+		log.Panic(err)
+	}
+	// Render the template
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "GoshipHost": goshipHost})
+}
+
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	projects, _, _, goshipHost := parseYAML()
 	// Create and parse Template
@@ -708,15 +722,16 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	createDb()
 	flag.Parse()
+	go h.run()
 	r := mux.NewRouter()
 	r.HandleFunc("/", HomeHandler)
-	go h.run()
-	http.Handle("/web_push", websocket.Handler(websocketHandler))
 	r.HandleFunc("/deploy", DeployPage)
 	r.HandleFunc("/deployLog/{environment}", DeployLogHandler)
 	r.HandleFunc("/commits/{project}", ProjCommitsHandler)
 	r.HandleFunc("/pulls", PullRequestsHandler)
 	r.HandleFunc("/deploy_handler", DeployHandler)
+	r.HandleFunc("/project/{project}", ProjectHandler)
+	http.Handle("/web_push", websocket.Handler(websocketHandler))
 	http.Handle("/", r)
 	fmt.Println("Running on localhost:" + *port)
 	log.Fatal(http.ListenAndServe(":"+*port, nil))
