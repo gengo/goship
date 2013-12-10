@@ -8,6 +8,12 @@ GoShip was inspired by [Rackspace's Dreadnot](https://github.com/racker/dreadnot
 
     go get github.com/gengo/goship
     go install github.com/gengo/goship
+    
+### What it does:
+
+GoShip SSHes into the machines that you list in your `config.yml` file and gets the SHA1 of the latest revision from the specified git repository. It then compares that to the latest revision on GitHub and, if they differ, shows a link to the diff as well as a Deploy button. You can then deploy by clicking the button, and will show you the output of the deployment command, as well as save the output, diff, and whether the command succeeded.
+
+It also has a nice single view for open pull requests across all repositories in one or more organizations.
 
 ### Usage
 
