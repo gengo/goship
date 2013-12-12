@@ -18,7 +18,7 @@
           {{range $i, $pr := $repo.PullRequests}}
             <tr>
             <td>{{if not $i}}<a href="{{$repo.HTMLURL}}">{{$repo.Name}}</a>{{end}}</td>
-            <td><a href="{{$pr.HTMLURL}}" target="_blank">{{$pr.Title}}</a><span class="additions"> +{{$pr.Additions}}</span>/<span class="deletions">-{{$pr.Deletions}}</span></td>
+            <td><a href="{{$pr.HTMLURL}}" target="_blank">{{$pr.Title}}</a><small class="meta"><span class="additions">+{{$pr.Additions}}</span> / <span class="deletions">-{{$pr.Deletions}}</span></small></td>
             <td><img src="{{$pr.User.AvatarURL}}" style="width:25px; margin: 0 10px;">{{$pr.User.Login}}</td>
             </tr>
           {{end}}
