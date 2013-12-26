@@ -144,6 +144,7 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) []byte {
 		},
 	}
 	client, err := ssh.Dial("tcp", hostname, clientConfig)
+	defer client.Close()
 	if err != nil {
 		log.Println("ERROR: Failed to dial: " + err.Error())
 		return []byte{}
