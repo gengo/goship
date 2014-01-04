@@ -16,7 +16,8 @@ import (
 	"github.com/google/go-github/github"
 	"github.com/gorilla/mux"
 	"github.com/kylelemons/go-gypsy/yaml"
-	_ "github.com/mattn/go-sqlite3"
+	//_ "github.com/mattn/go-sqlite3"
+	_ "github.com/bradfitz/go-sqlite3"
 	"html/template"
 	"io"
 	"io/ioutil"
@@ -102,12 +103,12 @@ func (h *Host) GetShortCommitHash() string {
 	return h.LatestCommit[:7]
 }
 
-func getPrivateKey(filename string) []byte {
-	content, err := ioutil.ReadFile(filename)
+func getPrivateKey(filename string) (b []byte, err error) {
+	b, err = ioutil.ReadFile(filename)
 	if err != nil {
-		log.Panic("Failed to open private key file: " + err.Error())
+		return b, err
 	}
-	return content
+	return b, nil
 }
 
 type keychain struct {
@@ -144,11 +145,11 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) (b []byte, err 
 		},
 	}
 	client, err := ssh.Dial("tcp", hostname, clientConfig)
-	defer client.Close()
 	if err != nil {
 		log.Println("ERROR: Failed to dial: " + err.Error())
 		return b, err
 	}
+	defer client.Close()
 	session, err := client.NewSession()
 	if err != nil {
 		log.Println("ERROR: Failed to create session: " + err.Error())
@@ -164,10 +165,14 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) (b []byte, err 
 }
 
 func latestDeployedCommit(username, hostname string, e Environment) (b []byte, err error) {
-	privateKey := string(getPrivateKey(*keyPath))
-	o, err := remoteCmdOutput(username, hostname, privateKey, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath))
+	privateKey, err := getPrivateKey(*keyPath)
 	if err != nil {
-		log.Printf("ERROR: Failed to get latest deployed commit: ", err)
+		log.Panic("Failed to open private key file: " + err.Error())
+	}
+	p := string(privateKey)
+	o, err := remoteCmdOutput(username, hostname, p, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath))
+	if err != nil {
+		log.Printf("ERROR: Failed to get latest deployed commit: ", err.Error())
 		return b, err
 	}
 	return o, nil
@@ -249,7 +254,7 @@ func getLatestGitHubCommit(wg *sync.WaitGroup, project Project, environment Envi
 	opts := &github.CommitsListOptions{SHA: environment.Branch}
 	commits, _, err := c.Repositories.ListCommits(repoOwner, repoName, opts)
 	if err != nil {
-		log.Println("Failed to get commits from GitHub: ", err)
+		log.Println("ERROR: Failed to get commits from GitHub: ", err)
 		environment.LatestGitHubCommit = ""
 	} else {
 		environment.LatestGitHubCommit = *commits[0].SHA
