@@ -336,7 +336,7 @@ func TestTokenEncode(t *testing.T) {
 		Header:   stdHeader,
 		Key:      privateKeyPemBytes,
 	}
-	enc, err := tok.encode()
+	enc, err := tok.Encode()
 	if err != nil {
 		t.Errorf("TestTokenEncode:tok.Assertion: %v", err)
 	}
@@ -427,7 +427,7 @@ func (f FakeSigner) Sign(tok *Token) ([]byte, []byte, error) {
 // Given an external signer, get back a valid and signed JWT
 func TestExternalSigner(t *testing.T) {
 	tok := NewSignerToken(iss, scope, FakeSigner{})
-	enc, _ := tok.encode()
+	enc, _ := tok.Encode()
 	if enc != tokEnc {
 		t.Errorf("TestExternalSigner: enc != tokEnc")
 		t.Errorf("     enc = %s", enc)
@@ -481,6 +481,6 @@ func BenchmarkTokenEncode(b *testing.B) {
 	}
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		tok.encode()
+		tok.Encode()
 	}
 }

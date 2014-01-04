@@ -165,11 +165,11 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) (b []byte, err 
 }
 
 func latestDeployedCommit(username, hostname string, e Environment) (b []byte, err error) {
-	privateKey, err := getPrivateKey(*keyPath)
+	privKey, err := getPrivateKey(*keyPath)
 	if err != nil {
 		log.Panic("Failed to open private key file: " + err.Error())
 	}
-	p := string(privateKey)
+	p := string(privKey)
 	o, err := remoteCmdOutput(username, hostname, p, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath))
 	if err != nil {
 		log.Printf("ERROR: Failed to get latest deployed commit: ", err.Error())

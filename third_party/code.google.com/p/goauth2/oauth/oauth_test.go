@@ -115,7 +115,7 @@ func TestOAuth(t *testing.T) {
 	checkBody(t, resp, "first payload")
 
 	// test automatic refresh
-	transport.Expiry = time.Now()
+	transport.Expiry = time.Now().Add(-time.Hour)
 	resp, err = c.Get(server.URL + "/secure")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
@@ -124,7 +124,7 @@ func TestOAuth(t *testing.T) {
 	checkToken(t, transport.Token, "token2", "refreshtoken2", "idtoken2")
 
 	// refresh one more time, but get URL-encoded token instead of JSON
-	transport.Expiry = time.Now()
+	transport.Expiry = time.Now().Add(-time.Hour)
 	resp, err = c.Get(server.URL + "/secure")
 	if err != nil {
 		t.Fatalf("Get: %v", err)

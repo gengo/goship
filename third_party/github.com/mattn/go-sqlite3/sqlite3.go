@@ -138,6 +138,12 @@ func (c *SQLiteConn) AutoCommit() bool {
 	return int(C.sqlite3_get_autocommit(c.db)) != 0
 }
 
+func (c *SQLiteConn) lastError() Error {
+	return Error{Code: ErrNo(C.sqlite3_errcode(c.db)),
+		err: C.GoString(C.sqlite3_errmsg(c.db)),
+	}
+}
+
 // TODO: Execer & Queryer currently disabled
 // https://github.com/mattn/go-sqlite3/issues/82
 //// Implements Execer
@@ -205,7 +211,7 @@ func (c *SQLiteConn) exec(cmd string) error {
 	defer C.free(unsafe.Pointer(pcmd))
 	rv := C.sqlite3_exec(c.db, pcmd, nil, nil, nil)
 	if rv != C.SQLITE_OK {
-		return ErrNo(rv)
+		return c.lastError()
 	}
 	return nil
 }
@@ -218,8 +224,8 @@ func (c *SQLiteConn) Begin() (driver.Tx, error) {
 	return &SQLiteTx{c}, nil
 }
 
-func errorString(err ErrNo) string {
-	return C.GoString(C.sqlite3_errstr(C.int(err)))
+func errorString(err Error) string {
+	return C.GoString(C.sqlite3_errstr(C.int(err.Code)))
 }
 
 // Open database and return a new connection.
@@ -242,7 +248,7 @@ func (d *SQLiteDriver) Open(dsn string) (driver.Conn, error) {
 			C.SQLITE_OPEN_CREATE,
 		nil)
 	if rv != 0 {
-		return nil, ErrNo(rv)
+		return nil, Error{Code: ErrNo(rv)}
 	}
 	if db == nil {
 		return nil, errors.New("sqlite succeeded without returning a database")
@@ -250,7 +256,7 @@ func (d *SQLiteDriver) Open(dsn string) (driver.Conn, error) {
 
 	rv = C.sqlite3_busy_timeout(db, 5000)
 	if rv != C.SQLITE_OK {
-		return nil, ErrNo(rv)
+		return nil, Error{Code: ErrNo(rv)}
 	}
 
 	conn := &SQLiteConn{db}
@@ -293,14 +299,9 @@ func (d *SQLiteDriver) Open(dsn string) (driver.Conn, error) {
 
 // Close the connection.
 func (c *SQLiteConn) Close() error {
-	s := C.sqlite3_next_stmt(c.db, nil)
-	for s != nil {
-		C.sqlite3_finalize(s)
-		s = C.sqlite3_next_stmt(c.db, nil)
-	}
-	rv := C.sqlite3_close(c.db)
+	rv := C.sqlite3_close_v2(c.db)
 	if rv != C.SQLITE_OK {
-		return ErrNo(rv)
+		return c.lastError()
 	}
 	c.db = nil
 	return nil
@@ -314,7 +315,7 @@ func (c *SQLiteConn) Prepare(query string) (driver.Stmt, error) {
 	var tail *C.char
 	rv := C.sqlite3_prepare_v2(c.db, pquery, -1, &s, &tail)
 	if rv != C.SQLITE_OK {
-		return nil, ErrNo(rv)
+		return nil, c.lastError()
 	}
 	var t string
 	if tail != nil && C.strlen(tail) > 0 {
@@ -334,7 +335,7 @@ func (s *SQLiteStmt) Close() error {
 	}
 	rv := C.sqlite3_finalize(s.s)
 	if rv != C.SQLITE_OK {
-		return ErrNo(rv)
+		return s.c.lastError()
 	}
 	return nil
 }
@@ -347,7 +348,7 @@ func (s *SQLiteStmt) NumInput() int {
 func (s *SQLiteStmt) bind(args []driver.Value) error {
 	rv := C.sqlite3_reset(s.s)
 	if rv != C.SQLITE_ROW && rv != C.SQLITE_OK && rv != C.SQLITE_DONE {
-		return ErrNo(rv)
+		return s.c.lastError()
 	}
 
 	for i, v := range args {
@@ -392,7 +393,7 @@ func (s *SQLiteStmt) bind(args []driver.Value) error {
 			rv = C._sqlite3_bind_text(s.s, n, (*C.char)(unsafe.Pointer(&b[0])), C.int(len(b)))
 		}
 		if rv != C.SQLITE_OK {
-			return ErrNo(rv)
+			return s.c.lastError()
 		}
 	}
 	return nil
@@ -423,7 +424,7 @@ func (s *SQLiteStmt) Exec(args []driver.Value) (driver.Result, error) {
 	}
 	rv := C.sqlite3_step(s.s)
 	if rv != C.SQLITE_ROW && rv != C.SQLITE_OK && rv != C.SQLITE_DONE {
-		return nil, ErrNo(rv)
+		return nil, s.c.lastError()
 	}
 
 	res := &SQLiteResult{
@@ -440,7 +441,7 @@ func (rc *SQLiteRows) Close() error {
 	}
 	rv := C.sqlite3_reset(rc.s.s)
 	if rv != C.SQLITE_OK {
-		return ErrNo(rv)
+		return rc.s.c.lastError()
 	}
 	return nil
 }
@@ -465,7 +466,7 @@ func (rc *SQLiteRows) Next(dest []driver.Value) error {
 	if rv != C.SQLITE_ROW {
 		rv = C.sqlite3_reset(rc.s.s)
 		if rv != C.SQLITE_OK {
-			return ErrNo(rv)
+			return rc.s.c.lastError()
 		}
 		return nil
 	}
@@ -493,6 +494,10 @@ func (rc *SQLiteRows) Next(dest []driver.Value) error {
 			dest[i] = float64(C.sqlite3_column_double(rc.s.s, C.int(i)))
 		case C.SQLITE_BLOB:
 			p := C.sqlite3_column_blob(rc.s.s, C.int(i))
+			if p == nil {
+				dest[i] = nil
+				continue
+			}
 			n := int(C.sqlite3_column_bytes(rc.s.s, C.int(i)))
 			switch dest[i].(type) {
 			case sql.RawBytes:
@@ -520,7 +525,7 @@ func (rc *SQLiteRows) Next(dest []driver.Value) error {
 					dest[i] = time.Time{}
 				}
 			default:
-				dest[i] = s
+				dest[i] = []byte(s)
 			}
 
 		}

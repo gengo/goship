@@ -99,6 +99,8 @@ func TestString(t *testing.T) {
 		{GistComment{ID: Int(1)}, `github.GistComment{ID:1}`},
 		{GistFile{Size: Int(1)}, `github.GistFile{Size:1}`},
 		{Gist{ID: String("1")}, `github.Gist{ID:"1", Files:map[]}`},
+		{Gitignore{Name: String("n")}, `github.Gitignore{Name:"n"}`},
+		{GitObject{SHA: String("s")}, `github.GitObject{SHA:"s"}`},
 		{Hook{ID: Int(1)}, `github.Hook{Config:map[], ID:1}`},
 		{IssueComment{ID: Int(1)}, `github.IssueComment{ID:1}`},
 		{Issue{Number: Int(1)}, `github.Issue{Number:1}`},
@@ -109,6 +111,7 @@ func TestString(t *testing.T) {
 		{PullRequest{Number: Int(1)}, `github.PullRequest{Number:1}`},
 		{PushEventCommit{SHA: String("s")}, `github.PushEventCommit{SHA:"s"}`},
 		{PushEvent{PushID: Int(1)}, `github.PushEvent{PushID:1}`},
+		{Reference{Ref: String("r")}, `github.Reference{Ref:"r"}`},
 		{RepoStatus{ID: Int(1)}, `github.RepoStatus{ID:1}`},
 		{RepositoryComment{ID: Int(1)}, `github.RepositoryComment{ID:1}`},
 		{RepositoryCommit{SHA: String("s")}, `github.RepositoryCommit{SHA:"s"}`},
@@ -120,6 +123,8 @@ func TestString(t *testing.T) {
 		{WebHookAuthor{Name: String("n")}, `github.WebHookAuthor{Name:"n"}`},
 		{WebHookCommit{ID: String("1")}, `github.WebHookCommit{ID:"1"}`},
 		{WebHookPayload{Ref: String("r")}, `github.WebHookPayload{Ref:"r"}`},
+		{RepositoryRelease{ID: Int(1)}, `github.RepositoryRelease{ID:1}`},
+		{ReleaseAsset{ID: Int(1)}, `github.ReleaseAsset{ID:1}`},
 	}
 
 	for i, tt := range tests {

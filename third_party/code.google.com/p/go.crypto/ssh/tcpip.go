@@ -296,11 +296,11 @@ type channelOpenDirectMsg struct {
 // strings and are expected to be resolvable at the remote end.
 func (c *ClientConn) dial(laddr string, lport int, raddr string, rport int) (*tcpChan, error) {
 	ch := c.newChan(c.transport)
-	if err := c.writePacket(marshal(msgChannelOpen, channelOpenDirectMsg{
+	if err := c.transport.writePacket(marshal(msgChannelOpen, channelOpenDirectMsg{
 		ChanType:      "direct-tcpip",
 		PeersId:       ch.localId,
-		PeersWindow:   1 << 14,
-		MaxPacketSize: 1 << 15, // RFC 4253 6.1
+		PeersWindow:   channelWindowSize,
+		MaxPacketSize: channelMaxPacketSize,
 		raddr:         raddr,
 		rport:         uint32(rport),
 		laddr:         laddr,

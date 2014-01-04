@@ -40,7 +40,9 @@ func setup() {
 
 	// github client configured to use test server
 	client = NewClient(nil)
-	client.BaseURL, _ = url.Parse(server.URL)
+	url, _ := url.Parse(server.URL)
+	client.BaseURL = url
+	client.UploadURL = url
 }
 
 // teardown closes the test HTTP server.
@@ -82,6 +84,18 @@ func testURLParseError(t *testing.T, err error) {
 		t.Errorf("Expected URL parse error, got %+v", err)
 	}
 }
+
+func testBody(t *testing.T, r *http.Request, want string){
+b, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("Unable to read body")
+		}
+		str := string(b)
+		if want != str {
+			t.Errorf("Body = %s, want: %s", str, want)
+		}
+	}
+
 
 // Helper function to test that a value is marshalled to JSON as expected.
 func testJSONMarshal(t *testing.T, v interface{}, want string) {
