@@ -133,7 +133,7 @@ func (k *keychain) Sign(i int, rand io.Reader, data []byte) (sig []byte, err err
 	return rsa.SignPKCS1v15(rand, k.key, hashFunc, digest)
 }
 
-func remoteCmdOutput(username, hostname, privateKey, cmd string) []byte {
+func remoteCmdOutput(username, hostname, privateKey, cmd string) (b []byte, err error) {
 	block, _ := pem.Decode([]byte(privateKey))
 	rsakey, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
 	clientKey := &keychain{rsakey}
@@ -147,27 +147,30 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) []byte {
 	defer client.Close()
 	if err != nil {
 		log.Println("ERROR: Failed to dial: " + err.Error())
-		return []byte{}
+		return b, err
 	}
 	session, err := client.NewSession()
 	if err != nil {
 		log.Println("ERROR: Failed to create session: " + err.Error())
-		return []byte{}
+		return b, err
 	}
 	defer session.Close()
-	output, err := session.Output(cmd)
+	b, err = session.Output(cmd)
 	if err != nil {
 		log.Printf("ERROR: Failed to run cmd on host %s: %s", hostname, err.Error())
-		return []byte{}
+		return b, err
 	}
-	return output
+	return b, nil
 }
 
-func latestDeployedCommit(username, hostname string, e Environment) []byte {
+func latestDeployedCommit(username, hostname string, e Environment) (b []byte, err error) {
 	privateKey := string(getPrivateKey(*keyPath))
-	output := remoteCmdOutput(username, hostname, privateKey, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath))
-
-	return output
+	o, err := remoteCmdOutput(username, hostname, privateKey, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath))
+	if err != nil {
+		log.Printf("ERROR: Failed to get latest deployed commit: ", err)
+		return b, err
+	}
+	return o, nil
 }
 
 func getYAMLString(n yaml.Node, key string) string {
@@ -230,8 +233,13 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, gosh
 
 func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, deployUser string, i, j int) {
 	defer wg.Done()
-	lc := string(latestDeployedCommit(deployUser, host.URI+":"+sshPort, env))
-	host.LatestCommit = strings.TrimSpace(lc)
+	lc, err := latestDeployedCommit(deployUser, host.URI+":"+sshPort, env)
+	if err != nil {
+		host.LatestCommit = ""
+		project.Environments[i].Hosts[j] = host
+		return
+	}
+	host.LatestCommit = strings.TrimSpace(string(lc))
 	project.Environments[i].Hosts[j] = host
 }
 
