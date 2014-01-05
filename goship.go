@@ -167,12 +167,13 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) (b []byte, err 
 func latestDeployedCommit(username, hostname string, e Environment) (b []byte, err error) {
 	privKey, err := getPrivateKey(*keyPath)
 	if err != nil {
-		log.Panic("Failed to open private key file: " + err.Error())
+		log.Println("Failed to open private key file: " + err.Error())
+		return b, err
 	}
 	p := string(privKey)
 	o, err := remoteCmdOutput(username, hostname, p, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath))
 	if err != nil {
-		log.Printf("ERROR: Failed to get latest deployed commit: ", err.Error())
+		log.Printf("ERROR: Failed to run remote command: %v", err)
 		return b, err
 	}
 	return o, nil
@@ -240,9 +241,9 @@ func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, 
 	defer wg.Done()
 	lc, err := latestDeployedCommit(deployUser, host.URI+":"+sshPort, env)
 	if err != nil {
-		host.LatestCommit = ""
+		log.Printf("ERROR: failed to get latest deployed commit: %s, %s", host.URI, deployUser)
+		host.LatestCommit = string(lc)
 		project.Environments[i].Hosts[j] = host
-		return
 	}
 	host.LatestCommit = strings.TrimSpace(string(lc))
 	project.Environments[i].Hosts[j] = host
@@ -294,24 +295,25 @@ func retrieveCommits(project Project, deployUser string) Project {
 	return project
 }
 
-func insertDeployLogEntry(db sql.DB, environment, diffUrl, user string, success bool) {
+func insertDeployLogEntry(db sql.DB, environment, diffUrl, user string, success bool) (err error) {
 	tx, err := db.Begin()
 	if err != nil {
-		log.Println("Error connecting to database: " + err.Error())
-		return
+		log.Println("ERROR: can't connect to database: %v", err)
+		return err
 	}
 	stmt, err := tx.Prepare("insert into logs(environment, diff_url, user, success) values(?, ?, ?, ?)")
 	if err != nil {
-		log.Println("Error inserting to database: " + err.Error())
-		return
+		log.Println("ERROR: can't insert into database: %v", err)
+		return err
 	}
 	defer stmt.Close()
 	_, err = stmt.Exec(environment, diffUrl, user, success)
 	if err != nil {
-		log.Println("Error executing statement on database: " + err.Error())
-		return
+		log.Println("ERROR: could not execute statement on database: %v", err)
+		return err
 	}
 	tx.Commit()
+	return nil
 }
 
 func getProjectFromName(projects []Project, projectName string) *Project {
@@ -558,7 +560,11 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		success = false
 		log.Println("Deployment failed: " + err.Error())
 	}
-	insertDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
+	err = insertDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
+	if err != nil {
+		log.Println("ERROR: %v", err)
+		return
+	}
 }
 
 func DeployPage(w http.ResponseWriter, r *http.Request) {
