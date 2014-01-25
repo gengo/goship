@@ -2,5 +2,5 @@
 config.yml
 *.db
 src/
-/goship
+goship
 .DS_Store
