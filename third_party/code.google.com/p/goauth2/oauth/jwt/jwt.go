@@ -273,7 +273,7 @@ func (t *Token) Expired() bool {
 
 // Encode constructs and signs a Token returning a JWT ready to use for
 // requesting an access token.
-func (t *Token) encode() (string, error) {
+func (t *Token) Encode() (string, error) {
 	var tok string
 	t.header = t.Header.encode()
 	t.claim = t.ClaimSet.encode()
@@ -370,7 +370,7 @@ func (t *Token) Assert(c *http.Client) (*oauth.Token, error) {
 // access_token request.
 func (t *Token) buildRequest() (string, url.Values, error) {
 	v := url.Values{}
-	j, err := t.encode()
+	j, err := t.Encode()
 	if err != nil {
 		return t.ClaimSet.Aud, v, err
 	}

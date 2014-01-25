@@ -12,12 +12,12 @@ import (
 )
 
 // authenticate authenticates with the remote server. See RFC 4252.
-func (c *ClientConn) authenticate(session []byte) error {
+func (c *ClientConn) authenticate() error {
 	// initiate user auth session
-	if err := c.writePacket(marshal(msgServiceRequest, serviceRequestMsg{serviceUserAuth})); err != nil {
+	if err := c.transport.writePacket(marshal(msgServiceRequest, serviceRequestMsg{serviceUserAuth})); err != nil {
 		return err
 	}
-	packet, err := c.readPacket()
+	packet, err := c.transport.readPacket()
 	if err != nil {
 		return err
 	}
@@ -29,7 +29,7 @@ func (c *ClientConn) authenticate(session []byte) error {
 	// then any untried methods suggested by the server.
 	tried, remain := make(map[string]bool), make(map[string]bool)
 	for auth := ClientAuth(new(noneAuth)); auth != nil; {
-		ok, methods, err := auth.auth(session, c.config.User, c.transport, c.config.rand())
+		ok, methods, err := auth.auth(c.transport.sessionID, c.config.User, c.transport, c.config.rand())
 		if err != nil {
 			return err
 		}
@@ -215,16 +215,17 @@ func (p *publickeyAuth) auth(session []byte, user string, c packetConn, rand io.
 	for i, key := range validKeys {
 		pubkey := MarshalPublicKey(key)
 		algoname := key.PublicKeyAlgo()
-		sign, err := p.Sign(i, rand, buildDataSignedForAuth(session, userAuthRequestMsg{
+		data := buildDataSignedForAuth(session, userAuthRequestMsg{
 			User:    user,
 			Service: serviceSSH,
 			Method:  p.method(),
-		}, []byte(algoname), pubkey))
+		}, []byte(algoname), pubkey)
+		sigBlob, err := p.Sign(i, rand, data)
 		if err != nil {
 			return false, nil, err
 		}
 		// manually wrap the serialized signature in a string
-		s := serializeSignature(key.PublicKeyAlgo(), sign)
+		s := serializeSignature(key.PublicKeyAlgo(), sigBlob)
 		sig := make([]byte, stringLength(len(s)))
 		marshalString(sig, s)
 		msg := publickeyAuthMsg{

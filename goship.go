@@ -102,12 +102,12 @@ func (h *Host) GetShortCommitHash() string {
 	return h.LatestCommit[:7]
 }
 
-func getPrivateKey(filename string) []byte {
-	content, err := ioutil.ReadFile(filename)
+func getPrivateKey(filename string) (b []byte, err error) {
+	b, err = ioutil.ReadFile(filename)
 	if err != nil {
-		log.Panic("Failed to open private key file: " + err.Error())
+		return b, err
 	}
-	return content
+	return b, nil
 }
 
 type keychain struct {
@@ -133,7 +133,7 @@ func (k *keychain) Sign(i int, rand io.Reader, data []byte) (sig []byte, err err
 	return rsa.SignPKCS1v15(rand, k.key, hashFunc, digest)
 }
 
-func remoteCmdOutput(username, hostname, privateKey, cmd string) []byte {
+func remoteCmdOutput(username, hostname, privateKey, cmd string) (b []byte, err error) {
 	block, _ := pem.Decode([]byte(privateKey))
 	rsakey, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
 	clientKey := &keychain{rsakey}
@@ -144,30 +144,38 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) []byte {
 		},
 	}
 	client, err := ssh.Dial("tcp", hostname, clientConfig)
-	defer client.Close()
 	if err != nil {
 		log.Println("ERROR: Failed to dial: " + err.Error())
-		return []byte{}
+		return b, err
 	}
+	defer client.Close()
 	session, err := client.NewSession()
 	if err != nil {
 		log.Println("ERROR: Failed to create session: " + err.Error())
-		return []byte{}
+		return b, err
 	}
 	defer session.Close()
-	output, err := session.Output(cmd)
+	b, err = session.Output(cmd)
 	if err != nil {
 		log.Printf("ERROR: Failed to run cmd on host %s: %s", hostname, err.Error())
-		return []byte{}
+		return b, err
 	}
-	return output
+	return b, nil
 }
 
-func latestDeployedCommit(username, hostname string, e Environment) []byte {
-	privateKey := string(getPrivateKey(*keyPath))
-	output := remoteCmdOutput(username, hostname, privateKey, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath))
-
-	return output
+func latestDeployedCommit(username, hostname string, e Environment) (b []byte, err error) {
+	privKey, err := getPrivateKey(*keyPath)
+	if err != nil {
+		log.Println("Failed to open private key file: " + err.Error())
+		return b, err
+	}
+	p := string(privKey)
+	o, err := remoteCmdOutput(username, hostname, p, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath))
+	if err != nil {
+		log.Printf("ERROR: Failed to run remote command: %v", err)
+		return b, err
+	}
+	return o, nil
 }
 
 func getYAMLString(n yaml.Node, key string) string {
@@ -230,8 +238,13 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, gosh
 
 func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, deployUser string, i, j int) {
 	defer wg.Done()
-	lc := string(latestDeployedCommit(deployUser, host.URI+":"+sshPort, env))
-	host.LatestCommit = strings.TrimSpace(lc)
+	lc, err := latestDeployedCommit(deployUser, host.URI+":"+sshPort, env)
+	if err != nil {
+		log.Printf("ERROR: failed to get latest deployed commit: %s, %s", host.URI, deployUser)
+		host.LatestCommit = string(lc)
+		project.Environments[i].Hosts[j] = host
+	}
+	host.LatestCommit = strings.TrimSpace(string(lc))
 	project.Environments[i].Hosts[j] = host
 }
 
@@ -241,7 +254,7 @@ func getLatestGitHubCommit(wg *sync.WaitGroup, project Project, environment Envi
 	opts := &github.CommitsListOptions{SHA: environment.Branch}
 	commits, _, err := c.Repositories.ListCommits(repoOwner, repoName, opts)
 	if err != nil {
-		log.Println("Failed to get commits from GitHub: ", err)
+		log.Println("ERROR: Failed to get commits from GitHub: ", err)
 		environment.LatestGitHubCommit = ""
 	} else {
 		environment.LatestGitHubCommit = *commits[0].SHA
@@ -281,24 +294,25 @@ func retrieveCommits(project Project, deployUser string) Project {
 	return project
 }
 
-func insertDeployLogEntry(db sql.DB, environment, diffUrl, user string, success bool) {
+func insertDeployLogEntry(db sql.DB, environment, diffUrl, user string, success bool) (err error) {
 	tx, err := db.Begin()
 	if err != nil {
-		log.Println("Error connecting to database: " + err.Error())
-		return
+		log.Println("ERROR: can't connect to database: %v", err)
+		return err
 	}
 	stmt, err := tx.Prepare("insert into logs(environment, diff_url, user, success) values(?, ?, ?, ?)")
 	if err != nil {
-		log.Println("Error inserting to database: " + err.Error())
-		return
+		log.Println("ERROR: can't insert into database: %v", err)
+		return err
 	}
 	defer stmt.Close()
 	_, err = stmt.Exec(environment, diffUrl, user, success)
 	if err != nil {
-		log.Println("Error executing statement on database: " + err.Error())
-		return
+		log.Println("ERROR: could not execute statement on database: %v", err)
+		return err
 	}
 	tx.Commit()
+	return nil
 }
 
 func getProjectFromName(projects []Project, projectName string) *Project {
@@ -545,7 +559,11 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		success = false
 		log.Println("Deployment failed: " + err.Error())
 	}
-	insertDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
+	err = insertDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
+	if err != nil {
+		log.Println("ERROR: %v", err)
+		return
+	}
 }
 
 func DeployPage(w http.ResponseWriter, r *http.Request) {

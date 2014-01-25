@@ -564,11 +564,11 @@ func (s *Session) StderrPipe() (io.Reader, error) {
 // NewSession returns a new interactive session on the remote host.
 func (c *ClientConn) NewSession() (*Session, error) {
 	ch := c.newChan(c.transport)
-	if err := c.writePacket(marshal(msgChannelOpen, channelOpenMsg{
+	if err := c.transport.writePacket(marshal(msgChannelOpen, channelOpenMsg{
 		ChanType:      "session",
 		PeersId:       ch.localId,
-		PeersWindow:   1 << 14,
-		MaxPacketSize: 1 << 15, // RFC 4253 6.1
+		PeersWindow:   channelWindowSize,
+		MaxPacketSize: channelMaxPacketSize,
 	})); err != nil {
 		c.chanList.remove(ch.localId)
 		return nil, err
