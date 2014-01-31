@@ -13,10 +13,10 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
+	_ "github.com/bradfitz/go-sqlite3"
 	"github.com/google/go-github/github"
 	"github.com/gorilla/mux"
 	"github.com/kylelemons/go-gypsy/yaml"
-	_ "github.com/mattn/go-sqlite3"
 	"html/template"
 	"io"
 	"io/ioutil"
@@ -72,6 +72,16 @@ type Organization struct {
 type Repository struct {
 	github.Repository
 	PullRequests []github.PullRequest
+}
+
+type Skype struct {
+	ChatId         string
+	Secret         string
+	SevabotAddress string
+}
+
+type Notifications struct {
+	Skype *Skype
 }
 
 func (h *Host) GetGitHubCommitURL(p Project) string {
@@ -197,7 +207,26 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 	return e
 }
 
-func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, goshipHost string) {
+func parseSkype(config *yaml.File) (s Skype, err error) {
+	chatId, err := config.Get("skype.chat_id")
+	if err != nil {
+		return
+	}
+	s.ChatId = chatId
+	secret, err := config.Get("skype.secret")
+	if err != nil {
+		return
+	}
+	s.Secret = secret
+	sevabotAddress, err := config.Get("skype.sevabot_address")
+	if err != nil {
+		return
+	}
+	s.SevabotAddress = sevabotAddress
+	return s, nil
+}
+
+func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, goshipHost string, notifications Notifications) {
 	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
 		log.Fatal(err)
@@ -233,7 +262,11 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, gosh
 			allProjects = append(allProjects, proj)
 		}
 	}
-	return allProjects, deployUser, &allOrgs, goshipHost
+	s, _ := parseSkype(config)
+	if s.ChatId != "" && s.Secret != "" && s.SevabotAddress != "" {
+		notifications.Skype = &s
+	}
+	return allProjects, deployUser, &allOrgs, goshipHost, notifications
 }
 
 func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, deployUser string, i, j int) {
@@ -401,7 +434,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request) {
-	projects, deployUser, _, _ := parseYAML()
+	projects, deployUser, _, _, _ := parseYAML()
 	vars := mux.Vars(r)
 	projName := vars["project"]
 	proj := getProjectFromName(projects, projName)
@@ -521,12 +554,38 @@ func sendOutput(scanner *bufio.Scanner, p, e string) {
 	}
 }
 
+func startNotify(n Notifications, user, p, env string) {
+	if n.Skype != nil {
+		msg := fmt.Sprintf("%s is deploying %s to %s", user, p, env)
+		cmd := exec.Command("notifications/notify.sh", "-c", n.Skype.ChatId, "-s", n.Skype.Secret, "-a", n.Skype.SevabotAddress, "-m", msg)
+		err := cmd.Run()
+		if err != nil {
+			log.Println("Error notifying Skype: " + err.Error())
+		}
+	}
+}
+
+func endNotify(n Notifications, p, env string, success bool) {
+	if n.Skype != nil {
+		msg := fmt.Sprintf("%s successfully deployed to %s.", p, env)
+		if !success {
+			msg = fmt.Sprintf("%s deployment to %s failed.", p, env)
+		}
+		cmd := exec.Command("notifications/notify.sh", "-c", n.Skype.ChatId, "-s", n.Skype.Secret, "-a", n.Skype.SevabotAddress, "-m", msg)
+		err := cmd.Run()
+		if err != nil {
+			log.Println("Error notifying Skype: " + err.Error())
+		}
+	}
+}
+
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	projects, _, _, _ := parseYAML()
+	projects, _, _, _, n := parseYAML()
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
 	diffUrl := r.FormValue("diffUrl")
+	startNotify(n, user, p, env)
 	db, err := sql.Open("sqlite3", "./deploy_log.db")
 	if err != nil {
 		log.Println("Error opening sqlite db to write to deploy log: " + err.Error())
@@ -559,6 +618,7 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		success = false
 		log.Println("Deployment failed: " + err.Error())
 	}
+	endNotify(n, p, env, success)
 	err = insertDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
 	if err != nil {
 		log.Println("ERROR: %v", err)
@@ -696,7 +756,7 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 		Token: &oauth.Token{AccessToken: githubToken},
 	}
 	c := github.NewClient(t.Client())
-	_, _, orgNames, _ := parseYAML()
+	_, _, orgNames, _, _ := parseYAML()
 	orgs := getOrgs(c, *orgNames)
 	// Create and parse Template
 	tmpl, err := template.New("pulls.html").ParseFiles("templates/pulls.html", "templates/base.html")
@@ -714,7 +774,7 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	projects, _, _, goshipHost := parseYAML()
+	projects, _, _, goshipHost, _ := parseYAML()
 	// Create and parse Template
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
