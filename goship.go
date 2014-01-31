@@ -554,11 +554,19 @@ func sendOutput(scanner *bufio.Scanner, p, e string) {
 	}
 }
 
+func skypeNotify(n Notifications, msg string) error {
+	cmd := exec.Command("notifications/notify.sh", "-c", n.Skype.ChatId, "-s", n.Skype.Secret, "-a", n.Skype.SevabotAddress, "-m", msg)
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func startNotify(n Notifications, user, p, env string) {
 	if n.Skype != nil {
 		msg := fmt.Sprintf("%s is deploying %s to %s", user, p, env)
-		cmd := exec.Command("notifications/notify.sh", "-c", n.Skype.ChatId, "-s", n.Skype.Secret, "-a", n.Skype.SevabotAddress, "-m", msg)
-		err := cmd.Run()
+		err := skypeNotify(n, msg)
 		if err != nil {
 			log.Println("Error notifying Skype: " + err.Error())
 		}
@@ -571,8 +579,7 @@ func endNotify(n Notifications, p, env string, success bool) {
 		if !success {
 			msg = fmt.Sprintf("%s deployment to %s failed.", p, env)
 		}
-		cmd := exec.Command("notifications/notify.sh", "-c", n.Skype.ChatId, "-s", n.Skype.Secret, "-a", n.Skype.SevabotAddress, "-m", msg)
-		err := cmd.Run()
+		err := skypeNotify(n, msg)
 		if err != nil {
 			log.Println("Error notifying Skype: " + err.Error())
 		}
