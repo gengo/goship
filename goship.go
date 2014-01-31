@@ -395,6 +395,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := sql.Open("sqlite3", "./deploy_log.db")
 	if err != nil {
 		log.Println("Error opening sqlite db to write to deploy log: " + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer db.Close()
@@ -402,6 +403,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(q)
 	if err != nil {
 		log.Println("Error querying sqlite db: " + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	type Deploy struct {
@@ -554,8 +556,8 @@ func sendOutput(scanner *bufio.Scanner, p, e string) {
 	}
 }
 
-func skypeNotify(n Notifications, msg string) error {
-	cmd := exec.Command("notifications/notify.sh", "-c", n.Skype.ChatId, "-s", n.Skype.Secret, "-a", n.Skype.SevabotAddress, "-m", msg)
+func (s *Skype) notify(msg string) error {
+	cmd := exec.Command("notifications/notify.sh", "-c", s.ChatId, "-s", s.Secret, "-a", s.SevabotAddress, "-m", msg)
 	err := cmd.Run()
 	if err != nil {
 		return err
@@ -563,23 +565,23 @@ func skypeNotify(n Notifications, msg string) error {
 	return nil
 }
 
-func startNotify(n Notifications, user, p, env string) {
+func (n *Notifications) startNotify(user, p, env string) {
 	if n.Skype != nil {
 		msg := fmt.Sprintf("%s is deploying %s to %s", user, p, env)
-		err := skypeNotify(n, msg)
+		err := n.Skype.notify(msg)
 		if err != nil {
 			log.Println("Error notifying Skype: " + err.Error())
 		}
 	}
 }
 
-func endNotify(n Notifications, p, env string, success bool) {
+func (n *Notifications) endNotify(p, env string, success bool) {
 	if n.Skype != nil {
 		msg := fmt.Sprintf("%s successfully deployed to %s.", p, env)
 		if !success {
 			msg = fmt.Sprintf("%s deployment to %s failed.", p, env)
 		}
-		err := skypeNotify(n, msg)
+		err := n.Skype.notify(msg)
 		if err != nil {
 			log.Println("Error notifying Skype: " + err.Error())
 		}
@@ -592,7 +594,7 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
 	diffUrl := r.FormValue("diffUrl")
-	startNotify(n, user, p, env)
+	n.startNotify(user, p, env)
 	db, err := sql.Open("sqlite3", "./deploy_log.db")
 	if err != nil {
 		log.Println("Error opening sqlite db to write to deploy log: " + err.Error())
@@ -625,7 +627,7 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		success = false
 		log.Println("Deployment failed: " + err.Error())
 	}
-	endNotify(n, p, env, success)
+	n.endNotify(p, env, success)
 	err = insertDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
 	if err != nil {
 		log.Println("ERROR: %v", err)
