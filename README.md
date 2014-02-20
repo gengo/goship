@@ -53,12 +53,6 @@ Then run the server manually
 go run goship.go -p 8888 -k ~/.ssh/id_rsa
 ```
 
-or from the script:
-
-```shell
-$GOPATH/bin/goship
-```
-
 Available command line flags for the `go run goship.go` command are:
 
 ```
