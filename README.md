@@ -4,8 +4,6 @@ A simple tool for deploying code to servers.
 
 ![GoShip Index Page Screenshot](http://tryimg.com/4/goshi.png)
 
-GoShip was inspired by [Rackspace's Dreadnot](https://github.com/racker/dreadnot) ([UI image](http://c179631.r31.cf0.rackcdn.com/dreadnot-overview.png)) and [Etsy's Deployinator](https://github.com/etsy/deployinator/) ([UI image](http://farm5.staticflickr.com/4065/4620552264_9e0fdf634d_b.jpg)).
-
 ### What it does:
 
 GoShip SSHes into the machines that you list in your `config.yml` file and gets the latest revision from the specified git repository. It then compares that to the latest revision on GitHub and, if they differ, shows a link to the diff as well as a Deploy button. You can then deploy by clicking the button, and will show you the output of the deployment command, as well as save the output, diff, and whether the command succeeded.
@@ -68,3 +66,5 @@ Available command line flags for the `go run goship.go` command are:
  -c [config file]   Config file (default ./config.yml)
  -k [id_rsa key]    Path to private SSH key for connecting to Github (default id_rsa)
 ```
+
+GoShip was inspired by [Rackspace's Dreadnot](https://github.com/racker/dreadnot) ([UI image](http://c179631.r31.cf0.rackcdn.com/dreadnot-overview.png)) and [Etsy's Deployinator](https://github.com/etsy/deployinator/) ([UI image](http://farm5.staticflickr.com/4065/4620552264_9e0fdf634d_b.jpg)).
