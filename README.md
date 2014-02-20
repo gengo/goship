@@ -39,12 +39,6 @@ projects:
         repo_owner: github-user
         repo_name: my-project
         environments:
-            - qa:
-                deploy: /path/to/deployscripts/myproj_qa.sh
-                repo_path: /path/to/myproject/.git
-                hosts:
-                    - qa.myproject.com
-                branch: sprint_branch
             - staging:
                 deploy: /path/to/deployscripts/myproj_staging.sh
                 repo_path: /path/to/myproject/.git
