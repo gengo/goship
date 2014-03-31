@@ -22,8 +22,10 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -72,6 +74,11 @@ type Organization struct {
 type Repository struct {
 	github.Repository
 	PullRequests []github.PullRequest
+}
+
+type PivotalConfiguration struct {
+	project_id string
+	token      string
 }
 
 func (h *Host) GetGitHubCommitURL(p Project) string {
@@ -197,7 +204,7 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 	return e
 }
 
-func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, goshipHost string) {
+func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, goshipHost string, pivotalConfiguration *PivotalConfiguration) {
 	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
 		log.Fatal(err)
@@ -233,7 +240,11 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, gosh
 			allProjects = append(allProjects, proj)
 		}
 	}
-	return allProjects, deployUser, &allOrgs, goshipHost
+	pivotalConfiguration = new(PivotalConfiguration)
+	pivotalConfiguration.project_id, _ = config.Get("pivotal_project_id")
+	pivotalConfiguration.token, _ = config.Get("pivotal_token")
+
+	return allProjects, deployUser, &allOrgs, goshipHost, pivotalConfiguration
 }
 
 func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, deployUser string, i, j int) {
@@ -401,7 +412,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request) {
-	projects, deployUser, _, _ := parseYAML()
+	projects, deployUser, _, _, _ := parseYAML()
 	vars := mux.Vars(r)
 	projName := vars["project"]
 	proj := getProjectFromName(projects, projName)
@@ -522,11 +533,15 @@ func sendOutput(scanner *bufio.Scanner, p, e string) {
 }
 
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	projects, _, _, _ := parseYAML()
+	projects, _, _, _, pivotalConfiguration := parseYAML()
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
 	diffUrl := r.FormValue("diffUrl")
+	repo_owner := r.FormValue("repo_owner")
+	repo_name := r.FormValue("repo_name")
+	latest_commit := r.FormValue("latest_commit")
+	current_commit := r.FormValue("current_commit")
 	db, err := sql.Open("sqlite3", "./deploy_log.db")
 	if err != nil {
 		log.Println("Error opening sqlite db to write to deploy log: " + err.Error())
@@ -559,11 +574,68 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		success = false
 		log.Println("Deployment failed: " + err.Error())
 	}
+	if (pivotalConfiguration.token != "") && (pivotalConfiguration.project_id != "") && success {
+		githubToken := os.Getenv("GITHUB_API_TOKEN")
+		t := &oauth.Transport{
+			Token: &oauth.Token{AccessToken: githubToken},
+		}
+		c := github.NewClient(t.Client())
+		commitComparison, _, err := c.Repositories.CompareCommits(repo_owner, repo_name, latest_commit, current_commit)
+		if err != nil {
+			log.Println("ERROR: Error getting deployed commits: " + err.Error())
+		} else {
+			pivotal_regex, _ := regexp.Compile("\\[.*#(\\d+)\\].*")
+			if err != nil {
+				log.Println("ERROR: Error compiling regex to match Pivotal commits: " + err.Error())
+			} else {
+				stories := map[string]bool{}
+				const layout = "2006-01-02 15:04:05 (JST)"
+				for _, commit := range commitComparison.Commits {
+					commit_message_info := *commit.Commit
+					commit_message := *commit_message_info.Message
+					story_id_matches := pivotal_regex.FindStringSubmatch(commit_message)
+					if story_id_matches != nil {
+						story_id := story_id_matches[1]
+						_, present := stories[story_id]
+						if !present {
+							stories[story_id] = true
+							message := fmt.Sprintf("Deployed to %s: %s", env, time.Now().Format(layout))
+							go PostPivotalComment(story_id, message, pivotalConfiguration)
+						}
+					}
+				}
+			}
+		}
+	}
 	err = insertDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
 	if err != nil {
 		log.Println("ERROR: %v", err)
 		return
 	}
+}
+
+func PostPivotalComment(story_id string, message string, pivotalConfiguration *PivotalConfiguration) (err error) {
+	post_parameters := url.Values{}
+	post_parameters.Set("text", message)
+	log.Println(pivotalConfiguration.project_id + "/" + story_id + " - " + message + " - " + pivotalConfiguration.token)
+	req, err := http.NewRequest("POST", fmt.Sprintf("https://www.pivotaltracker.com/services/v5/projects/%s/stories/%s/comments", pivotalConfiguration.project_id, story_id), nil)
+	if err != nil {
+		log.Printf("ERROR: Error forming put request to Pivotal: %s", err)
+		return err
+	}
+	req.URL.RawQuery = post_parameters.Encode()
+	req.Header.Add("X-TrackerToken", pivotalConfiguration.token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Printf("ERROR: Error making put request to Pivotal: %s", err)
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		message := fmt.Sprintf("ERROR: Non-200 Response from Pivotal API: %s", resp.Status)
+		log.Println(message)
+	}
+	return nil
 }
 
 func DeployPage(w http.ResponseWriter, r *http.Request) {
@@ -572,11 +644,15 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 	user := r.FormValue("user")
 	diffUrl := r.FormValue("diffUrl")
 	goshipHost := r.FormValue("goshipHost")
+	repo_owner := r.FormValue("repo_owner")
+	repo_name := r.FormValue("repo_name")
+	latest_commit := r.FormValue("latest_commit")
+	current_commit := r.FormValue("current_commit")
 	t, err := template.New("deploy.html").ParseFiles("templates/deploy.html", "templates/base.html")
 	if err != nil {
 		log.Panic(err)
 	}
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "DiffUrl": diffUrl, "GoshipHost": goshipHost, "Port": *port})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "DiffUrl": diffUrl, "GoshipHost": goshipHost, "Port": *port, "RepoOwner": repo_owner, "RepoName": repo_name, "LatestCommit": latest_commit, "CurrentCommit": current_commit})
 }
 
 func getPull(wg *sync.WaitGroup, c *github.Client, orgName, repoName string, pulls []github.PullRequest, prNumber, i int) {
@@ -696,7 +772,7 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 		Token: &oauth.Token{AccessToken: githubToken},
 	}
 	c := github.NewClient(t.Client())
-	_, _, orgNames, _ := parseYAML()
+	_, _, orgNames, _, _ := parseYAML()
 	orgs := getOrgs(c, *orgNames)
 	// Create and parse Template
 	tmpl, err := template.New("pulls.html").ParseFiles("templates/pulls.html", "templates/base.html")
@@ -714,7 +790,7 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	projects, _, _, goshipHost := parseYAML()
+	projects, _, _, goshipHost, _ := parseYAML()
 	// Create and parse Template
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
