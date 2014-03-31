@@ -617,7 +617,6 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 func PostPivotalComment(story_id string, message string, pivotalConfiguration *PivotalConfiguration) (err error) {
 	post_parameters := url.Values{}
 	post_parameters.Set("text", message)
-	log.Println(pivotalConfiguration.project_id + "/" + story_id + " - " + message + " - " + pivotalConfiguration.token)
 	req, err := http.NewRequest("POST", fmt.Sprintf("https://www.pivotaltracker.com/services/v5/projects/%s/stories/%s/comments", pivotalConfiguration.project_id, story_id), nil)
 	if err != nil {
 		log.Printf("ERROR: Error forming put request to Pivotal: %s", err)
