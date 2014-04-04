@@ -27,7 +27,7 @@ import (
 	"github.com/google/go-github/github"
 	"github.com/gorilla/mux"
 	"github.com/kylelemons/go-gypsy/yaml"
-	//_ "github.com/mattn/go-sqlite3"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
@@ -784,7 +784,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	//createDb()
+	createDb()
 	flag.Parse()
 	r := mux.NewRouter()
 	r.HandleFunc("/", HomeHandler)
