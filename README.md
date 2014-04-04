@@ -61,18 +61,14 @@ Available command line flags for the `go run goship.go` command are:
  -k [id_rsa key]    Path to private SSH key for connecting to Github (default id_rsa)
 ```
 
-### Skype notifications
-To get notifications in a Skype chat room when the Deploy button is pushed, install [Sevabot](https://github.com/opensourcehacker/sevabot) and find the chat ID of the room you'd like to see notifications in. Put the chat ID, sevabot secret, and sevabot URL in your config.yml like so:
+### Chat Notifications
+To notify a chat room when the Deploy button is pushed, create a script that can send a message to the room and then add it to the config like so:
 
 ```yaml
-notifications:
-  - skype:
-    - chat_id: chat-id
-    - secret: my-secret
-    - sevabot_address: http://localhost:3333/msg/
+notify: ./notify.sh
 ```
 
-You can find the chat ID through sevabot's web interface.
+[Sevabot](http://sevabot-skype-bot.readthedocs.org/en/latest/) is a good choice for Skype.
 
 GoShip was inspired by [Rackspace's Dreadnot](https://github.com/racker/dreadnot) ([UI image](http://c179631.r31.cf0.rackcdn.com/dreadnot-overview.png)) and [Etsy's Deployinator](https://github.com/etsy/deployinator/) ([UI image](http://farm5.staticflickr.com/4065/4620552264_9e0fdf634d_b.jpg)).
 =======
