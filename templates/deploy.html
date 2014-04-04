@@ -23,11 +23,15 @@
       var environment = {{.Env}};
       var user = {{.User}};
       var diffUrl = {{.DiffUrl}};
+      var repo_owner = {{.RepoOwner}};
+      var repo_name = {{.RepoName}};
+      var latest_commit = {{.LatestCommit}};
+      var current_commit = {{.CurrentCommit}};
       var $main = $(".main");
       var $scrollToggleBtn = $('#scroll-toggle-btn');
 
       ws.onopen = function () {
-        $.post('deploy_handler', { project: project, environment: environment, user: user, diffUrl: diffUrl});
+        $.post('deploy_handler', { project: project, repo_owner: repo_owner, repo_name: repo_name, latest_commit: latest_commit, current_commit: current_commit, environment: environment, user: user, diffUrl: diffUrl});
       }
       ws.onmessage = function(e) {
         var obj = jQuery.parseJSON(e.data);
