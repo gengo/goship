@@ -547,7 +547,6 @@ func notify(n, msg string) error {
 
 func startNotify(n, user, p, env string) error {
 	msg := fmt.Sprintf("%s is deploying %s to %s.", user, p, env)
-	log.Println(msg)
 	err := notify(n, msg)
 	if err != nil {
 		return err
