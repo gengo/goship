@@ -8,6 +8,13 @@ import (
 	"testing"
 )
 
+func TestSimpleError(t *testing.T) {
+	e := ErrError.Error()
+	if e != "SQL logic error or missing database" {
+		t.Error("wrong error code:" + e)
+	}
+}
+
 func TestCorruptDbErrors(t *testing.T) {
 	dirName, err := ioutil.TempDir("", "sqlite3")
 	if err != nil {

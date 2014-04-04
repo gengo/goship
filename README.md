@@ -61,4 +61,13 @@ Available command line flags for the `go run goship.go` command are:
  -k [id_rsa key]    Path to private SSH key for connecting to Github (default id_rsa)
 ```
 
+### Chat Notifications
+To notify a chat room when the Deploy button is pushed, create a script that takes a message as an argument and sends the message to the room, and then add it to the config like so:
+
+```yaml
+notify: ./notifications/notify.sh
+```
+
+[Sevabot](http://sevabot-skype-bot.readthedocs.org/en/latest/) is a good choice for Skype.
+
 GoShip was inspired by [Rackspace's Dreadnot](https://github.com/racker/dreadnot) ([UI image](http://c179631.r31.cf0.rackcdn.com/dreadnot-overview.png)) and [Etsy's Deployinator](https://github.com/etsy/deployinator/) ([UI image](http://farm5.staticflickr.com/4065/4620552264_9e0fdf634d_b.jpg)).

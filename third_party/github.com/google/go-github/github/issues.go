@@ -31,6 +31,8 @@ type Issue struct {
 	ClosedAt  *time.Time `json:"closed_at,omitempty"`
 	CreatedAt *time.Time `json:"created_at,omitempty"`
 	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+	URL       *string    `json:"url,omitempty"`
+	HTMLURL   *string    `json:"html_url,omitempty"`
 
 	// TODO(willnorris): milestone
 }
@@ -47,6 +49,7 @@ type IssueRequest struct {
 	Body     *string  `json:"body,omitempty"`
 	Labels   []string `json:"labels,omitempty"`
 	Assignee *string  `json:"assignee,omitempty"`
+	State    *string  `json:"state,omitempty"`
 
 	// TODO(willnorris): milestone here too!
 }
