@@ -245,7 +245,7 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, gosh
 	}
 	piv = new(PivotalConfiguration)
 	piv.project, _ = config.Get("pivotal_project")
-	piv.token, _ = config.Get("pivotal_")
+	piv.token, _ = config.Get("pivotal_token")
 
 	notify, _ := config.Get("notify")
 	return allProjects, deployUser, &allOrgs, goshipHost, notify, piv
