@@ -4,3 +4,4 @@ config.yml
 src/
 goship
 .DS_Store
+notifications

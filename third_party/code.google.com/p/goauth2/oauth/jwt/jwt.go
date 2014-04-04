@@ -9,13 +9,9 @@
 // Example usage (error handling omitted for brevity):
 //
 //	// Craft the ClaimSet and JWT token.
-//	t := &jwt.Token{
-//		Key: pemKeyBytes,
-//	}
-//	t.ClaimSet = &jwt.ClaimSet{
-//		Iss:   "XXXXXXXXXXXX@developer.gserviceaccount.com",
-//		Scope: "https://www.googleapis.com/auth/devstorage.read_only",
-//	}
+//	iss := "XXXXXXXXXXXX@developer.gserviceaccount.com"
+//	scope := "https://www.googleapis.com/auth/devstorage.read_only"
+//	t := jwt.NewToken(iss, scope, pemKeyBytes)
 //
 //	// We need to provide a client.
 //	c := &http.Client{}
@@ -354,6 +350,7 @@ func (t *Token) parsePrivateKey() error {
 // expires call this method again to get a fresh one.
 func (t *Token) Assert(c *http.Client) (*oauth.Token, error) {
 	var o *oauth.Token
+	t.ClaimSet.setTimes(time.Now())
 	u, v, err := t.buildRequest()
 	if err != nil {
 		return o, err
@@ -422,4 +419,93 @@ func handleResponse(r *http.Response) (*oauth.Token, error) {
 	}
 	o.Expiry = time.Now().Add(b.ExpiresIn * time.Second)
 	return o, nil
+}
+
+// Transport implements http.RoundTripper. When configured with a valid
+// JWT and OAuth tokens it can be used to make authenticated HTTP requests.
+//
+//	t := &jwt.Transport{jwtToken, oauthToken}
+//	r, _, err := t.Client().Get("http://example.org/url/requiring/auth")
+//
+// It will automatically refresh the OAuth token if it can, updating in place.
+type Transport struct {
+	JWTToken   *Token
+	OAuthToken *oauth.Token
+
+	// Transport is the HTTP transport to use when making requests.
+	// It will default to http.DefaultTransport if nil.
+	Transport http.RoundTripper
+}
+
+// Creates a new authenticated transport.
+func NewTransport(token *Token) (*Transport, error) {
+	oa, err := token.Assert(new(http.Client))
+	if err != nil {
+		return nil, err
+	}
+	return &Transport{
+		JWTToken:   token,
+		OAuthToken: oa,
+	}, nil
+}
+
+// Client returns an *http.Client that makes OAuth-authenticated requests.
+func (t *Transport) Client() *http.Client {
+	return &http.Client{Transport: t}
+}
+
+// Fetches the internal transport.
+func (t *Transport) transport() http.RoundTripper {
+	if t.Transport != nil {
+		return t.Transport
+	}
+	return http.DefaultTransport
+}
+
+// RoundTrip executes a single HTTP transaction using the Transport's
+// OAuthToken as authorization headers.
+//
+// This method will attempt to renew the token if it has expired and may return
+// an error related to that token renewal before attempting the client request.
+// If the token cannot be renewed a non-nil os.Error value will be returned.
+// If the token is invalid callers should expect HTTP-level errors,
+// as indicated by the Response's StatusCode.
+func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Sanity check the two tokens
+	if t.JWTToken == nil {
+		return nil, fmt.Errorf("no JWT token supplied")
+	}
+	if t.OAuthToken == nil {
+		return nil, fmt.Errorf("no OAuth token supplied")
+	}
+	// Refresh the OAuth token if it has expired
+	if t.OAuthToken.Expired() {
+		if oa, err := t.JWTToken.Assert(new(http.Client)); err != nil {
+			return nil, err
+		} else {
+			t.OAuthToken = oa
+		}
+	}
+	// To set the Authorization header, we must make a copy of the Request
+	// so that we don't modify the Request we were given.
+	// This is required by the specification of http.RoundTripper.
+	req = cloneRequest(req)
+	req.Header.Set("Authorization", "Bearer "+t.OAuthToken.AccessToken)
+
+	// Make the HTTP request.
+	return t.transport().RoundTrip(req)
+}
+
+// cloneRequest returns a clone of the provided *http.Request.
+// The clone is a shallow copy of the struct and its Header map.
+func cloneRequest(r *http.Request) *http.Request {
+	// shallow copy of the struct
+	r2 := new(http.Request)
+	*r2 = *r
+	// deep copy of the Header
+	r2.Header = make(http.Header)
+	for k, s := range r.Header {
+		r2.Header[k] = s
+	}
+	return r2
 }

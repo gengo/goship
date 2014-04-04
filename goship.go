@@ -2,9 +2,6 @@ package main
 
 import (
 	"bufio"
-	"code.google.com/p/go.crypto/ssh"
-	"code.google.com/p/go.net/websocket"
-	"code.google.com/p/goauth2/oauth"
 	"crypto"
 	"crypto/rsa"
 	"crypto/x509"
@@ -13,10 +10,6 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
-	"github.com/google/go-github/github"
-	"github.com/gorilla/mux"
-	"github.com/kylelemons/go-gypsy/yaml"
-	_ "github.com/mattn/go-sqlite3"
 	"html/template"
 	"io"
 	"io/ioutil"
@@ -29,6 +22,14 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"code.google.com/p/go.crypto/ssh"
+	"code.google.com/p/go.net/websocket"
+	"code.google.com/p/goauth2/oauth"
+	"github.com/google/go-github/github"
+	"github.com/gorilla/mux"
+	"github.com/kylelemons/go-gypsy/yaml"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
@@ -204,7 +205,7 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 	return e
 }
 
-func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, goshipHost string, pivotalConfiguration *PivotalConfiguration) {
+func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, goshipHost string, n string, piv *PivotalConfiguration) {
 	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
 		log.Fatal(err)
@@ -240,11 +241,12 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, gosh
 			allProjects = append(allProjects, proj)
 		}
 	}
-	pivotalConfiguration = new(PivotalConfiguration)
-	pivotalConfiguration.project_id, _ = config.Get("pivotal_project_id")
-	pivotalConfiguration.token, _ = config.Get("pivotal_token")
+	piv = new(PivotalConfiguration)
+	piv.project_id, _ = config.Get("pivotal_project_id")
+	piv.token, _ = config.Get("pivotal_token")
 
-	return allProjects, deployUser, &allOrgs, goshipHost, pivotalConfiguration
+	notify, _ := config.Get("notify")
+	return allProjects, deployUser, &allOrgs, goshipHost, notify, piv
 }
 
 func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, deployUser string, i, j int) {
@@ -373,6 +375,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 	db, err := sql.Open("sqlite3", "./deploy_log.db")
 	if err != nil {
 		log.Println("Error opening sqlite db to write to deploy log: " + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer db.Close()
@@ -380,6 +383,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(q)
 	if err != nil {
 		log.Println("Error querying sqlite db: " + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	type Deploy struct {
@@ -412,7 +416,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request) {
-	projects, deployUser, _, _, _ := parseYAML()
+	projects, deployUser, _, _, _, _ := parseYAML()
 	vars := mux.Vars(r)
 	projName := vars["project"]
 	proj := getProjectFromName(projects, projName)
@@ -532,16 +536,53 @@ func sendOutput(scanner *bufio.Scanner, p, e string) {
 	}
 }
 
+func notify(n, msg string) error {
+	cmd := exec.Command(n, msg)
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func startNotify(n, user, p, env string) error {
+	msg := fmt.Sprintf("%s is deploying %s to %s.", user, p, env)
+	log.Println(msg)
+	err := notify(n, msg)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func endNotify(n, p, env string, success bool) error {
+	msg := fmt.Sprintf("%s successfully deployed to %s.", p, env)
+	if !success {
+		msg = fmt.Sprintf("%s deployment to %s failed.", p, env)
+	}
+	err := notify(n, msg)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	projects, _, _, _, pivotalConfiguration := parseYAML()
+	projects, _, _, _, n, piv := parseYAML()
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
 	diffUrl := r.FormValue("diffUrl")
-	repo_owner := r.FormValue("repo_owner")
-	repo_name := r.FormValue("repo_name")
-	latest_commit := r.FormValue("latest_commit")
-	current_commit := r.FormValue("current_commit")
+	owner := r.FormValue("repo_owner")
+	name := r.FormValue("repo_name")
+	latest := r.FormValue("latest_commit")
+	current := r.FormValue("current_commit")
+	if n != "" {
+		err := startNotify(n, user, p, env)
+		if err != nil {
+			log.Println("Error: ", err.Error())
+		}
+	}
 	db, err := sql.Open("sqlite3", "./deploy_log.db")
 	if err != nil {
 		log.Println("Error opening sqlite db to write to deploy log: " + err.Error())
@@ -574,38 +615,14 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		success = false
 		log.Println("Deployment failed: " + err.Error())
 	}
-	if (pivotalConfiguration.token != "") && (pivotalConfiguration.project_id != "") && success {
-		githubToken := os.Getenv("GITHUB_API_TOKEN")
-		t := &oauth.Transport{
-			Token: &oauth.Token{AccessToken: githubToken},
-		}
-		c := github.NewClient(t.Client())
-		commitComparison, _, err := c.Repositories.CompareCommits(repo_owner, repo_name, latest_commit, current_commit)
+	if n != "" {
+		err = endNotify(n, p, env, success)
 		if err != nil {
-			log.Println("ERROR: Error getting deployed commits: " + err.Error())
-		} else {
-			pivotal_regex, _ := regexp.Compile("\\[.*#(\\d+)\\].*")
-			if err != nil {
-				log.Println("ERROR: Error compiling regex to match Pivotal commits: " + err.Error())
-			} else {
-				stories := map[string]bool{}
-				const layout = "2006-01-02 15:04:05 (JST)"
-				for _, commit := range commitComparison.Commits {
-					commit_message_info := *commit.Commit
-					commit_message := *commit_message_info.Message
-					story_id_matches := pivotal_regex.FindStringSubmatch(commit_message)
-					if story_id_matches != nil {
-						story_id := story_id_matches[1]
-						_, present := stories[story_id]
-						if !present {
-							stories[story_id] = true
-							message := fmt.Sprintf("Deployed to %s: %s", env, time.Now().Format(layout))
-							go PostPivotalComment(story_id, message, pivotalConfiguration)
-						}
-					}
-				}
-			}
+			log.Println("Error: ", err.Error())
 		}
+	}
+	if (piv.token != "") && (piv.project_id != "") && success {
+		PostToPivotal(piv, env, owner, name, latest, current)
 	}
 	err = insertDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
 	if err != nil {
@@ -614,15 +631,49 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func PostPivotalComment(story_id string, message string, pivotalConfiguration *PivotalConfiguration) (err error) {
-	post_parameters := url.Values{}
-	post_parameters.Set("text", message)
-	req, err := http.NewRequest("POST", fmt.Sprintf("https://www.pivotaltracker.com/services/v5/projects/%s/stories/%s/comments", pivotalConfiguration.project_id, story_id), nil)
+func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current string) {
+	gt := os.Getenv("GITHUB_API_TOKEN")
+	t := &oauth.Transport{
+		Token: &oauth.Token{AccessToken: gt},
+	}
+	c := github.NewClient(t.Client())
+	comp, _, err := c.Repositories.CompareCommits(owner, name, latest, current)
+	if err != nil {
+		log.Println("ERROR: Error getting deployed commits: " + err.Error())
+	} else {
+		piv_reg, _ := regexp.Compile("\\[.*#(\\d+)\\].*")
+		if err != nil {
+			log.Println("ERROR: Error compiling regex to match Pivotal commits: " + err.Error())
+		} else {
+			s := map[string]bool{}
+			const layout = "2006-01-02 15:04:05 (JST)"
+			for _, commit := range comp.Commits {
+				cmi := *commit.Commit
+				cm := *cmi.Message
+				ids := piv_reg.FindStringSubmatch(cm)
+				if ids != nil {
+					id := ids[1]
+					_, exists := s[id]
+					if !exists {
+						s[id] = true
+						m := fmt.Sprintf("Deployed to %s: %s", env, time.Now().Format(layout))
+						go PostPivotalComment(id, m, piv)
+					}
+				}
+			}
+		}
+	}
+}
+
+func PostPivotalComment(id string, m string, pivotalConfiguration *PivotalConfiguration) (err error) {
+	p := url.Values{}
+	p.Set("text", m)
+	req, err := http.NewRequest("POST", fmt.Sprintf("https://www.pivotaltracker.com/services/v5/projects/%s/stories/%s/comments", pivotalConfiguration.project_id, id), nil)
 	if err != nil {
 		log.Printf("ERROR: Error forming put request to Pivotal: %s", err)
 		return err
 	}
-	req.URL.RawQuery = post_parameters.Encode()
+	req.URL.RawQuery = p.Encode()
 	req.Header.Add("X-TrackerToken", pivotalConfiguration.token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -631,8 +682,8 @@ func PostPivotalComment(story_id string, message string, pivotalConfiguration *P
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		message := fmt.Sprintf("ERROR: Non-200 Response from Pivotal API: %s", resp.Status)
-		log.Println(message)
+		m := fmt.Sprintf("ERROR: Non-200 Response from Pivotal API: %s", resp.Status)
+		log.Println(m)
 	}
 	return nil
 }
@@ -771,7 +822,7 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 		Token: &oauth.Token{AccessToken: githubToken},
 	}
 	c := github.NewClient(t.Client())
-	_, _, orgNames, _, _ := parseYAML()
+	_, _, orgNames, _, _, _ := parseYAML()
 	orgs := getOrgs(c, *orgNames)
 	// Create and parse Template
 	tmpl, err := template.New("pulls.html").ParseFiles("templates/pulls.html", "templates/base.html")
@@ -789,7 +840,7 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	projects, _, _, goshipHost, _ := parseYAML()
+	projects, _, _, goshipHost, _, _ := parseYAML()
 	// Create and parse Template
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
