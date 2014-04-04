@@ -41,6 +41,8 @@ var (
 
 const GITHUB_PAGINATION_LIMIT = 30
 
+const PIVOTAL_COMMENT_URL = "https://www.pivotaltracker.com/services/v5/projects/%s/stories/%s/comments"
+
 type Host struct {
 	URI             string
 	LatestCommit    string
@@ -78,8 +80,8 @@ type Repository struct {
 }
 
 type PivotalConfiguration struct {
-	project_id string
-	token      string
+	project string
+	token   string
 }
 
 func (h *Host) GetGitHubCommitURL(p Project) string {
@@ -242,8 +244,8 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, gosh
 		}
 	}
 	piv = new(PivotalConfiguration)
-	piv.project_id, _ = config.Get("pivotal_project_id")
-	piv.token, _ = config.Get("pivotal_token")
+	piv.project, _ = config.Get("pivotal_project")
+	piv.token, _ = config.Get("pivotal_")
 
 	notify, _ := config.Get("notify")
 	return allProjects, deployUser, &allOrgs, goshipHost, notify, piv
@@ -640,7 +642,7 @@ func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current 
 	if err != nil {
 		log.Println("ERROR: Error getting deployed commits: " + err.Error())
 	} else {
-		piv_reg, _ := regexp.Compile("\\[.*#(\\d+)\\].*")
+		pivRE, _ := regexp.Compile("\\[.*#(\\d+)\\].*")
 		if err != nil {
 			log.Println("ERROR: Error compiling regex to match Pivotal commits: " + err.Error())
 		} else {
@@ -649,7 +651,7 @@ func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current 
 			for _, commit := range comp.Commits {
 				cmi := *commit.Commit
 				cm := *cmi.Message
-				ids := piv_reg.FindStringSubmatch(cm)
+				ids := pivRE.FindStringSubmatch(cm)
 				if ids != nil {
 					id := ids[1]
 					_, exists := s[id]
@@ -664,24 +666,24 @@ func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current 
 	}
 }
 
-func PostPivotalComment(id string, m string, pivotalConfiguration *PivotalConfiguration) (err error) {
+func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err error) {
 	p := url.Values{}
 	p.Set("text", m)
-	req, err := http.NewRequest("POST", fmt.Sprintf("https://www.pivotaltracker.com/services/v5/projects/%s/stories/%s/comments", pivotalConfiguration.project_id, id), nil)
+	req, err := http.NewRequest("POST", fmt.Sprintf(PIVOTAL_COMMENT_URL, piv.project, id), nil)
 	if err != nil {
-		log.Printf("ERROR: Error forming put request to Pivotal: %s", err)
+		log.Println("ERROR: Error forming put request to Pivotal: ", err.Error())
 		return err
 	}
 	req.URL.RawQuery = p.Encode()
-	req.Header.Add("X-TrackerToken", pivotalConfiguration.token)
+	req.Header.Add("X-TrackerToken", piv.token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Printf("ERROR: Error making put request to Pivotal: %s", err)
+		log.Println("ERROR: Error making put request to Pivotal: ", err.Error())
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		m := fmt.Sprintf("ERROR: Non-200 Response from Pivotal API: %s", resp.Status)
+	if resp.StatusCode != http.StatusOK {
+		m := fmt.Sprint("ERROR: Non-200 Response from Pivotal API: ", resp.Status)
 		log.Println(m)
 	}
 	return nil
@@ -701,14 +703,15 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Panic(err)
 	}
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "DiffUrl": diffUrl, "GoshipHost": goshipHost, "Port": *port, "RepoOwner": repo_owner, "RepoName": repo_name, "LatestCommit": latest_commit, "CurrentCommit": current_commit})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "DiffUrl": diffUrl, "GoshipHost": goshipHost,
+		"Port": *port, "RepoOwner": repo_owner, "RepoName": repo_name, "LatestCommit": latest_commit, "CurrentCommit": current_commit})
 }
 
 func getPull(wg *sync.WaitGroup, c *github.Client, orgName, repoName string, pulls []github.PullRequest, prNumber, i int) {
 	defer wg.Done()
 	pr, _, err := c.PullRequests.Get(orgName, repoName, prNumber)
 	if err != nil {
-		log.Println("Error getting pull request: " + err.Error())
+		log.Println("Error getting pull request: ", err.Error())
 		pulls[i] = github.PullRequest{}
 		return
 	}
@@ -722,7 +725,7 @@ func getPullsForRepo(wg *sync.WaitGroup, c *github.Client, orgName string, gitHu
 	repo.Repository = gitHubRepo
 	pulls, _, err := c.PullRequests.List(orgName, *gitHubRepo.Name, nil)
 	if err != nil {
-		log.Println("Error retrieving pull requests for repo: " + err.Error())
+		log.Println("Error retrieving pull requests for repo: ", err.Error())
 		repo.PullRequests = []github.PullRequest{}
 		repos[i] = repo
 		return
@@ -747,7 +750,7 @@ func getReposForOrg(c *github.Client, orgName string) []Repository {
 		opt := &github.RepositoryListByOrgOptions{"", github.ListOptions{Page: page}}
 		gitHubRepos, _, err := c.Repositories.ListByOrg(orgName, opt)
 		if err != nil {
-			log.Println("Could not retrieve repositories: " + err.Error())
+			log.Println("Could not retrieve repositories: ", err.Error())
 			return []Repository{}
 		}
 		allGitHubRepos = append(allGitHubRepos, gitHubRepos...)
@@ -772,7 +775,7 @@ func getOrgs(c *github.Client, orgNames []string) []Organization {
 	for _, o := range orgNames {
 		gitHubOrg, _, err := c.Organizations.Get(o)
 		if err != nil {
-			log.Println("Error getting organizations: " + err.Error())
+			log.Println("Error getting organizations: ", err.Error())
 			continue
 		}
 		repos := getReposForOrg(c, o)
