@@ -198,14 +198,6 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 	return e
 }
 
-func parseNotifyCommand(config *yaml.File) (n string, err error) {
-	s, err := config.Get("skype.secret")
-	if err != nil {
-		return
-	}
-	return s, nil
-}
-
 func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, goshipHost string, n *string) {
 	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
