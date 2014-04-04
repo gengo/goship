@@ -547,23 +547,25 @@ func notify(n, msg string) error {
 	return nil
 }
 
-func startNotify(n, user, p, env string) {
+func startNotify(n, user, p, env string) error {
 	msg := fmt.Sprintf("%s is deploying %s to %s", user, p, env)
 	err := notify(n, msg)
 	if err != nil {
-		log.Println("Error: " + err.Error())
+		return err
 	}
+	return nil
 }
 
-func endNotify(n, p, env string, success bool) {
+func endNotify(n, p, env string, success bool) error {
 	msg := fmt.Sprintf("%s successfully deployed to %s.", p, env)
 	if !success {
 		msg = fmt.Sprintf("%s deployment to %s failed.", p, env)
 	}
 	err := notify(n, msg)
 	if err != nil {
-		log.Println("Error: " + err.Error())
+		return err
 	}
+	return nil
 }
 
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
@@ -573,7 +575,10 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	user := r.FormValue("user")
 	diffUrl := r.FormValue("diffUrl")
 	if n != nil {
-		startNotify(*n, user, p, env)
+		err := startNotify(*n, user, p, env)
+		if err != nil {
+			log.Println("Error: ", err.Error())
+		}
 	}
 	db, err := sql.Open("sqlite3", "./deploy_log.db")
 	if err != nil {
@@ -608,7 +613,10 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("Deployment failed: " + err.Error())
 	}
 	if n != nil {
-		endNotify(*n, p, env, success)
+		err = endNotify(*n, p, env, success)
+		if err != nil {
+			log.Println("Error: ", err.Error())
+		}
 	}
 	err = insertDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
 	if err != nil {
