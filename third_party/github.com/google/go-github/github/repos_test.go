@@ -244,6 +244,28 @@ func TestRepositoriesService_Edit_invalidOwner(t *testing.T) {
 	testURLParseError(t, err)
 }
 
+func TestRepositoriesService_ListContributors(t *testing.T) {
+	setup()
+	defer teardown()
+
+	mux.HandleFunc("/repos/o/r/contributors", func(w http.ResponseWriter, r *http.Request) {
+		testMethod(t, r, "GET")
+		fmt.Fprint(w, `[{"contributions":42}]`)
+	})
+
+	opts := &ListContributorsOptions{Anon: "true"}
+	contributors, _, err := client.Repositories.ListContributors("o", "r", opts)
+
+	if err != nil {
+		t.Errorf("Repositories.ListContributors returned error: %v", err)
+	}
+
+	want := []Contributor{{Contributions: Int(42)}}
+	if !reflect.DeepEqual(contributors, want) {
+		t.Errorf("Repositories.ListContributors returned %+v, want %+v", contributors, want)
+	}
+}
+
 func TestRepositoriesService_ListLanguages(t *testing.T) {
 	setup()
 	defer teardown()
@@ -261,6 +283,26 @@ func TestRepositoriesService_ListLanguages(t *testing.T) {
 	want := map[string]int{"go": 1}
 	if !reflect.DeepEqual(languages, want) {
 		t.Errorf("Repositories.ListLanguages returned %+v, want %+v", languages, want)
+	}
+}
+
+func TestRepositoriesService_ListBranches(t *testing.T) {
+	setup()
+	defer teardown()
+
+	mux.HandleFunc("/repos/o/r/branches", func(w http.ResponseWriter, r *http.Request) {
+		testMethod(t, r, "GET")
+		fmt.Fprint(w, `[{"name":"master", "commit" : {"sha" : "a57781", "url" : "https://api.github.com/repos/o/r/commits/a57781"}}]`)
+	})
+
+	branches, _, err := client.Repositories.ListBranches("o", "r")
+	if err != nil {
+		t.Errorf("Repositories.ListBranches returned error: %v", err)
+	}
+
+	want := []Branch{{Name: String("master"), Commit: &Commit{SHA: String("a57781"), URL: String("https://api.github.com/repos/o/r/commits/a57781")}}}
+	if !reflect.DeepEqual(branches, want) {
+		t.Errorf("Repositories.ListBranches returned %+v, want %+v", branches, want)
 	}
 }
 
