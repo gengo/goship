@@ -62,7 +62,7 @@ Available command line flags for the `go run goship.go` command are:
 ```
 
 ### Chat Notifications
-To notify a chat room when the Deploy button is pushed, create a script that can send a message to the room and then add it to the config like so:
+To notify a chat room when the Deploy button is pushed, create a script that takes a message as an argument and sends the message to the room, and then add it to the config like so:
 
 ```yaml
 notify: ./notify.sh
