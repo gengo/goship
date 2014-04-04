@@ -622,7 +622,7 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println("Error: ", err.Error())
 		}
 	}
-	if (piv.token != "") && (piv.project_id != "") && success {
+	if (piv.token != "") && (piv.project != "") && success {
 		PostToPivotal(piv, env, owner, name, latest, current)
 	}
 	err = insertDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
