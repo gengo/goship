@@ -2,9 +2,6 @@ package main
 
 import (
 	"bufio"
-	"code.google.com/p/go.crypto/ssh"
-	"code.google.com/p/go.net/websocket"
-	"code.google.com/p/goauth2/oauth"
 	"crypto"
 	"crypto/rsa"
 	"crypto/x509"
@@ -13,10 +10,6 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
-	_ "github.com/bradfitz/go-sqlite3"
-	"github.com/google/go-github/github"
-	"github.com/gorilla/mux"
-	"github.com/kylelemons/go-gypsy/yaml"
 	"html/template"
 	"io"
 	"io/ioutil"
@@ -27,6 +20,14 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"code.google.com/p/go.crypto/ssh"
+	"code.google.com/p/go.net/websocket"
+	"code.google.com/p/goauth2/oauth"
+	"github.com/google/go-github/github"
+	"github.com/gorilla/mux"
+	"github.com/kylelemons/go-gypsy/yaml"
+	//_ "github.com/mattn/go-sqlite3"
 )
 
 var (
@@ -72,16 +73,6 @@ type Organization struct {
 type Repository struct {
 	github.Repository
 	PullRequests []github.PullRequest
-}
-
-type Skype struct {
-	ChatId         string
-	Secret         string
-	SevabotAddress string
-}
-
-type Notifications struct {
-	Skype *Skype
 }
 
 func (h *Host) GetGitHubCommitURL(p Project) string {
@@ -207,26 +198,15 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 	return e
 }
 
-func parseSkype(config *yaml.File) (s Skype, err error) {
-	chatId, err := config.Get("skype.chat_id")
+func parseNotifyCommand(config *yaml.File) (n string, err error) {
+	s, err := config.Get("skype.secret")
 	if err != nil {
 		return
 	}
-	s.ChatId = chatId
-	secret, err := config.Get("skype.secret")
-	if err != nil {
-		return
-	}
-	s.Secret = secret
-	sevabotAddress, err := config.Get("skype.sevabot_address")
-	if err != nil {
-		return
-	}
-	s.SevabotAddress = sevabotAddress
 	return s, nil
 }
 
-func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, goshipHost string, notifications Notifications) {
+func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, goshipHost string, n *string) {
 	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
 		log.Fatal(err)
@@ -262,11 +242,13 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, gosh
 			allProjects = append(allProjects, proj)
 		}
 	}
-	s, _ := parseSkype(config)
-	if s.ChatId != "" && s.Secret != "" && s.SevabotAddress != "" {
-		notifications.Skype = &s
+	not, err := config.Get("notify")
+	if err != nil {
+		n = nil
 	}
-	return allProjects, deployUser, &allOrgs, goshipHost, notifications
+	n = &not
+
+	return allProjects, deployUser, &allOrgs, goshipHost, n
 }
 
 func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, deployUser string, i, j int) {
@@ -556,8 +538,8 @@ func sendOutput(scanner *bufio.Scanner, p, e string) {
 	}
 }
 
-func (s *Skype) notify(msg string) error {
-	cmd := exec.Command("notifications/notify.sh", "-c", s.ChatId, "-s", s.Secret, "-a", s.SevabotAddress, "-m", msg)
+func notify(n, msg string) error {
+	cmd := exec.Command(n, msg)
 	err := cmd.Run()
 	if err != nil {
 		return err
@@ -565,26 +547,22 @@ func (s *Skype) notify(msg string) error {
 	return nil
 }
 
-func (n *Notifications) startNotify(user, p, env string) {
-	if n.Skype != nil {
-		msg := fmt.Sprintf("%s is deploying %s to %s", user, p, env)
-		err := n.Skype.notify(msg)
-		if err != nil {
-			log.Println("Error notifying Skype: " + err.Error())
-		}
+func startNotify(n, user, p, env string) {
+	msg := fmt.Sprintf("%s is deploying %s to %s", user, p, env)
+	err := notify(n, msg)
+	if err != nil {
+		log.Println("Error: " + err.Error())
 	}
 }
 
-func (n *Notifications) endNotify(p, env string, success bool) {
-	if n.Skype != nil {
-		msg := fmt.Sprintf("%s successfully deployed to %s.", p, env)
-		if !success {
-			msg = fmt.Sprintf("%s deployment to %s failed.", p, env)
-		}
-		err := n.Skype.notify(msg)
-		if err != nil {
-			log.Println("Error notifying Skype: " + err.Error())
-		}
+func endNotify(n, p, env string, success bool) {
+	msg := fmt.Sprintf("%s successfully deployed to %s.", p, env)
+	if !success {
+		msg = fmt.Sprintf("%s deployment to %s failed.", p, env)
+	}
+	err := notify(n, msg)
+	if err != nil {
+		log.Println("Error: " + err.Error())
 	}
 }
 
@@ -594,7 +572,9 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
 	diffUrl := r.FormValue("diffUrl")
-	n.startNotify(user, p, env)
+	if n != nil {
+		startNotify(*n, user, p, env)
+	}
 	db, err := sql.Open("sqlite3", "./deploy_log.db")
 	if err != nil {
 		log.Println("Error opening sqlite db to write to deploy log: " + err.Error())
@@ -627,7 +607,9 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		success = false
 		log.Println("Deployment failed: " + err.Error())
 	}
-	n.endNotify(p, env, success)
+	if n != nil {
+		endNotify(*n, p, env, success)
+	}
 	err = insertDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
 	if err != nil {
 		log.Println("ERROR: %v", err)
@@ -794,7 +776,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	createDb()
+	//createDb()
 	flag.Parse()
 	r := mux.NewRouter()
 	r.HandleFunc("/", HomeHandler)
