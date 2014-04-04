@@ -39,10 +39,12 @@ var (
 	keyPath    = flag.String("k", "id_rsa", "Path to private SSH key (default id_rsa)")
 )
 
-const GITHUB_PAGINATION_LIMIT = 30
+// gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
+const gitHubPaginationLimit = 30
 
 const PIVOTAL_COMMENT_URL = "https://www.pivotaltracker.com/services/v5/projects/%s/stories/%s/comments"
 
+// Host stores information on a host, such as URI and the latest commit revision.
 type Host struct {
 	URI             string
 	LatestCommit    string
@@ -51,6 +53,7 @@ type Host struct {
 	ShortCommitHash string
 }
 
+// Environment stores information about an individual environment, such as its name and whether it is deployable.
 type Environment struct {
 	Name               string
 	Deploy             string
@@ -61,6 +64,7 @@ type Environment struct {
 	IsDeployable       bool
 }
 
+// Project stores information about a GitHub project, such as its GitHub URL and repo name.
 type Project struct {
 	Name         string
 	GitHubURL    string
@@ -69,11 +73,13 @@ type Project struct {
 	Environments []Environment
 }
 
+// Organization stores information about a GitHub organization.
 type Organization struct {
 	github.Organization
 	Repositories []Repository
 }
 
+// Repository stores information about a GitHub repository.
 type Repository struct {
 	github.Repository
 	PullRequests []github.PullRequest
@@ -84,10 +90,13 @@ type PivotalConfiguration struct {
 	token   string
 }
 
+// GetGitHubCommitURL takes a project and returns the GitHub URL for its latest commit hash.
 func (h *Host) GetGitHubCommitURL(p Project) string {
 	return fmt.Sprintf("%s/commit/%s", p.GitHubURL, h.LatestCommit)
 }
 
+// GetGitHubDiffURL takes a project and an environment and returns the GitHub diff URL
+// for the latest commit on the host compared to the latest commit on GitHub.
 func (h *Host) GetGitHubDiffURL(p Project, e Environment) *string {
 	if h.LatestCommit != e.LatestGitHubCommit {
 		s := fmt.Sprintf("%s/compare/%s...%s", p.GitHubURL, h.LatestCommit, e.LatestGitHubCommit)
@@ -96,6 +105,8 @@ func (h *Host) GetGitHubDiffURL(p Project, e Environment) *string {
 	return nil
 }
 
+// Deployable returns true if the latest commit for any of the hosts in an environment
+// differs from the latest commit on GitHub, and false if all of the commits match.
 func (e *Environment) Deployable() bool {
 	for _, h := range e.Hosts {
 		if e.LatestGitHubCommit != h.LatestCommit {
@@ -105,6 +116,7 @@ func (e *Environment) Deployable() bool {
 	return false
 }
 
+// GetShortCommitHash returns a shortened version of the latest commit hash on a host.
 func (h *Host) GetShortCommitHash() string {
 	if len(h.LatestCommit) == 0 {
 		return ""
@@ -112,6 +124,7 @@ func (h *Host) GetShortCommitHash() string {
 	return h.LatestCommit[:7]
 }
 
+// getPrivateKey opens a private key file and returns its bytes.
 func getPrivateKey(filename string) (b []byte, err error) {
 	b, err = ioutil.ReadFile(filename)
 	if err != nil {
@@ -143,6 +156,7 @@ func (k *keychain) Sign(i int, rand io.Reader, data []byte) (sig []byte, err err
 	return rsa.SignPKCS1v15(rand, k.key, hashFunc, digest)
 }
 
+// remoteCmdOutput runs the given command on a remote server at the given hostname as the given user.
 func remoteCmdOutput(username, hostname, privateKey, cmd string) (b []byte, err error) {
 	block, _ := pem.Decode([]byte(privateKey))
 	rsakey, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
@@ -173,6 +187,7 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) (b []byte, err 
 	return b, nil
 }
 
+// latestDeployedCommit gets the latest commit hash on the host.
 func latestDeployedCommit(username, hostname string, e Environment) (b []byte, err error) {
 	privKey, err := getPrivateKey(*keyPath)
 	if err != nil {
@@ -188,10 +203,12 @@ func latestDeployedCommit(username, hostname string, e Environment) (b []byte, e
 	return o, nil
 }
 
+// getYAMLString is a helper function for extracting strings from a yaml.Node.
 func getYAMLString(n yaml.Node, key string) string {
 	return strings.TrimSpace(n.(yaml.Map)[key].(yaml.Scalar).String())
 }
 
+// parseYAMLEnvironment populates an Environment given a yaml.Node and returns the Environment.
 func parseYAMLEnvironment(m yaml.Node) Environment {
 	e := Environment{}
 	for k, v := range m.(yaml.Map) {
@@ -207,6 +224,7 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 	return e
 }
 
+// parseYAML parses the config.yml file and returns the appropriate structs and strings.
 func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, goshipHost string, n string, piv *PivotalConfiguration) {
 	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
@@ -251,6 +269,8 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, gosh
 	return allProjects, deployUser, &allOrgs, goshipHost, notify, piv
 }
 
+// getCommit is called in a goroutine and gets the latest deployed commit on a host.
+// It updates the Environment in-place.
 func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, deployUser string, i, j int) {
 	defer wg.Done()
 	lc, err := latestDeployedCommit(deployUser, host.URI+":"+sshPort, env)
@@ -263,7 +283,8 @@ func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, 
 	project.Environments[i].Hosts[j] = host
 }
 
-//  Get the most recent commit hash on a given branch from GitHub
+// getLatestGitHubCommit is called in a goroutine and retrieves the latest commit
+// from GitHub for a given branch of a project. It updates the Environment in-place.
 func getLatestGitHubCommit(wg *sync.WaitGroup, project Project, environment Environment, c *github.Client, repoOwner, repoName string, i int) {
 	defer wg.Done()
 	opts := &github.CommitsListOptions{SHA: environment.Branch}
@@ -277,6 +298,8 @@ func getLatestGitHubCommit(wg *sync.WaitGroup, project Project, environment Envi
 	project.Environments[i] = environment
 }
 
+// retrieveCommits fetches the latest deployed commits as well
+// as the latest GitHub commits for a given Project.
 func retrieveCommits(project Project, deployUser string) Project {
 	// define a wait group to wait for all goroutines to finish
 	var wg sync.WaitGroup
@@ -309,6 +332,7 @@ func retrieveCommits(project Project, deployUser string) Project {
 	return project
 }
 
+// insertDeployLogEntry inserts an entry into the deploy log database.
 func insertDeployLogEntry(db sql.DB, environment, diffUrl, user string, success bool) (err error) {
 	tx, err := db.Begin()
 	if err != nil {
@@ -330,6 +354,8 @@ func insertDeployLogEntry(db sql.DB, environment, diffUrl, user string, success 
 	return nil
 }
 
+// getProjectFromName takes a project name as a string and returns
+// a Project by that name if it can find one.
 func getProjectFromName(projects []Project, projectName string) *Project {
 	for _, project := range projects {
 		if project.Name == projectName {
@@ -339,6 +365,9 @@ func getProjectFromName(projects []Project, projectName string) *Project {
 	return nil
 }
 
+// getEnvironmentFromName takes an environment and project name as a string and returns
+// an Environmnet by the given environment name under a project with the given
+// project name if it can find one.
 func getEnvironmentFromName(projects []Project, projectName, environmentName string) *Environment {
 	p := getProjectFromName(projects, projectName)
 	for _, environment := range p.Environments {
@@ -349,6 +378,8 @@ func getEnvironmentFromName(projects []Project, projectName, environmentName str
 	return nil
 }
 
+// getDeployCommand returns the deployment command for a given
+// environment as a string slice that has been split on spaces.
 func getDeployCommand(projects []Project, projectName, environmentName string) []string {
 	var command []string
 	e := getEnvironmentFromName(projects, projectName, environmentName)
@@ -356,6 +387,7 @@ func getDeployCommand(projects []Project, projectName, environmentName string) [
 	return command
 }
 
+// createDb creates a sqlite3 database and creates the logs table if it does not exist already.
 func createDb() {
 	db, err := sql.Open("sqlite3", "./deploy_log.db")
 	if err != nil {
@@ -754,7 +786,7 @@ func getReposForOrg(c *github.Client, orgName string) []Repository {
 			return []Repository{}
 		}
 		allGitHubRepos = append(allGitHubRepos, gitHubRepos...)
-		if len(gitHubRepos) < GITHUB_PAGINATION_LIMIT {
+		if len(gitHubRepos) < gitHubPaginationLimit {
 			break
 		}
 		page = page + 1
