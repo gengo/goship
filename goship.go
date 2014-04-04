@@ -42,7 +42,7 @@ var (
 // gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
 const gitHubPaginationLimit = 30
 
-const PIVOTAL_COMMENT_URL = "https://www.pivotaltracker.com/services/v5/projects/%s/stories/%s/comments"
+const pivotalCommentURL = "https://www.pivotaltracker.com/services/v5/projects/%s/stories/%s/comments"
 
 // Host stores information on a host, such as URI and the latest commit revision.
 type Host struct {
@@ -701,7 +701,7 @@ func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current 
 func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err error) {
 	p := url.Values{}
 	p.Set("text", m)
-	req, err := http.NewRequest("POST", fmt.Sprintf(PIVOTAL_COMMENT_URL, piv.project, id), nil)
+	req, err := http.NewRequest("POST", fmt.Sprintf(pivotalCommentURL, piv.project, id), nil)
 	if err != nil {
 		log.Println("ERROR: Error forming put request to Pivotal: ", err.Error())
 		return err
