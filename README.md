@@ -65,7 +65,7 @@ Available command line flags for the `go run goship.go` command are:
 To notify a chat room when the Deploy button is pushed, create a script that takes a message as an argument and sends the message to the room, and then add it to the config like so:
 
 ```yaml
-notify: ./notify.sh
+notify: ./notifications/notify.sh
 ```
 
 [Sevabot](http://sevabot-skype-bot.readthedocs.org/en/latest/) is a good choice for Skype.
