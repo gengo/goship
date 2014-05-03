@@ -336,18 +336,18 @@ func retrieveCommits(project Project, deployUser string) Project {
 func insertDeployLogEntry(db sql.DB, environment, diffUrl, user string, success bool) (err error) {
 	tx, err := db.Begin()
 	if err != nil {
-		log.Println("ERROR: can't connect to database: %v", err)
+		log.Printf("ERROR: can't connect to database: %v", err)
 		return err
 	}
 	stmt, err := tx.Prepare("insert into logs(environment, diff_url, user, success) values(?, ?, ?, ?)")
 	if err != nil {
-		log.Println("ERROR: can't insert into database: %v", err)
+		log.Printf("ERROR: can't insert into database: %v", err)
 		return err
 	}
 	defer stmt.Close()
 	_, err = stmt.Exec(environment, diffUrl, user, success)
 	if err != nil {
-		log.Println("ERROR: could not execute statement on database: %v", err)
+		log.Printf("ERROR: could not execute statement on database: %v", err)
 		return err
 	}
 	tx.Commit()
@@ -659,7 +659,7 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	err = insertDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
 	if err != nil {
-		log.Println("ERROR: %v", err)
+		log.Printf("ERROR: %v", err)
 		return
 	}
 }
