@@ -50,10 +50,12 @@ projects:
 Then run the server manually
 
 ```shell
-go run goship.go -p 8888 -k ~/.ssh/id_rsa
+make install
+make
+./goship -p 8888 -k ~/.ssh/id_rsa
 ```
 
-Available command line flags for the `go run goship.go` command are:
+Available command line flags for the `goship` binary:
 
 ```
  -p [port]          Port number (default 8000)

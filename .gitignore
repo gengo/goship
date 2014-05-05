@@ -5,3 +5,4 @@ src/
 goship
 .DS_Store
 notifications
+_vendor
