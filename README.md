@@ -47,6 +47,8 @@ projects:
                 branch: master
 ```
 
+Goship is using [Gom](https://github.com/mattn/gom) for dependency management. Please, install it before.
+
 Then run the server manually
 
 ```shell
