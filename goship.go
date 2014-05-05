@@ -33,10 +33,10 @@ import (
 )
 
 var (
-	port       = flag.String("p", "8000", "Port number (default 8000)")
-	sshPort    = "22"
-	configFile = flag.String("c", "config.yml", "Config file (default ./config.yml)")
-	keyPath    = flag.String("k", "id_rsa", "Path to private SSH key (default id_rsa)")
+	bindAddress = flag.String("b", "localhost:8000", "Address to bind (default localhost:8000)")
+	sshPort     = "22"
+	configFile  = flag.String("c", "config.yml", "Config file (default ./config.yml)")
+	keyPath     = flag.String("k", "id_rsa", "Path to private SSH key (default id_rsa)")
 )
 
 // gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
@@ -225,7 +225,7 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 }
 
 // parseYAML parses the config.yml file and returns the appropriate structs and strings.
-func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, goshipHost string, n string, piv *PivotalConfiguration) {
+func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, n string, piv *PivotalConfiguration) {
 	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
 		log.Fatal(err)
@@ -233,10 +233,6 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, gosh
 	deployUser, err = config.Get("deploy_user")
 	if err != nil {
 		log.Fatal("config.yml is missing deploy_user: " + err.Error())
-	}
-	goshipHost, err = config.Get("goship_host")
-	if err != nil {
-		log.Fatal("config.yml is missing goship_host: " + err.Error())
 	}
 	configRoot, _ := config.Root.(yaml.Map)
 	yamlOrgs := configRoot["orgs"]
@@ -266,7 +262,7 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, gosh
 	piv.token, _ = config.Get("pivotal_token")
 
 	notify, _ := config.Get("notify")
-	return allProjects, deployUser, &allOrgs, goshipHost, notify, piv
+	return allProjects, deployUser, &allOrgs, notify, piv
 }
 
 // getCommit is called in a goroutine and gets the latest deployed commit on a host.
@@ -450,7 +446,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request) {
-	projects, deployUser, _, _, _, _ := parseYAML()
+	projects, deployUser, _, _, _ := parseYAML()
 	vars := mux.Vars(r)
 	projName := vars["project"]
 	proj := getProjectFromName(projects, projName)
@@ -601,7 +597,7 @@ func endNotify(n, p, env string, success bool) error {
 }
 
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	projects, _, _, _, n, piv := parseYAML()
+	projects, _, _, n, piv := parseYAML()
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
@@ -726,7 +722,6 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
 	diffUrl := r.FormValue("diffUrl")
-	goshipHost := r.FormValue("goshipHost")
 	repo_owner := r.FormValue("repo_owner")
 	repo_name := r.FormValue("repo_name")
 	latest_commit := r.FormValue("latest_commit")
@@ -735,8 +730,7 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Panic(err)
 	}
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "DiffUrl": diffUrl, "GoshipHost": goshipHost,
-		"Port": *port, "RepoOwner": repo_owner, "RepoName": repo_name, "LatestCommit": latest_commit, "CurrentCommit": current_commit})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "DiffUrl": diffUrl, "BindAddress": bindAddress, "RepoOwner": repo_owner, "RepoName": repo_name, "LatestCommit": latest_commit, "CurrentCommit": current_commit})
 }
 
 func getPull(wg *sync.WaitGroup, c *github.Client, orgName, repoName string, pulls []github.PullRequest, prNumber, i int) {
@@ -856,7 +850,7 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 		Token: &oauth.Token{AccessToken: githubToken},
 	}
 	c := github.NewClient(t.Client())
-	_, _, orgNames, _, _, _ := parseYAML()
+	_, _, orgNames, _, _ := parseYAML()
 	orgs := getOrgs(c, *orgNames)
 	// Create and parse Template
 	tmpl, err := template.New("pulls.html").ParseFiles("templates/pulls.html", "templates/base.html")
@@ -874,14 +868,14 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	projects, _, _, goshipHost, _, _ := parseYAML()
+	projects, _, _, _, _ := parseYAML()
 	// Create and parse Template
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
 		log.Panic(err)
 	}
 	// Render the template
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": projects, "GoshipHost": goshipHost, "Page": "home"})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": projects, "Page": "home"})
 }
 
 func main() {
@@ -897,6 +891,6 @@ func main() {
 	r.HandleFunc("/pulls", PullRequestsHandler)
 	r.HandleFunc("/deploy_handler", DeployHandler)
 	http.Handle("/", r)
-	fmt.Println("Running on localhost:" + *port)
-	log.Fatal(http.ListenAndServe(":"+*port, nil))
+	fmt.Printf("Running on %s\n", *bindAddress)
+	log.Fatal(http.ListenAndServe(*bindAddress, nil))
 }
