@@ -333,7 +333,7 @@ func retrieveCommits(project Project, deployUser string) Project {
 }
 
 // insertDeployLogEntry inserts an entry into the deploy log database.
-func insertDeployLogEntry(db sql.DB, environment, diffUrl, user string, success bool) (err error) {
+func insertDeployLogEntry(environment, diffUrl, user string, success bool) (err error) {
 	tx, err := db.Begin()
 	if err != nil {
 		log.Printf("ERROR: can't connect to database: %v", err)
@@ -387,14 +387,16 @@ func getDeployCommand(projects []Project, projectName, environmentName string) [
 	return command
 }
 
+var db *sql.DB
+
 // createDb creates a sqlite3 database and creates the logs table if it does not exist already.
 func createDb() {
-	db, err := sql.Open("sqlite3", "./deploy_log.db")
+	var err error
+	db, err = sql.Open("sqlite3", "./deploy_log.db")
 	if err != nil {
 		log.Println("Error opening or creating deploy_log.db: " + err.Error())
 		return
 	}
-	defer db.Close()
 	sql := `create table if not exists logs (id integer not null primary key autoincrement, environment text, diff_url text, user text, timestamp datetime default current_timestamp, success boolean);`
 	_, err = db.Exec(sql)
 	if err != nil {
@@ -406,13 +408,6 @@ func createDb() {
 func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	environment := vars["environment"]
-	db, err := sql.Open("sqlite3", "./deploy_log.db")
-	if err != nil {
-		log.Println("Error opening sqlite db to write to deploy log: " + err.Error())
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer db.Close()
 	q := fmt.Sprintf("select diff_url, user, timestamp, success from logs where environment = \"%s\"", environment)
 	rows, err := db.Query(q)
 	if err != nil {
@@ -616,12 +611,6 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println("Error: ", err.Error())
 		}
 	}
-	db, err := sql.Open("sqlite3", "./deploy_log.db")
-	if err != nil {
-		log.Println("Error opening sqlite db to write to deploy log: " + err.Error())
-		return
-	}
-	defer db.Close()
 	success := true
 	command := getDeployCommand(projects, p, env)
 	cmd := exec.Command(command[0], command[1:]...)
@@ -657,7 +646,7 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	if (piv.token != "") && (piv.project != "") && success {
 		PostToPivotal(piv, env, owner, name, latest, current)
 	}
-	err = insertDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
+	err = insertDeployLogEntry(fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
 	if err != nil {
 		log.Printf("ERROR: %v", err)
 		return
@@ -885,8 +874,11 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	createDb()
 	flag.Parse()
+
+	createDb()
+	defer db.Close()
+
 	r := mux.NewRouter()
 	r.HandleFunc("/", HomeHandler)
 	go h.run()
