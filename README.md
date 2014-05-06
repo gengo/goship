@@ -61,6 +61,10 @@ Available command line flags for the `go run goship.go` command are:
  -k [id_rsa key]    Path to private SSH key for connecting to Github (default id_rsa)
 ```
 
+### Deploy scripts
+
+You can find examples of deploy scripts in example/ dir in this repo.
+
 ### Chat Notifications
 To notify a chat room when the Deploy button is pushed, create a script that takes a message as an argument and sends the message to the room, and then add it to the config like so:
 
