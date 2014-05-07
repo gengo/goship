@@ -21,8 +21,6 @@ Create a config.yml file:
 ```yaml
 # The user that will SSH into the servers to get the latest git revisions
 deploy_user: deployer
-# Domain you'll host goship on
-goship_host: goship.yourdomain.com
 # used for getting open pull requests across all repos in an org
 orgs:
     - myOrg
@@ -56,7 +54,7 @@ go run goship.go -p 8888 -k ~/.ssh/id_rsa
 Available command line flags for the `go run goship.go` command are:
 
 ```
- -p [port]          Port number (default 8000)
+ -b [bind address]  Address to bind (default localhost:8000)
  -c [config file]   Config file (default ./config.yml)
  -k [id_rsa key]    Path to private SSH key for connecting to Github (default id_rsa)
 ```

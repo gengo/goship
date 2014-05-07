@@ -1,7 +1,6 @@
 {{define "body"}}
   <div class="container contents">
     <div class="row">
-      {{$goshipHost := .GoshipHost}}
       <div class="span6">
         {{range $project := .Projects}}
         <div class="project" data-id="{{$project.Name}}">
@@ -38,7 +37,6 @@
                     <input type="hidden" name="current_commit" value=""/>
                     <input type="hidden" name="user" value="PlaceholderUser"/>
                     <input type="hidden" name="diffUrl" value=""/>
-                    <input type="hidden" name="goshipHost" value="{{$goshipHost}}"/>
                     <input type="submit" class="btn btn-success" value="Deploy" />
                   </form>
                 </td>
