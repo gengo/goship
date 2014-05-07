@@ -45,13 +45,17 @@ projects:
                 branch: master
 ```
 
+Goship is using [Gom](https://github.com/mattn/gom) for dependency management. Please, install it before.
+
 Then run the server manually
 
 ```shell
-go run goship.go -p 8888 -k ~/.ssh/id_rsa
+make install
+make
+./goship -p 8888 -k ~/.ssh/id_rsa
 ```
 
-Available command line flags for the `go run goship.go` command are:
+Available command line flags for the `goship` binary:
 
 ```
  -b [bind address]  Address to bind (default localhost:8000)
