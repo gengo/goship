@@ -1,0 +1,46 @@
+{
+	"ImportPath": "github.com/gengo/goship",
+	"GoVersion": "go1.2.1",
+	"Deps": [
+		{
+			"ImportPath": "code.google.com/p/go.crypto/ssh",
+			"Comment": "null-192",
+			"Rev": "2990fc550b9ff92bc33c848f92c87a305ae62934"
+		},
+		{
+			"ImportPath": "code.google.com/p/go.net/websocket",
+			"Comment": "null-126",
+			"Rev": "53130366067a9f0b47893ae8a81677391fdd0f42"
+		},
+		{
+			"ImportPath": "code.google.com/p/goauth2/oauth",
+			"Comment": "weekly-43",
+			"Rev": "d4571a95014ff1fdd0055dc0f6b7e977a42b1e5a"
+		},
+		{
+			"ImportPath": "github.com/google/go-github/github",
+			"Rev": "50663503319187b17e6d53745fa8eb82be000606"
+		},
+		{
+			"ImportPath": "github.com/google/go-querystring/query",
+			"Rev": "ec0a78e0f4db229b7897be36596a8944230b857a"
+		},
+		{
+			"ImportPath": "github.com/gorilla/context",
+			"Rev": "1be7a086a5fd6440ef16fe96baeda0c78282b980"
+		},
+		{
+			"ImportPath": "github.com/gorilla/mux",
+			"Rev": "b08c5fcf14d01cb0c20ddf70157f54d4a2c3a38a"
+		},
+		{
+			"ImportPath": "github.com/kylelemons/go-gypsy/yaml",
+			"Comment": "go.weekly.2011-11-02-17-g0ddb27c",
+			"Rev": "0ddb27ce74ade2ca988ec85587d636e10312dfc6"
+		},
+		{
+			"ImportPath": "github.com/mattn/go-sqlite3",
+			"Rev": "2a2faeaf3856ed76df31a43cd872e263625b1cf0"
+		}
+	]
+}
