@@ -332,24 +332,44 @@ func retrieveCommits(project Project, deployUser string) Project {
 	return project
 }
 
-// insertDeployLogEntry inserts an entry into the deploy log database.
-func insertDeployLogEntry(db sql.DB, environment, diffUrl, user string, success bool) (err error) {
+func createDeployLogEntry(db sql.DB, environment, diffUrl, user string) (id int64, err error) {
 	tx, err := db.Begin()
 	if err != nil {
 		log.Printf("ERROR: can't connect to database: %v", err)
-		return err
+		return 0, err
 	}
-	stmt, err := tx.Prepare("insert into logs(environment, diff_url, user, success) values(?, ?, ?, ?)")
+
+	stmt, err := tx.Prepare("insert into logs(environment, diff_url, user, output) values(?, ?, ?, ?)")
+	if err != nil {
+		log.Printf("ERROR: can't insert into database: %v", err)
+		return 0, err
+	}
+	defer stmt.Close()
+	result, err := stmt.Exec(environment, diffUrl, user, "")
+	if err != nil {
+		log.Printf("ERROR: could not execute statement on database: %v", err)
+		return 0, err
+	}
+	tx.Commit()
+
+	deployId, _ := result.LastInsertId()
+	return deployId, nil
+}
+
+func updateDeployLogEntry(db sql.DB, id int64, success bool) (err error) {
+	tx, err := db.Begin()
+	stmt, err := db.Prepare("update logs set success = ? where id=?")
 	if err != nil {
 		log.Printf("ERROR: can't insert into database: %v", err)
 		return err
 	}
 	defer stmt.Close()
-	_, err = stmt.Exec(environment, diffUrl, user, success)
+	_, err = stmt.Exec(success, id)
 	if err != nil {
 		log.Printf("ERROR: could not execute statement on database: %v", err)
 		return err
 	}
+
 	tx.Commit()
 	return nil
 }
@@ -395,7 +415,7 @@ func createDb() {
 		return
 	}
 	defer db.Close()
-	sql := `create table if not exists logs (id integer not null primary key autoincrement, environment text, diff_url text, user text, timestamp datetime default current_timestamp, success boolean);`
+	sql := `create table if not exists logs (id integer not null primary key autoincrement, environment text, diff_url text, user text, timestamp datetime default current_timestamp, success boolean, output text);`
 	_, err = db.Exec(sql)
 	if err != nil {
 		log.Println("Error creating logs table: " + err.Error())
@@ -413,7 +433,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer db.Close()
-	q := fmt.Sprintf("select diff_url, user, timestamp, success from logs where environment = \"%s\"", environment)
+	q := fmt.Sprintf("select id, diff_url, user, timestamp, success from logs where environment = \"%s\"", environment)
 	rows, err := db.Query(q)
 	if err != nil {
 		log.Println("Error querying sqlite db: " + err.Error())
@@ -421,6 +441,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type Deploy struct {
+		Id        int64
 		DiffUrl   string
 		User      string
 		Timestamp time.Time
@@ -430,12 +451,14 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 	for rows.Next() {
 		d := Deploy{}
+		var deployId int64
 		var success bool
 		var diffUrl, user string
 		var timestamp time.Time
-		rows.Scan(&diffUrl, &user, &timestamp, &success)
+		rows.Scan(&deployId, &diffUrl, &user, &timestamp, &success)
 		d.DiffUrl = diffUrl
 		d.User = user
+		d.Id = deployId
 		d.Timestamp = timestamp
 		d.Success = success
 		deployments = append(deployments, d)
@@ -446,7 +469,37 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 		log.Panic(err)
 	}
 	// Render the template
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": deployments})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": deployments, "Environment": environment})
+}
+
+func DeployLogOutputHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	deployId := vars["deployId"]
+
+	db, err := sql.Open("sqlite3", "./deploy_log.db")
+	if err != nil {
+		log.Println("Error opening sqlite db to write to deploy log: " + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer db.Close()
+
+	var deployOutput string
+	err = db.QueryRow("select output from logs where id=?", deployId).Scan(&deployOutput)
+
+	if err != nil {
+		log.Println("Error querying sqlite db: " + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Create and parse Template
+	t, err := template.New("deploy_output.html").ParseFiles("templates/deploy_output.html", "templates/base.html")
+	if err != nil {
+		log.Panic(err)
+	}
+	// Render the template
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"DeployOutput": deployOutput})
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request) {
@@ -550,9 +603,33 @@ func websocketHandler(ws *websocket.Conn) {
 	c.reader()
 }
 
-func sendOutput(scanner *bufio.Scanner, p, e string) {
+func logDeployOutput(deployId int64, output string) {
+	db, err := sql.Open("sqlite3", "./deploy_log.db")
+	if err != nil {
+		log.Fatal("Error opening sqlite db to write to deploy log: " + err.Error())
+		return
+	}
+	defer db.Close()
+
+	tx, err := db.Begin()
+	if err != nil {
+		log.Fatal("ERROR: can't connect to database: %v", err)
+		return
+	}
+
+	fmt.Printf("writing %s to deploy id %d\n", output, deployId)
+
+	output = fmt.Sprintf("%s\n", output)
+
+	db.Exec("update logs set output = output || ? where id=?", output, deployId)
+
+	tx.Commit()
+}
+
+func sendOutput(scanner *bufio.Scanner, p, e string, deployId int64) {
 	for scanner.Scan() {
 		t := scanner.Text()
+
 		msg := struct {
 			Project     string
 			Environment string
@@ -563,6 +640,9 @@ func sendOutput(scanner *bufio.Scanner, p, e string) {
 			log.Println("ERROR marshalling JSON: ", err.Error())
 		}
 		h.broadcast <- string(cmdOutput)
+
+		// not working properly
+		go logDeployOutput(deployId, t)
 	}
 	if err := scanner.Err(); err != nil {
 		log.Println("Error reading command output: " + err.Error())
@@ -616,12 +696,21 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println("Error: ", err.Error())
 		}
 	}
+
 	db, err := sql.Open("sqlite3", "./deploy_log.db")
 	if err != nil {
 		log.Println("Error opening sqlite db to write to deploy log: " + err.Error())
 		return
 	}
 	defer db.Close()
+
+	var deployId int64
+	deployId, err = createDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user)
+	if err != nil {
+		log.Printf("ERROR: %v", err)
+		return
+	}
+
 	success := true
 	command := getDeployCommand(projects, p, env)
 	cmd := exec.Command(command[0], command[1:]...)
@@ -640,9 +729,9 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	stdoutScanner := bufio.NewScanner(stdout)
-	go sendOutput(stdoutScanner, p, env)
+	go sendOutput(stdoutScanner, p, env, deployId)
 	stderrScanner := bufio.NewScanner(stderr)
-	go sendOutput(stderrScanner, p, env)
+	go sendOutput(stderrScanner, p, env, deployId)
 	err = cmd.Wait()
 	if err != nil {
 		success = false
@@ -657,7 +746,8 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	if (piv.token != "") && (piv.project != "") && success {
 		PostToPivotal(piv, env, owner, name, latest, current)
 	}
-	err = insertDeployLogEntry(*db, fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
+
+	err = updateDeployLogEntry(*db, deployId, success)
 	if err != nil {
 		log.Printf("ERROR: %v", err)
 		return
@@ -893,6 +983,7 @@ func main() {
 	http.Handle("/web_push", websocket.Handler(websocketHandler))
 	r.HandleFunc("/deploy", DeployPage)
 	r.HandleFunc("/deployLog/{environment}", DeployLogHandler)
+	r.HandleFunc("/deployLog/output/{deployId}", DeployLogOutputHandler)
 	r.HandleFunc("/commits/{project}", ProjCommitsHandler)
 	r.HandleFunc("/pulls", PullRequestsHandler)
 	r.HandleFunc("/deploy_handler", DeployHandler)
