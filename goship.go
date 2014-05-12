@@ -73,16 +73,9 @@ type Project struct {
 	Environments []Environment
 }
 
-// Organization stores information about a GitHub organization.
-type Organization struct {
-	github.Organization
-	Repositories []Repository
-}
-
 // Repository stores information about a GitHub repository.
 type Repository struct {
 	github.Repository
-	PullRequests []github.PullRequest
 }
 
 type PivotalConfiguration struct {
@@ -228,7 +221,6 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 type Config struct {
 	Projects   []Project
 	DeployUser string
-	Orgs       *[]string
 	Notify     string
 	Pivotal    *PivotalConfiguration
 }
@@ -244,13 +236,6 @@ func parseYAML() (c Config) {
 		log.Fatal("config.yml is missing deploy_user: " + err.Error())
 	}
 	configRoot, _ := config.Root.(yaml.Map)
-	yamlOrgs := configRoot["orgs"]
-	allOrgs := []string{}
-	if yamlOrgs != nil {
-		for _, o := range yamlOrgs.(yaml.List) {
-			allOrgs = append(allOrgs, o.(yaml.Scalar).String())
-		}
-	}
 	projects, _ := configRoot["projects"].(yaml.List)
 	allProjects := []Project{}
 	for _, p := range projects {
@@ -273,7 +258,6 @@ func parseYAML() (c Config) {
 	notify, _ := config.Get("notify")
 	c.Projects = allProjects
 	c.DeployUser = deployUser
-	c.Orgs = &allOrgs
 	c.Notify = notify
 	c.Pivotal = piv
 
@@ -746,140 +730,6 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "DiffUrl": diffUrl, "BindAddress": bindAddress, "RepoOwner": repo_owner, "RepoName": repo_name, "LatestCommit": latest_commit, "CurrentCommit": current_commit})
 }
 
-func getPull(wg *sync.WaitGroup, c *github.Client, orgName, repoName string, pulls []github.PullRequest, prNumber, i int) {
-	defer wg.Done()
-	pr, _, err := c.PullRequests.Get(orgName, repoName, prNumber)
-	if err != nil {
-		log.Println("Error getting pull request: ", err.Error())
-		pulls[i] = github.PullRequest{}
-		return
-	}
-	pulls[i] = *pr
-}
-
-func getPullsForRepo(wg *sync.WaitGroup, c *github.Client, orgName string, gitHubRepo github.Repository, repos []Repository, i int) {
-	defer wg.Done()
-	var prWg sync.WaitGroup
-	repo := Repository{}
-	repo.Repository = gitHubRepo
-	pulls, _, err := c.PullRequests.List(orgName, *gitHubRepo.Name, nil)
-	if err != nil {
-		log.Println("Error retrieving pull requests for repo: ", err.Error())
-		repo.PullRequests = []github.PullRequest{}
-		repos[i] = repo
-		return
-	}
-	for i, pull := range pulls {
-		prWg.Add(1)
-		go getPull(&prWg, c, orgName, *gitHubRepo.Name, pulls, *pull.Number, i)
-	}
-	prWg.Wait()
-	repo.PullRequests = pulls
-	repos[i] = repo
-}
-
-func getReposForOrg(c *github.Client, orgName string) []Repository {
-	var wg sync.WaitGroup
-	// GitHub API requests that return multiple items
-	// are paginated to 30 items, so call github.RepositoryListByOrgOptions
-	// untnil we get them all.
-	page := 1
-	allGitHubRepos := []github.Repository{}
-	for {
-		opt := &github.RepositoryListByOrgOptions{"", github.ListOptions{Page: page}}
-		gitHubRepos, _, err := c.Repositories.ListByOrg(orgName, opt)
-		if err != nil {
-			log.Println("Could not retrieve repositories: ", err.Error())
-			return []Repository{}
-		}
-		allGitHubRepos = append(allGitHubRepos, gitHubRepos...)
-		if len(gitHubRepos) < gitHubPaginationLimit {
-			break
-		}
-		page = page + 1
-	}
-	repos := make([]Repository, len(allGitHubRepos))
-	for i, repo := range allGitHubRepos {
-		if *repo.OpenIssuesCount > 0 {
-			wg.Add(1)
-			go getPullsForRepo(&wg, c, orgName, repo, repos, i)
-		}
-	}
-	wg.Wait()
-	return repos
-}
-
-func getOrgs(c *github.Client, orgNames []string) []Organization {
-	orgs := []Organization{}
-	for _, o := range orgNames {
-		gitHubOrg, _, err := c.Organizations.Get(o)
-		if err != nil {
-			log.Println("Error getting organizations: ", err.Error())
-			continue
-		}
-		repos := getReposForOrg(c, o)
-		orgRepos := []Repository{}
-		if len(repos) > 0 {
-			// Filter out repos that have no PRs
-			for _, r := range repos {
-				if len(r.PullRequests) > 0 {
-					orgRepos = append(orgRepos, r)
-				}
-			}
-		}
-		org := Organization{}
-		org.Organization = *gitHubOrg
-		org.Repositories = orgRepos
-		orgs = append(orgs, org)
-	}
-	return orgs
-}
-
-// filterOrgs returns a new slice of Organization holding only
-// the elements of s that satisfy f()
-func filterOrgs(o []Organization, fn func(Organization) bool) []Organization {
-	var p []Organization // == nil
-	for _, v := range o {
-		if fn(v) {
-			p = append(p, v)
-		}
-	}
-	return p
-}
-
-func getPRCount(orgs []Organization) int {
-	PRCount := 0
-	for _, o := range orgs {
-		for _, r := range o.Repositories {
-			PRCount = PRCount + len(r.PullRequests)
-		}
-	}
-	return PRCount
-}
-
-func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
-	githubToken := os.Getenv("GITHUB_API_TOKEN")
-	t := &oauth.Transport{
-		Token: &oauth.Token{AccessToken: githubToken},
-	}
-	c := github.NewClient(t.Client())
-	y := parseYAML()
-	orgs := getOrgs(c, *y.Orgs)
-	// Create and parse Template
-	tmpl, err := template.New("pulls.html").ParseFiles("templates/pulls.html", "templates/base.html")
-	if err != nil {
-		log.Panic(err)
-	}
-	// Remove orgs with no open PRs
-	orgFilterFunc := func(o Organization) bool {
-		return len(o.Repositories) > 0
-	}
-	orgs = filterOrgs(orgs, orgFilterFunc)
-	PRCount := getPRCount(orgs)
-	// Render the template
-	tmpl.ExecuteTemplate(w, "base", map[string]interface{}{"Orgs": orgs, "Page": "pulls", "PRCount": PRCount})
-}
-
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	c := parseYAML()
 	// Create and parse Template
@@ -900,7 +750,6 @@ func main() {
 	r.HandleFunc("/deploy", DeployPage)
 	r.HandleFunc("/deployLog/{environment}", DeployLogHandler)
 	r.HandleFunc("/commits/{project}", ProjCommitsHandler)
-	r.HandleFunc("/pulls", PullRequestsHandler)
 	r.HandleFunc("/deploy_handler", DeployHandler)
 	http.Handle("/", r)
 	fmt.Printf("Running on %s\n", *bindAddress)
