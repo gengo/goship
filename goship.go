@@ -13,6 +13,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -322,10 +323,11 @@ func retrieveCommits(project Project, deployUser string) Project {
 }
 
 type DeployLogEntry struct {
-	DiffURL string
-	User    string
-	Success bool
-	Time    time.Time
+	DiffURL       string
+	User          string
+	Success       bool
+	Time          time.Time
+	FormattedTime string `json:"omitempty"`
 }
 
 type ByTime []DeployLogEntry
@@ -425,6 +427,33 @@ func getDeployCommand(projects []Project, projectName, environmentName string) [
 	return command
 }
 
+func formatTime(t time.Time) string {
+	s := time.Since(t)
+	switch {
+	case s.Seconds() < 60:
+		f := "second"
+		if math.Floor(s.Seconds()) > 1 {
+			f += "s"
+		}
+		return fmt.Sprintf("%d "+f+" ago", int(s.Seconds()))
+	case s.Minutes() < 60:
+		f := "minute"
+		if math.Floor(s.Minutes()) > 1 {
+			f += "s"
+		}
+		return fmt.Sprintf("%d "+f+" ago", int(s.Minutes()))
+	case s.Hours() < 24:
+		f := "hour"
+		if math.Floor(s.Hours()) > 1 {
+			f += "s"
+		}
+		return fmt.Sprintf("%d "+f+" ago", int(s.Hours()))
+	default:
+		layout := "Jan 2, 2006 at 3:04pm (MST)"
+		return t.Format(layout)
+	}
+}
+
 func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
 	d, err := readEntries(env)
 	if err != nil {
@@ -433,6 +462,9 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
 	t, err := template.New("deploy_log.html").ParseFiles("templates/deploy_log.html", "templates/base.html")
 	if err != nil {
 		log.Panic(err)
+	}
+	for i := range d {
+		d[i].FormattedTime = formatTime(d[i].Time)
 	}
 	sort.Sort(ByTime(d))
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d})

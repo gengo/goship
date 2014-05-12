@@ -13,7 +13,7 @@
   <tbody>
    {{range $deployment := .Deployments}}
      <tr>
-     <td>{{.Time}}</td>
+     <td>{{.FormattedTime}}</td>
      <td>{{.User}}</td>
      <td><a href="{{.DiffURL}}">Diff</a></td>
      {{if .Success}}
