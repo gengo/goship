@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"crypto/rsa"
 	"crypto/x509"
-	"database/sql"
 	"encoding/json"
 	"encoding/pem"
 	"flag"
@@ -19,6 +18,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -29,7 +29,6 @@ import (
 	"github.com/google/go-github/github"
 	"github.com/gorilla/mux"
 	"github.com/kylelemons/go-gypsy/yaml"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
@@ -37,6 +36,7 @@ var (
 	sshPort     = "22"
 	configFile  = flag.String("c", "config.yml", "Config file (default ./config.yml)")
 	keyPath     = flag.String("k", "id_rsa", "Path to private SSH key (default id_rsa)")
+	dataPath    = flag.String("d", "data/", "Path to data directory (default ./data/)")
 )
 
 // gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
@@ -328,25 +328,74 @@ func retrieveCommits(project Project, deployUser string) Project {
 	return project
 }
 
-// insertDeployLogEntry inserts an entry into the deploy log database.
-func insertDeployLogEntry(environment, diffUrl, user string, success bool) (err error) {
-	tx, err := db.Begin()
+type DeployLogEntry struct {
+	DiffURL string
+	User    string
+	Success bool
+	Time    time.Time
+}
+
+type ByTime []DeployLogEntry
+
+func (d ByTime) Len() int           { return len(d) }
+func (d ByTime) Swap(i, j int)      { d[i], d[j] = d[j], d[i] }
+func (d ByTime) Less(i, j int) bool { return d[i].Time.After(d[j].Time) }
+
+func writeJSON(d []DeployLogEntry, file string) error {
+	b, err := json.Marshal(d)
 	if err != nil {
-		log.Printf("ERROR: can't connect to database: %v", err)
 		return err
 	}
-	stmt, err := tx.Prepare("insert into logs(environment, diff_url, user, success) values(?, ?, ?, ?)")
+	err = ioutil.WriteFile(file, b, 0755)
 	if err != nil {
-		log.Printf("ERROR: can't insert into database: %v", err)
 		return err
 	}
-	defer stmt.Close()
-	_, err = stmt.Exec(environment, diffUrl, user, success)
+
+	return nil
+}
+
+func readEntries(env string) ([]DeployLogEntry, error) {
+	var d []DeployLogEntry
+	b, err := ioutil.ReadFile(*dataPath + env + ".json")
 	if err != nil {
-		log.Printf("ERROR: could not execute statement on database: %v", err)
+		return d, err
+	}
+	if len(b) == 0 {
+		return []DeployLogEntry{}, nil
+	}
+	err = json.Unmarshal(b, &d)
+	if err != nil {
+		return d, err
+	}
+
+	return d, nil
+}
+
+func insertEntry(env, diffURL, user string, success bool, time time.Time) error {
+	path := *dataPath + env + ".json"
+	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
 		return err
 	}
-	tx.Commit()
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		_, err := os.Create(path)
+		if err != nil {
+			return err
+		}
+		err = writeJSON([]DeployLogEntry{}, path)
+		if err != nil {
+			return err
+		}
+	}
+	e, err := readEntries(env)
+	if err != nil {
+		return err
+	}
+	d := DeployLogEntry{DiffURL: diffURL, User: user, Success: success, Time: time}
+	e = append(e, d)
+	err = writeJSON(e, path)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -383,61 +432,21 @@ func getDeployCommand(projects []Project, projectName, environmentName string) [
 	return command
 }
 
-var db *sql.DB
-
-// createDb creates a sqlite3 database and creates the logs table if it does not exist already.
-func createDb() {
-	var err error
-	db, err = sql.Open("sqlite3", "./deploy_log.db")
-	if err != nil {
-		log.Println("Error opening or creating deploy_log.db: " + err.Error())
-		return
-	}
-	sql := `create table if not exists logs (id integer not null primary key autoincrement, environment text, diff_url text, user text, timestamp datetime default current_timestamp, success boolean);`
-	_, err = db.Exec(sql)
-	if err != nil {
-		log.Println("Error creating logs table: " + err.Error())
-		return
-	}
-}
-
 func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	environment := vars["environment"]
-	q := fmt.Sprintf("select diff_url, user, timestamp, success from logs where environment = \"%s\"", environment)
-	rows, err := db.Query(q)
+	env := vars["environment"]
+	d, err := readEntries(env)
 	if err != nil {
-		log.Println("Error querying sqlite db: " + err.Error())
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	type Deploy struct {
-		DiffUrl   string
-		User      string
-		Timestamp time.Time
-		Success   bool
-	}
-	deployments := []Deploy{}
-	defer rows.Close()
-	for rows.Next() {
-		d := Deploy{}
-		var success bool
-		var diffUrl, user string
-		var timestamp time.Time
-		rows.Scan(&diffUrl, &user, &timestamp, &success)
-		d.DiffUrl = diffUrl
-		d.User = user
-		d.Timestamp = timestamp
-		d.Success = success
-		deployments = append(deployments, d)
+		log.Println("Error: ", err)
 	}
 	// Create and parse Template
 	t, err := template.New("deploy_log.html").ParseFiles("templates/deploy_log.html", "templates/base.html")
 	if err != nil {
 		log.Panic(err)
 	}
+	sort.Sort(ByTime(d))
 	// Render the template
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": deployments})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d})
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request) {
@@ -642,7 +651,7 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	if (piv.token != "") && (piv.project != "") && success {
 		PostToPivotal(piv, env, owner, name, latest, current)
 	}
-	err = insertDeployLogEntry(fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
+	err = insertEntry(fmt.Sprintf("%s-%s", p, env), diffUrl, user, success, time.Now())
 	if err != nil {
 		log.Printf("ERROR: %v", err)
 		return
@@ -869,10 +878,6 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	flag.Parse()
-
-	createDb()
-	defer db.Close()
-
 	r := mux.NewRouter()
 	r.HandleFunc("/", HomeHandler)
 	go h.run()
