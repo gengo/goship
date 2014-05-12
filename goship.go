@@ -224,13 +224,22 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 	return e
 }
 
+// Config contains the information from config.yml.
+type Config struct {
+	Projects   []Project
+	DeployUser string
+	Orgs       *[]string
+	Notify     string
+	Pivotal    *PivotalConfiguration
+}
+
 // parseYAML parses the config.yml file and returns the appropriate structs and strings.
-func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, n string, piv *PivotalConfiguration) {
+func parseYAML() (c Config) {
 	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
 		log.Fatal(err)
 	}
-	deployUser, err = config.Get("deploy_user")
+	deployUser, err := config.Get("deploy_user")
 	if err != nil {
 		log.Fatal("config.yml is missing deploy_user: " + err.Error())
 	}
@@ -243,7 +252,7 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, n st
 		}
 	}
 	projects, _ := configRoot["projects"].(yaml.List)
-	allProjects = []Project{}
+	allProjects := []Project{}
 	for _, p := range projects {
 		for _, v := range p.(yaml.Map) {
 			name := getYAMLString(v, "project_name")
@@ -257,12 +266,18 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, n st
 			allProjects = append(allProjects, proj)
 		}
 	}
-	piv = new(PivotalConfiguration)
+	piv := new(PivotalConfiguration)
 	piv.project, _ = config.Get("pivotal_project")
 	piv.token, _ = config.Get("pivotal_token")
 
 	notify, _ := config.Get("notify")
-	return allProjects, deployUser, &allOrgs, notify, piv
+	c.Projects = allProjects
+	c.DeployUser = deployUser
+	c.Orgs = &allOrgs
+	c.Notify = notify
+	c.Pivotal = piv
+
+	return c
 }
 
 // getCommit is called in a goroutine and gets the latest deployed commit on a host.
@@ -450,12 +465,12 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request) {
-	projects, deployUser, _, _, _ := parseYAML()
+	c := parseYAML()
 	vars := mux.Vars(r)
 	projName := vars["project"]
-	proj := getProjectFromName(projects, projName)
+	proj := getProjectFromName(c.Projects, projName)
 
-	p := retrieveCommits(*proj, deployUser)
+	p := retrieveCommits(*proj, c.DeployUser)
 
 	// Render the template
 	j, err := json.Marshal(p)
@@ -601,7 +616,7 @@ func endNotify(n, p, env string, success bool) error {
 }
 
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	projects, _, _, n, piv := parseYAML()
+	c := parseYAML()
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
@@ -610,14 +625,14 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	name := r.FormValue("repo_name")
 	latest := r.FormValue("latest_commit")
 	current := r.FormValue("current_commit")
-	if n != "" {
-		err := startNotify(n, user, p, env)
+	if c.Notify != "" {
+		err := startNotify(c.Notify, user, p, env)
 		if err != nil {
 			log.Println("Error: ", err.Error())
 		}
 	}
 	success := true
-	command := getDeployCommand(projects, p, env)
+	command := getDeployCommand(c.Projects, p, env)
 	cmd := exec.Command(command[0], command[1:]...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -642,14 +657,14 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		success = false
 		log.Println("Deployment failed: " + err.Error())
 	}
-	if n != "" {
-		err = endNotify(n, p, env, success)
+	if c.Notify != "" {
+		err = endNotify(c.Notify, p, env, success)
 		if err != nil {
 			log.Println("Error: ", err.Error())
 		}
 	}
-	if (piv.token != "") && (piv.project != "") && success {
-		PostToPivotal(piv, env, owner, name, latest, current)
+	if (c.Pivotal.token != "") && (c.Pivotal.project != "") && success {
+		PostToPivotal(c.Pivotal, env, owner, name, latest, current)
 	}
 	err = insertEntry(fmt.Sprintf("%s-%s", p, env), diffUrl, user, success, time.Now())
 	if err != nil {
@@ -848,8 +863,8 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 		Token: &oauth.Token{AccessToken: githubToken},
 	}
 	c := github.NewClient(t.Client())
-	_, _, orgNames, _, _ := parseYAML()
-	orgs := getOrgs(c, *orgNames)
+	y := parseYAML()
+	orgs := getOrgs(c, *y.Orgs)
 	// Create and parse Template
 	tmpl, err := template.New("pulls.html").ParseFiles("templates/pulls.html", "templates/base.html")
 	if err != nil {
@@ -866,14 +881,14 @@ func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	projects, _, _, _, _ := parseYAML()
+	c := parseYAML()
 	// Create and parse Template
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
 		log.Panic(err)
 	}
 	// Render the template
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": projects, "Page": "home"})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "Page": "home"})
 }
 
 func main() {
