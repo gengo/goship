@@ -27,7 +27,6 @@ import (
 	"code.google.com/p/go.net/websocket"
 	"code.google.com/p/goauth2/oauth"
 	"github.com/google/go-github/github"
-	"github.com/gorilla/mux"
 	"github.com/kylelemons/go-gypsy/yaml"
 )
 
@@ -426,9 +425,7 @@ func getDeployCommand(projects []Project, projectName, environmentName string) [
 	return command
 }
 
-func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	env := vars["environment"]
+func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
 	d, err := readEntries(env)
 	if err != nil {
 		log.Println("Error: ", err)
@@ -443,10 +440,8 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d})
 }
 
-func ProjCommitsHandler(w http.ResponseWriter, r *http.Request) {
+func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
 	c := parseYAML()
-	vars := mux.Vars(r)
-	projName := vars["project"]
 	proj := getProjectFromName(c.Projects, projName)
 
 	p := retrieveCommits(*proj, c.DeployUser)
@@ -736,17 +731,28 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "Page": "home"})
 }
 
+var validPath = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
+
+func extractHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		m := validPath.FindStringSubmatch(r.URL.Path)
+		if m == nil {
+			http.NotFound(w, r)
+			return
+		}
+		fn(w, r, m[2])
+	}
+}
+
 func main() {
 	flag.Parse()
-	r := mux.NewRouter()
-	r.HandleFunc("/", HomeHandler)
 	go h.run()
+	http.HandleFunc("/", HomeHandler)
 	http.Handle("/web_push", websocket.Handler(websocketHandler))
-	r.HandleFunc("/deploy", DeployPage)
-	r.HandleFunc("/deployLog/{environment}", DeployLogHandler)
-	r.HandleFunc("/commits/{project}", ProjCommitsHandler)
-	r.HandleFunc("/deploy_handler", DeployHandler)
-	http.Handle("/", r)
+	http.HandleFunc("/deploy", DeployPage)
+	http.HandleFunc("/deployLog/", extractHandler(DeployLogHandler))
+	http.HandleFunc("/commits/", extractHandler(ProjCommitsHandler))
+	http.HandleFunc("/deploy_handler", DeployHandler)
 	fmt.Printf("Running on %s\n", *bindAddress)
 	log.Fatal(http.ListenAndServe(*bindAddress, nil))
 }
