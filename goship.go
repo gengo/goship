@@ -73,24 +73,19 @@ type Project struct {
 	Environments []Environment
 }
 
-// Repository stores information about a GitHub repository.
-type Repository struct {
-	github.Repository
-}
-
 type PivotalConfiguration struct {
 	project string
 	token   string
 }
 
-// GetGitHubCommitURL takes a project and returns the GitHub URL for its latest commit hash.
-func (h *Host) GetGitHubCommitURL(p Project) string {
+// gitHubCommitURL takes a project and returns the GitHub URL for its latest commit hash.
+func (h *Host) gitHubCommitURL(p Project) string {
 	return fmt.Sprintf("%s/commit/%s", p.GitHubURL, h.LatestCommit)
 }
 
-// GetGitHubDiffURL takes a project and an environment and returns the GitHub diff URL
+// gitHubDiffURL takes a project and an environment and returns the GitHub diff URL
 // for the latest commit on the host compared to the latest commit on GitHub.
-func (h *Host) GetGitHubDiffURL(p Project, e Environment) *string {
+func (h *Host) gitHubDiffURL(p Project, e Environment) *string {
 	if h.LatestCommit != e.LatestGitHubCommit {
 		s := fmt.Sprintf("%s/compare/%s...%s", p.GitHubURL, h.LatestCommit, e.LatestGitHubCommit)
 		return &s
@@ -109,8 +104,8 @@ func (e *Environment) Deployable() bool {
 	return false
 }
 
-// GetShortCommitHash returns a shortened version of the latest commit hash on a host.
-func (h *Host) GetShortCommitHash() string {
+// ShortCommitHash returns a shortened version of the latest commit hash on a host.
+func (h *Host) shortCommitHash() string {
 	if len(h.LatestCommit) == 0 {
 		return ""
 	}
@@ -217,8 +212,8 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 	return e
 }
 
-// Config contains the information from config.yml.
-type Config struct {
+// config contains the information from config.yml.
+type config struct {
 	Projects   []Project
 	DeployUser string
 	Notify     string
@@ -226,7 +221,7 @@ type Config struct {
 }
 
 // parseYAML parses the config.yml file and returns the appropriate structs and strings.
-func parseYAML() (c Config) {
+func parseYAML() (c config) {
 	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
 		log.Fatal(err)
@@ -318,9 +313,9 @@ func retrieveCommits(project Project, deployUser string) Project {
 		e.IsDeployable = e.Deployable()
 		project.Environments[i] = e
 		for j, host := range e.Hosts {
-			host.GitHubCommitURL = host.GetGitHubCommitURL(project)
-			host.GitHubDiffURL = host.GetGitHubDiffURL(project, e)
-			host.ShortCommitHash = host.GetShortCommitHash()
+			host.GitHubCommitURL = host.gitHubCommitURL(project)
+			host.GitHubDiffURL = host.gitHubDiffURL(project, e)
+			host.ShortCommitHash = host.shortCommitHash()
 			project.Environments[i].Hosts[j] = host
 		}
 	}
