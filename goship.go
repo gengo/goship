@@ -430,13 +430,11 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
 	if err != nil {
 		log.Println("Error: ", err)
 	}
-	// Create and parse Template
 	t, err := template.New("deploy_log.html").ParseFiles("templates/deploy_log.html", "templates/base.html")
 	if err != nil {
 		log.Panic(err)
 	}
 	sort.Sort(ByTime(d))
-	// Render the template
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d})
 }
 
@@ -722,12 +720,10 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	c := parseYAML()
-	// Create and parse Template
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
 		log.Panic(err)
 	}
-	// Render the template
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "Page": "home"})
 }
 
