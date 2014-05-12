@@ -327,7 +327,7 @@ type DeployLogEntry struct {
 	User          string
 	Success       bool
 	Time          time.Time
-	FormattedTime string `json:"omitempty"`
+	FormattedTime string `json:",omitempty"`
 }
 
 type ByTime []DeployLogEntry
