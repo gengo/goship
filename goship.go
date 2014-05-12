@@ -49,7 +49,7 @@ type Host struct {
 	URI             string
 	LatestCommit    string
 	GitHubCommitURL string
-	GitHubDiffURL   *string
+	GitHubDiffURL   string
 	ShortCommitHash string
 }
 
@@ -85,12 +85,12 @@ func (h *Host) gitHubCommitURL(p Project) string {
 
 // gitHubDiffURL takes a project and an environment and returns the GitHub diff URL
 // for the latest commit on the host compared to the latest commit on GitHub.
-func (h *Host) gitHubDiffURL(p Project, e Environment) *string {
+func (h *Host) gitHubDiffURL(p Project, e Environment) string {
+	var s string
 	if h.LatestCommit != e.LatestGitHubCommit {
-		s := fmt.Sprintf("%s/compare/%s...%s", p.GitHubURL, h.LatestCommit, e.LatestGitHubCommit)
-		return &s
+		s = fmt.Sprintf("%s/compare/%s...%s", p.GitHubURL, h.LatestCommit, e.LatestGitHubCommit)
 	}
-	return nil
+	return s
 }
 
 // Deployable returns true if the latest commit for any of the hosts in an environment
