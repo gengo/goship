@@ -33,10 +33,9 @@
                     <input type="hidden" name="project" value="{{$project.Name}}"/>
                     <input type="hidden" name="repo_owner" value="{{$project.RepoOwner}}"/>
                     <input type="hidden" name="repo_name" value="{{$project.RepoName}}"/>
-                    <input type="hidden" name="latest_commit" value=""/>
-                    <input type="hidden" name="current_commit" value=""/>
+                    <input type="hidden" name="from_revision" value=""/>
+                    <input type="hidden" name="to_revision" value=""/>
                     <input type="hidden" name="user" value="PlaceholderUser"/>
-                    <input type="hidden" name="diffUrl" value=""/>
                     <input type="submit" class="btn btn-success" value="Deploy" />
                   </form>
                 </td>
@@ -96,8 +95,8 @@
                 if (host.GitHubDiffURL) {
                   $deployForm = $env.find(".form-deploy")
                   $deployForm.removeClass('hidden').find('[name="diffUrl"]').val(host.GitHubDiffURL)
-                  $deployForm.find('[name="latest_commit"]').val(host.LatestCommit)
-                  $deployForm.find('[name="current_commit"]').val(env.LatestGitHubCommit);
+                  $deployForm.find('[name="from_revision"]').val(host.LatestCommit);
+                  $deployForm.find('[name="to_revision"]').val(env.LatestGitHubCommit);
                   break;
                 }
               }

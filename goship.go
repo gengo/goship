@@ -93,6 +93,10 @@ func (h *Host) gitHubDiffURL(p Project, e Environment) string {
 	return s
 }
 
+func diffURL(owner, repoName, fromRevision, toRevision string) string {
+	return fmt.Sprintf("https://github.com/%s/%s/compare/%s...%s", owner, repoName, fromRevision, toRevision)
+}
+
 // Deployable returns true if the latest commit for any of the hosts in an environment
 // differs from the latest commit on GitHub, and false if all of the commits match.
 func (e *Environment) Deployable() bool {
@@ -324,6 +328,7 @@ func retrieveCommits(project Project, deployUser string) Project {
 
 type DeployLogEntry struct {
 	DiffURL       string
+	ToRevisionMsg string
 	User          string
 	Success       bool
 	Time          time.Time
@@ -366,7 +371,7 @@ func readEntries(env string) ([]DeployLogEntry, error) {
 	return d, nil
 }
 
-func insertEntry(env, diffURL, user string, success bool, time time.Time) error {
+func insertEntry(env, owner, repoName, fromRevision, toRevision, user string, success bool, time time.Time) error {
 	path := *dataPath + env + ".json"
 	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
 		return err
@@ -385,7 +390,21 @@ func insertEntry(env, diffURL, user string, success bool, time time.Time) error 
 	if err != nil {
 		return err
 	}
-	d := DeployLogEntry{DiffURL: diffURL, User: user, Success: success, Time: time}
+	gt := os.Getenv("GITHUB_API_TOKEN")
+	t := &oauth.Transport{
+		Token: &oauth.Token{AccessToken: gt},
+	}
+	c := github.NewClient(t.Client())
+	com, _, err := c.Git.GetCommit(owner, repoName, toRevision)
+	if err != nil {
+		log.Println("Error getting commit msg: ", err)
+	}
+	var m string
+	if com.Message != nil {
+		m = *com.Message
+	}
+	diffURL := diffURL(owner, repoName, fromRevision, toRevision)
+	d := DeployLogEntry{DiffURL: diffURL, ToRevisionMsg: m, User: user, Success: success, Time: time}
 	e = append(e, d)
 	err = writeJSON(e, path)
 	if err != nil {
@@ -624,11 +643,10 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
-	diffUrl := r.FormValue("diffUrl")
+	fromRevision := r.FormValue("from_revision")
+	toRevision := r.FormValue("to_revision")
 	owner := r.FormValue("repo_owner")
 	name := r.FormValue("repo_name")
-	latest := r.FormValue("latest_commit")
-	current := r.FormValue("current_commit")
 	if c.Notify != "" {
 		err := startNotify(c.Notify, user, p, env)
 		if err != nil {
@@ -641,15 +659,18 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		log.Println("Could not get stdout of command:" + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		log.Println("Could not get stderr of command:" + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if err = cmd.Start(); err != nil {
 		log.Println("Error running command: " + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	stdoutScanner := bufio.NewScanner(stdout)
@@ -668,11 +689,12 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if (c.Pivotal.token != "") && (c.Pivotal.project != "") && success {
-		PostToPivotal(c.Pivotal, env, owner, name, latest, current)
+		PostToPivotal(c.Pivotal, env, owner, name, toRevision, fromRevision)
 	}
-	err = insertEntry(fmt.Sprintf("%s-%s", p, env), diffUrl, user, success, time.Now())
+	err = insertEntry(fmt.Sprintf("%s-%s", p, env), owner, name, fromRevision, toRevision, user, success, time.Now())
 	if err != nil {
 		log.Printf("ERROR: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }
@@ -738,16 +760,15 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
-	diffUrl := r.FormValue("diffUrl")
+	fromRevision := r.FormValue("from_revision")
+	toRevision := r.FormValue("to_revision")
 	repo_owner := r.FormValue("repo_owner")
 	repo_name := r.FormValue("repo_name")
-	latest_commit := r.FormValue("latest_commit")
-	current_commit := r.FormValue("current_commit")
 	t, err := template.New("deploy.html").ParseFiles("templates/deploy.html", "templates/base.html")
 	if err != nil {
 		log.Panic(err)
 	}
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "DiffUrl": diffUrl, "BindAddress": bindAddress, "RepoOwner": repo_owner, "RepoName": repo_name, "LatestCommit": latest_commit, "CurrentCommit": current_commit})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "BindAddress": bindAddress, "RepoOwner": repo_owner, "RepoName": repo_name, "ToRevision": toRevision, "FromRevision": fromRevision})
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
