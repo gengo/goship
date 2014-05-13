@@ -40,9 +40,11 @@ var (
 )
 
 // gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
-const gitHubPaginationLimit = 30
-
-const pivotalCommentURL = "https://www.pivotaltracker.com/services/v5/projects/%s/stories/%s/comments"
+const (
+	gitHubPaginationLimit = 30
+	pivotalCommentURL     = "https://www.pivotaltracker.com/services/v5/projects/%s/stories/%s/comments"
+	gitHubAPITokenEnvVar  = "GITHUB_API_TOKEN"
+)
 
 // Host stores information on a host, such as URI and the latest commit revision.
 type Host struct {
@@ -297,7 +299,7 @@ func getLatestGitHubCommit(wg *sync.WaitGroup, project Project, environment Envi
 func retrieveCommits(project Project, deployUser string) Project {
 	// define a wait group to wait for all goroutines to finish
 	var wg sync.WaitGroup
-	githubToken := os.Getenv("GITHUB_API_TOKEN")
+	githubToken := os.Getenv(gitHubAPITokenEnvVar)
 	t := &oauth.Transport{
 		Token: &oauth.Token{AccessToken: githubToken},
 	}
@@ -386,7 +388,7 @@ func insertEntry(env, owner, repoName, fromRevision, toRevision, user string, su
 	if err != nil {
 		return err
 	}
-	gt := os.Getenv("GITHUB_API_TOKEN")
+	gt := os.Getenv(gitHubAPITokenEnvVar)
 	t := &oauth.Transport{
 		Token: &oauth.Token{AccessToken: gt},
 	}
@@ -696,7 +698,7 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current string) {
-	gt := os.Getenv("GITHUB_API_TOKEN")
+	gt := os.Getenv(gitHubAPITokenEnvVar)
 	t := &oauth.Transport{
 		Token: &oauth.Token{AccessToken: gt},
 	}
