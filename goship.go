@@ -227,14 +227,14 @@ type config struct {
 }
 
 // parseYAML parses the config.yml file and returns the appropriate structs and strings.
-func parseYAML() (c config) {
+func parseYAML() (c config, err error) {
 	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
-		log.Fatal(err)
+		return c, err
 	}
 	deployUser, err := config.Get("deploy_user")
 	if err != nil {
-		log.Fatal("config.yml is missing deploy_user: " + err.Error())
+		return c, err
 	}
 	configRoot, _ := config.Root.(yaml.Map)
 	projects, _ := configRoot["projects"].(yaml.List)
@@ -262,7 +262,7 @@ func parseYAML() (c config) {
 	c.Notify = notify
 	c.Pivotal = piv
 
-	return c
+	return c, nil
 }
 
 // getCommit is called in a goroutine and gets the latest deployed commit on a host.
@@ -488,7 +488,11 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
-	c := parseYAML()
+	c, err := parseYAML()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	proj := getProjectFromName(c.Projects, projName)
 
 	p := retrieveCommits(*proj, c.DeployUser)
@@ -637,7 +641,11 @@ func endNotify(n, p, env string, success bool) error {
 }
 
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	c := parseYAML()
+	c, err := parseYAML()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
@@ -770,7 +778,11 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	c := parseYAML()
+	c, err := parseYAML()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
 		log.Panic(err)
