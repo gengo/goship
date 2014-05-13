@@ -13,9 +13,9 @@
   <tbody>
    {{range $deployment := .Deployments}}
      <tr>
-     <td>{{.Timestamp}}</td>
+     <td>{{.FormattedTime}}</td>
      <td>{{.User}}</td>
-     <td><a href="{{.DiffUrl}}">Diff</a></td>
+     <td><a href="{{.DiffURL}}">{{.ToRevisionMsg}}</a></td>
      {{if .Success}}
      <td><span class="label label-success">Success</span></td>
      {{else}}

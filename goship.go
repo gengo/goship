@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"crypto/rsa"
 	"crypto/x509"
-	"database/sql"
 	"encoding/json"
 	"encoding/pem"
 	"flag"
@@ -14,11 +13,13 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -27,9 +28,7 @@ import (
 	"code.google.com/p/go.net/websocket"
 	"code.google.com/p/goauth2/oauth"
 	"github.com/google/go-github/github"
-	"github.com/gorilla/mux"
 	"github.com/kylelemons/go-gypsy/yaml"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
@@ -37,19 +36,22 @@ var (
 	sshPort     = "22"
 	configFile  = flag.String("c", "config.yml", "Config file (default ./config.yml)")
 	keyPath     = flag.String("k", "id_rsa", "Path to private SSH key (default id_rsa)")
+	dataPath    = flag.String("d", "data/", "Path to data directory (default ./data/)")
 )
 
 // gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
-const gitHubPaginationLimit = 30
-
-const pivotalCommentURL = "https://www.pivotaltracker.com/services/v5/projects/%s/stories/%s/comments"
+const (
+	gitHubPaginationLimit = 30
+	pivotalCommentURL     = "https://www.pivotaltracker.com/services/v5/projects/%s/stories/%s/comments"
+	gitHubAPITokenEnvVar  = "GITHUB_API_TOKEN"
+)
 
 // Host stores information on a host, such as URI and the latest commit revision.
 type Host struct {
 	URI             string
 	LatestCommit    string
 	GitHubCommitURL string
-	GitHubDiffURL   *string
+	GitHubDiffURL   string
 	ShortCommitHash string
 }
 
@@ -73,36 +75,28 @@ type Project struct {
 	Environments []Environment
 }
 
-// Organization stores information about a GitHub organization.
-type Organization struct {
-	github.Organization
-	Repositories []Repository
-}
-
-// Repository stores information about a GitHub repository.
-type Repository struct {
-	github.Repository
-	PullRequests []github.PullRequest
-}
-
 type PivotalConfiguration struct {
 	project string
 	token   string
 }
 
-// GetGitHubCommitURL takes a project and returns the GitHub URL for its latest commit hash.
-func (h *Host) GetGitHubCommitURL(p Project) string {
+// gitHubCommitURL takes a project and returns the GitHub URL for its latest commit hash.
+func (h *Host) gitHubCommitURL(p Project) string {
 	return fmt.Sprintf("%s/commit/%s", p.GitHubURL, h.LatestCommit)
 }
 
-// GetGitHubDiffURL takes a project and an environment and returns the GitHub diff URL
+// gitHubDiffURL takes a project and an environment and returns the GitHub diff URL
 // for the latest commit on the host compared to the latest commit on GitHub.
-func (h *Host) GetGitHubDiffURL(p Project, e Environment) *string {
+func (h *Host) gitHubDiffURL(p Project, e Environment) string {
+	var s string
 	if h.LatestCommit != e.LatestGitHubCommit {
-		s := fmt.Sprintf("%s/compare/%s...%s", p.GitHubURL, h.LatestCommit, e.LatestGitHubCommit)
-		return &s
+		s = fmt.Sprintf("%s/compare/%s...%s", p.GitHubURL, h.LatestCommit, e.LatestGitHubCommit)
 	}
-	return nil
+	return s
+}
+
+func diffURL(owner, repoName, fromRevision, toRevision string) string {
+	return fmt.Sprintf("https://github.com/%s/%s/compare/%s...%s", owner, repoName, fromRevision, toRevision)
 }
 
 // Deployable returns true if the latest commit for any of the hosts in an environment
@@ -116,8 +110,8 @@ func (e *Environment) Deployable() bool {
 	return false
 }
 
-// GetShortCommitHash returns a shortened version of the latest commit hash on a host.
-func (h *Host) GetShortCommitHash() string {
+// ShortCommitHash returns a shortened version of the latest commit hash on a host.
+func (h *Host) shortCommitHash() string {
 	if len(h.LatestCommit) == 0 {
 		return ""
 	}
@@ -224,26 +218,27 @@ func parseYAMLEnvironment(m yaml.Node) Environment {
 	return e
 }
 
+// config contains the information from config.yml.
+type config struct {
+	Projects   []Project
+	DeployUser string
+	Notify     string
+	Pivotal    *PivotalConfiguration
+}
+
 // parseYAML parses the config.yml file and returns the appropriate structs and strings.
-func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, n string, piv *PivotalConfiguration) {
+func parseYAML() (c config) {
 	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
 		log.Fatal(err)
 	}
-	deployUser, err = config.Get("deploy_user")
+	deployUser, err := config.Get("deploy_user")
 	if err != nil {
 		log.Fatal("config.yml is missing deploy_user: " + err.Error())
 	}
 	configRoot, _ := config.Root.(yaml.Map)
-	yamlOrgs := configRoot["orgs"]
-	allOrgs := []string{}
-	if yamlOrgs != nil {
-		for _, o := range yamlOrgs.(yaml.List) {
-			allOrgs = append(allOrgs, o.(yaml.Scalar).String())
-		}
-	}
 	projects, _ := configRoot["projects"].(yaml.List)
-	allProjects = []Project{}
+	allProjects := []Project{}
 	for _, p := range projects {
 		for _, v := range p.(yaml.Map) {
 			name := getYAMLString(v, "project_name")
@@ -257,12 +252,17 @@ func parseYAML() (allProjects []Project, deployUser string, orgs *[]string, n st
 			allProjects = append(allProjects, proj)
 		}
 	}
-	piv = new(PivotalConfiguration)
+	piv := new(PivotalConfiguration)
 	piv.project, _ = config.Get("pivotal_project")
 	piv.token, _ = config.Get("pivotal_token")
 
 	notify, _ := config.Get("notify")
-	return allProjects, deployUser, &allOrgs, notify, piv
+	c.Projects = allProjects
+	c.DeployUser = deployUser
+	c.Notify = notify
+	c.Pivotal = piv
+
+	return c
 }
 
 // getCommit is called in a goroutine and gets the latest deployed commit on a host.
@@ -299,7 +299,7 @@ func getLatestGitHubCommit(wg *sync.WaitGroup, project Project, environment Envi
 func retrieveCommits(project Project, deployUser string) Project {
 	// define a wait group to wait for all goroutines to finish
 	var wg sync.WaitGroup
-	githubToken := os.Getenv("GITHUB_API_TOKEN")
+	githubToken := os.Getenv(gitHubAPITokenEnvVar)
 	t := &oauth.Transport{
 		Token: &oauth.Token{AccessToken: githubToken},
 	}
@@ -319,34 +319,95 @@ func retrieveCommits(project Project, deployUser string) Project {
 		e.IsDeployable = e.Deployable()
 		project.Environments[i] = e
 		for j, host := range e.Hosts {
-			host.GitHubCommitURL = host.GetGitHubCommitURL(project)
-			host.GitHubDiffURL = host.GetGitHubDiffURL(project, e)
-			host.ShortCommitHash = host.GetShortCommitHash()
+			host.GitHubCommitURL = host.gitHubCommitURL(project)
+			host.GitHubDiffURL = host.gitHubDiffURL(project, e)
+			host.ShortCommitHash = host.shortCommitHash()
 			project.Environments[i].Hosts[j] = host
 		}
 	}
 	return project
 }
 
-// insertDeployLogEntry inserts an entry into the deploy log database.
-func insertDeployLogEntry(environment, diffUrl, user string, success bool) (err error) {
-	tx, err := db.Begin()
+type DeployLogEntry struct {
+	DiffURL       string
+	ToRevisionMsg string
+	User          string
+	Success       bool
+	Time          time.Time
+	FormattedTime string `json:",omitempty"`
+}
+
+type ByTime []DeployLogEntry
+
+func (d ByTime) Len() int           { return len(d) }
+func (d ByTime) Swap(i, j int)      { d[i], d[j] = d[j], d[i] }
+func (d ByTime) Less(i, j int) bool { return d[i].Time.After(d[j].Time) }
+
+func writeJSON(d []DeployLogEntry, file string) error {
+	b, err := json.Marshal(d)
 	if err != nil {
-		log.Printf("ERROR: can't connect to database: %v", err)
 		return err
 	}
-	stmt, err := tx.Prepare("insert into logs(environment, diff_url, user, success) values(?, ?, ?, ?)")
+
+	return ioutil.WriteFile(file, b, 0755)
+}
+
+func readEntries(env string) ([]DeployLogEntry, error) {
+	var d []DeployLogEntry
+	b, err := ioutil.ReadFile(*dataPath + env + ".json")
 	if err != nil {
-		log.Printf("ERROR: can't insert into database: %v", err)
+		return d, err
+	}
+	if len(b) == 0 {
+		return []DeployLogEntry{}, nil
+	}
+	err = json.Unmarshal(b, &d)
+	if err != nil {
+		return d, err
+	}
+
+	return d, nil
+}
+
+func insertEntry(env, owner, repoName, fromRevision, toRevision, user string, success bool, time time.Time) error {
+	path := *dataPath + env + ".json"
+	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
 		return err
 	}
-	defer stmt.Close()
-	_, err = stmt.Exec(environment, diffUrl, user, success)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		_, err := os.Create(path)
+		if err != nil {
+			return err
+		}
+		err = writeJSON([]DeployLogEntry{}, path)
+		if err != nil {
+			return err
+		}
+	}
+	e, err := readEntries(env)
 	if err != nil {
-		log.Printf("ERROR: could not execute statement on database: %v", err)
 		return err
 	}
-	tx.Commit()
+	gt := os.Getenv(gitHubAPITokenEnvVar)
+	t := &oauth.Transport{
+		Token: &oauth.Token{AccessToken: gt},
+	}
+	c := github.NewClient(t.Client())
+	com, _, err := c.Git.GetCommit(owner, repoName, toRevision)
+	if err != nil {
+		log.Println("Error getting commit msg: ", err)
+	}
+	var m string
+	if com.Message != nil {
+		m = *com.Message
+	}
+	diffURL := diffURL(owner, repoName, fromRevision, toRevision)
+	d := DeployLogEntry{DiffURL: diffURL, ToRevisionMsg: m, User: user, Success: success, Time: time}
+	e = append(e, d)
+	err = writeJSON(e, path)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -383,70 +444,54 @@ func getDeployCommand(projects []Project, projectName, environmentName string) [
 	return command
 }
 
-var db *sql.DB
-
-// createDb creates a sqlite3 database and creates the logs table if it does not exist already.
-func createDb() {
-	var err error
-	db, err = sql.Open("sqlite3", "./deploy_log.db")
-	if err != nil {
-		log.Println("Error opening or creating deploy_log.db: " + err.Error())
-		return
-	}
-	sql := `create table if not exists logs (id integer not null primary key autoincrement, environment text, diff_url text, user text, timestamp datetime default current_timestamp, success boolean);`
-	_, err = db.Exec(sql)
-	if err != nil {
-		log.Println("Error creating logs table: " + err.Error())
-		return
+func formatTime(t time.Time) string {
+	s := time.Since(t)
+	switch {
+	case s.Seconds() < 60:
+		f := "second"
+		if math.Floor(s.Seconds()) > 1 {
+			f += "s"
+		}
+		return fmt.Sprintf("%d "+f+" ago", int(s.Seconds()))
+	case s.Minutes() < 60:
+		f := "minute"
+		if math.Floor(s.Minutes()) > 1 {
+			f += "s"
+		}
+		return fmt.Sprintf("%d "+f+" ago", int(s.Minutes()))
+	case s.Hours() < 24:
+		f := "hour"
+		if math.Floor(s.Hours()) > 1 {
+			f += "s"
+		}
+		return fmt.Sprintf("%d "+f+" ago", int(s.Hours()))
+	default:
+		layout := "Jan 2, 2006 at 3:04pm (MST)"
+		return t.Format(layout)
 	}
 }
 
-func DeployLogHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	environment := vars["environment"]
-	q := fmt.Sprintf("select diff_url, user, timestamp, success from logs where environment = \"%s\"", environment)
-	rows, err := db.Query(q)
+func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
+	d, err := readEntries(env)
 	if err != nil {
-		log.Println("Error querying sqlite db: " + err.Error())
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		log.Println("Error: ", err)
 	}
-	type Deploy struct {
-		DiffUrl   string
-		User      string
-		Timestamp time.Time
-		Success   bool
-	}
-	deployments := []Deploy{}
-	defer rows.Close()
-	for rows.Next() {
-		d := Deploy{}
-		var success bool
-		var diffUrl, user string
-		var timestamp time.Time
-		rows.Scan(&diffUrl, &user, &timestamp, &success)
-		d.DiffUrl = diffUrl
-		d.User = user
-		d.Timestamp = timestamp
-		d.Success = success
-		deployments = append(deployments, d)
-	}
-	// Create and parse Template
 	t, err := template.New("deploy_log.html").ParseFiles("templates/deploy_log.html", "templates/base.html")
 	if err != nil {
 		log.Panic(err)
 	}
-	// Render the template
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": deployments})
+	for i := range d {
+		d[i].FormattedTime = formatTime(d[i].Time)
+	}
+	sort.Sort(ByTime(d))
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d})
 }
 
-func ProjCommitsHandler(w http.ResponseWriter, r *http.Request) {
-	projects, deployUser, _, _, _ := parseYAML()
-	vars := mux.Vars(r)
-	projName := vars["project"]
-	proj := getProjectFromName(projects, projName)
+func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
+	c := parseYAML()
+	proj := getProjectFromName(c.Projects, projName)
 
-	p := retrieveCommits(*proj, deployUser)
+	p := retrieveCommits(*proj, c.DeployUser)
 
 	// Render the template
 	j, err := json.Marshal(p)
@@ -592,36 +637,38 @@ func endNotify(n, p, env string, success bool) error {
 }
 
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	projects, _, _, n, piv := parseYAML()
+	c := parseYAML()
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
-	diffUrl := r.FormValue("diffUrl")
+	fromRevision := r.FormValue("from_revision")
+	toRevision := r.FormValue("to_revision")
 	owner := r.FormValue("repo_owner")
 	name := r.FormValue("repo_name")
-	latest := r.FormValue("latest_commit")
-	current := r.FormValue("current_commit")
-	if n != "" {
-		err := startNotify(n, user, p, env)
+	if c.Notify != "" {
+		err := startNotify(c.Notify, user, p, env)
 		if err != nil {
 			log.Println("Error: ", err.Error())
 		}
 	}
 	success := true
-	command := getDeployCommand(projects, p, env)
+	command := getDeployCommand(c.Projects, p, env)
 	cmd := exec.Command(command[0], command[1:]...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		log.Println("Could not get stdout of command:" + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		log.Println("Could not get stderr of command:" + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if err = cmd.Start(); err != nil {
 		log.Println("Error running command: " + err.Error())
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	stdoutScanner := bufio.NewScanner(stdout)
@@ -633,24 +680,25 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		success = false
 		log.Println("Deployment failed: " + err.Error())
 	}
-	if n != "" {
-		err = endNotify(n, p, env, success)
+	if c.Notify != "" {
+		err = endNotify(c.Notify, p, env, success)
 		if err != nil {
 			log.Println("Error: ", err.Error())
 		}
 	}
-	if (piv.token != "") && (piv.project != "") && success {
-		PostToPivotal(piv, env, owner, name, latest, current)
+	if (c.Pivotal.token != "") && (c.Pivotal.project != "") && success {
+		PostToPivotal(c.Pivotal, env, owner, name, toRevision, fromRevision)
 	}
-	err = insertDeployLogEntry(fmt.Sprintf("%s-%s", p, env), diffUrl, user, success)
+	err = insertEntry(fmt.Sprintf("%s-%s", p, env), owner, name, fromRevision, toRevision, user, success, time.Now())
 	if err != nil {
 		log.Printf("ERROR: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }
 
 func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current string) {
-	gt := os.Getenv("GITHUB_API_TOKEN")
+	gt := os.Getenv(gitHubAPITokenEnvVar)
 	t := &oauth.Transport{
 		Token: &oauth.Token{AccessToken: gt},
 	}
@@ -710,179 +758,48 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
-	diffUrl := r.FormValue("diffUrl")
+	fromRevision := r.FormValue("from_revision")
+	toRevision := r.FormValue("to_revision")
 	repo_owner := r.FormValue("repo_owner")
 	repo_name := r.FormValue("repo_name")
-	latest_commit := r.FormValue("latest_commit")
-	current_commit := r.FormValue("current_commit")
 	t, err := template.New("deploy.html").ParseFiles("templates/deploy.html", "templates/base.html")
 	if err != nil {
 		log.Panic(err)
 	}
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "DiffUrl": diffUrl, "BindAddress": bindAddress, "RepoOwner": repo_owner, "RepoName": repo_name, "LatestCommit": latest_commit, "CurrentCommit": current_commit})
-}
-
-func getPull(wg *sync.WaitGroup, c *github.Client, orgName, repoName string, pulls []github.PullRequest, prNumber, i int) {
-	defer wg.Done()
-	pr, _, err := c.PullRequests.Get(orgName, repoName, prNumber)
-	if err != nil {
-		log.Println("Error getting pull request: ", err.Error())
-		pulls[i] = github.PullRequest{}
-		return
-	}
-	pulls[i] = *pr
-}
-
-func getPullsForRepo(wg *sync.WaitGroup, c *github.Client, orgName string, gitHubRepo github.Repository, repos []Repository, i int) {
-	defer wg.Done()
-	var prWg sync.WaitGroup
-	repo := Repository{}
-	repo.Repository = gitHubRepo
-	pulls, _, err := c.PullRequests.List(orgName, *gitHubRepo.Name, nil)
-	if err != nil {
-		log.Println("Error retrieving pull requests for repo: ", err.Error())
-		repo.PullRequests = []github.PullRequest{}
-		repos[i] = repo
-		return
-	}
-	for i, pull := range pulls {
-		prWg.Add(1)
-		go getPull(&prWg, c, orgName, *gitHubRepo.Name, pulls, *pull.Number, i)
-	}
-	prWg.Wait()
-	repo.PullRequests = pulls
-	repos[i] = repo
-}
-
-func getReposForOrg(c *github.Client, orgName string) []Repository {
-	var wg sync.WaitGroup
-	// GitHub API requests that return multiple items
-	// are paginated to 30 items, so call github.RepositoryListByOrgOptions
-	// untnil we get them all.
-	page := 1
-	allGitHubRepos := []github.Repository{}
-	for {
-		opt := &github.RepositoryListByOrgOptions{"", github.ListOptions{Page: page}}
-		gitHubRepos, _, err := c.Repositories.ListByOrg(orgName, opt)
-		if err != nil {
-			log.Println("Could not retrieve repositories: ", err.Error())
-			return []Repository{}
-		}
-		allGitHubRepos = append(allGitHubRepos, gitHubRepos...)
-		if len(gitHubRepos) < gitHubPaginationLimit {
-			break
-		}
-		page = page + 1
-	}
-	repos := make([]Repository, len(allGitHubRepos))
-	for i, repo := range allGitHubRepos {
-		if *repo.OpenIssuesCount > 0 {
-			wg.Add(1)
-			go getPullsForRepo(&wg, c, orgName, repo, repos, i)
-		}
-	}
-	wg.Wait()
-	return repos
-}
-
-func getOrgs(c *github.Client, orgNames []string) []Organization {
-	orgs := []Organization{}
-	for _, o := range orgNames {
-		gitHubOrg, _, err := c.Organizations.Get(o)
-		if err != nil {
-			log.Println("Error getting organizations: ", err.Error())
-			continue
-		}
-		repos := getReposForOrg(c, o)
-		orgRepos := []Repository{}
-		if len(repos) > 0 {
-			// Filter out repos that have no PRs
-			for _, r := range repos {
-				if len(r.PullRequests) > 0 {
-					orgRepos = append(orgRepos, r)
-				}
-			}
-		}
-		org := Organization{}
-		org.Organization = *gitHubOrg
-		org.Repositories = orgRepos
-		orgs = append(orgs, org)
-	}
-	return orgs
-}
-
-// filterOrgs returns a new slice of Organization holding only
-// the elements of s that satisfy f()
-func filterOrgs(o []Organization, fn func(Organization) bool) []Organization {
-	var p []Organization // == nil
-	for _, v := range o {
-		if fn(v) {
-			p = append(p, v)
-		}
-	}
-	return p
-}
-
-func getPRCount(orgs []Organization) int {
-	PRCount := 0
-	for _, o := range orgs {
-		for _, r := range o.Repositories {
-			PRCount = PRCount + len(r.PullRequests)
-		}
-	}
-	return PRCount
-}
-
-func PullRequestsHandler(w http.ResponseWriter, r *http.Request) {
-	githubToken := os.Getenv("GITHUB_API_TOKEN")
-	t := &oauth.Transport{
-		Token: &oauth.Token{AccessToken: githubToken},
-	}
-	c := github.NewClient(t.Client())
-	_, _, orgNames, _, _ := parseYAML()
-	orgs := getOrgs(c, *orgNames)
-	// Create and parse Template
-	tmpl, err := template.New("pulls.html").ParseFiles("templates/pulls.html", "templates/base.html")
-	if err != nil {
-		log.Panic(err)
-	}
-	// Remove orgs with no open PRs
-	orgFilterFunc := func(o Organization) bool {
-		return len(o.Repositories) > 0
-	}
-	orgs = filterOrgs(orgs, orgFilterFunc)
-	PRCount := getPRCount(orgs)
-	// Render the template
-	tmpl.ExecuteTemplate(w, "base", map[string]interface{}{"Orgs": orgs, "Page": "pulls", "PRCount": PRCount})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "BindAddress": bindAddress, "RepoOwner": repo_owner, "RepoName": repo_name, "ToRevision": toRevision, "FromRevision": fromRevision})
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	projects, _, _, _, _ := parseYAML()
-	// Create and parse Template
+	c := parseYAML()
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
 		log.Panic(err)
 	}
-	// Render the template
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": projects, "Page": "home"})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "Page": "home"})
+}
+
+var validPath = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
+
+func extractHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		m := validPath.FindStringSubmatch(r.URL.Path)
+		if m == nil {
+			http.NotFound(w, r)
+			return
+		}
+		fn(w, r, m[2])
+	}
 }
 
 func main() {
 	flag.Parse()
-
-	createDb()
-	defer db.Close()
-
-	r := mux.NewRouter()
-	r.HandleFunc("/", HomeHandler)
 	go h.run()
+	http.HandleFunc("/", HomeHandler)
 	http.Handle("/web_push", websocket.Handler(websocketHandler))
-	r.HandleFunc("/deploy", DeployPage)
-	r.HandleFunc("/deployLog/{environment}", DeployLogHandler)
-	r.HandleFunc("/commits/{project}", ProjCommitsHandler)
-	r.HandleFunc("/pulls", PullRequestsHandler)
-	r.HandleFunc("/deploy_handler", DeployHandler)
-	http.Handle("/", r)
+	http.HandleFunc("/deploy", DeployPage)
+	http.HandleFunc("/deployLog/", extractHandler(DeployLogHandler))
+	http.HandleFunc("/commits/", extractHandler(ProjCommitsHandler))
+	http.HandleFunc("/deploy_handler", DeployHandler)
 	fmt.Printf("Running on %s\n", *bindAddress)
 	log.Fatal(http.ListenAndServe(*bindAddress, nil))
 }

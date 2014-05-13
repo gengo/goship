@@ -8,8 +8,6 @@ A simple tool for deploying code to servers.
 
 GoShip SSHes into the machines that you list in your `config.yml` file and gets the latest revision from the specified git repository. It then compares that to the latest revision on GitHub and, if they differ, shows a link to the diff as well as a Deploy button. You can then deploy by clicking the button, and will show you the output of the deployment command, as well as save the output, diff, and whether the command succeeded.
 
-It also has a nice single view for open pull requests across all repositories in one or more organizations.
-
 ### Usage
 
 Export your GitHub API token:
@@ -21,9 +19,6 @@ Create a config.yml file:
 ```yaml
 # The user that will SSH into the servers to get the latest git revisions
 deploy_user: deployer
-# used for getting open pull requests across all repos in an org
-orgs:
-    - myOrg
 projects:
     - my_project:
         project_name: My Project
@@ -57,6 +52,7 @@ Available command line flags for the `go run goship.go` command are:
  -b [bind address]  Address to bind (default localhost:8000)
  -c [config file]   Config file (default ./config.yml)
  -k [id_rsa key]    Path to private SSH key for connecting to Github (default id_rsa)
+ -d [data path]     Path to data directory (default ./data/)
 ```
 
 ### Chat Notifications
