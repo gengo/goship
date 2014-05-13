@@ -346,12 +346,8 @@ func writeJSON(d []DeployLogEntry, file string) error {
 	if err != nil {
 		return err
 	}
-	err = ioutil.WriteFile(file, b, 0755)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return ioutil.WriteFile(file, b, 0755)
 }
 
 func readEntries(env string) ([]DeployLogEntry, error) {
