@@ -270,14 +270,16 @@ func (r *Response) populateRate() {
 	}
 	if reset := r.Header.Get(headerRateReset); reset != "" {
 		if v, _ := strconv.ParseInt(reset, 10, 64); v != 0 {
-			r.Rate.Reset = time.Unix(v, 0)
+			r.Rate.Reset = Timestamp{time.Unix(v, 0)}
 		}
 	}
 }
 
 // Do sends an API request and returns the API response.  The API response is
-// decoded and stored in the value pointed to by v, or returned as an error if
-// an API error has occurred.
+// JSON decoded and stored in the value pointed to by v, or returned as an
+// error if an API error has occurred.  If v implements the io.Writer
+// interface, the raw response body will be written to v, without attempting to
+// first decode it.
 func (c *Client) Do(req *http.Request, v interface{}) (*Response, error) {
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -298,7 +300,11 @@ func (c *Client) Do(req *http.Request, v interface{}) (*Response, error) {
 	}
 
 	if v != nil {
-		err = json.NewDecoder(resp.Body).Decode(v)
+		if w, ok := v.(io.Writer); ok {
+			io.Copy(w, resp.Body)
+		} else {
+			err = json.NewDecoder(resp.Body).Decode(v)
+		}
 	}
 	return response, err
 }
@@ -382,48 +388,67 @@ func parseBoolResponse(err error) (bool, error) {
 	return false, err
 }
 
-// API response wrapper to a rate limit request.
-type rateResponse struct {
-	Rate struct {
-		Limit     int   `json:"limit"`
-		Remaining int   `json:"remaining"`
-		Reset     int64 `json:"reset"`
-	} `json:"rate"`
-}
-
-// Rate represents the rate limit for the current client.  Unauthenticated
-// requests are limited to 60 per hour.  Authenticated requests are limited to
-// 5,000 per hour.
+// Rate represents the rate limit for the current client.
 type Rate struct {
 	// The number of requests per hour the client is currently limited to.
-	Limit int
+	Limit int `json:"limit"`
 
 	// The number of remaining requests the client can make this hour.
-	Remaining int
+	Remaining int `json:"remaining"`
 
 	// The time at which the current rate limit will reset.
-	Reset time.Time
+	Reset Timestamp `json:"reset"`
 }
 
-// RateLimit returns the rate limit for the current client.
+func (r Rate) String() string {
+	return Stringify(r)
+}
+
+// RateLimits represents the rate limits for the current client.
+type RateLimits struct {
+	// The rate limit for non-search API requests.  Unauthenticated
+	// requests are limited to 60 per hour.  Authenticated requests are
+	// limited to 5,000 per hour.
+	Core *Rate `json:"core"`
+
+	// The rate limit for search API requests.  Unauthenticated requests
+	// are limited to 5 requests per minutes.  Authenticated requests are
+	// limited to 20 per minute.
+	//
+	// GitHub API docs: https://developer.github.com/v3/search/#rate-limit
+	Search *Rate `json:"search"`
+}
+
+func (r RateLimits) String() string {
+	return Stringify(r)
+}
+
+// RateLimit is deprecated.  Use RateLimits instead.
 func (c *Client) RateLimit() (*Rate, *Response, error) {
+	limits, resp, err := c.RateLimits()
+	if limits == nil {
+		return nil, nil, err
+	}
+
+	return limits.Core, resp, err
+}
+
+// RateLimits returns the rate limits for the current client.
+func (c *Client) RateLimits() (*RateLimits, *Response, error) {
 	req, err := c.NewRequest("GET", "rate_limit", nil)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	response := new(rateResponse)
+	response := new(struct {
+		Resources *RateLimits `json:"resources"`
+	})
 	resp, err := c.Do(req, response)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	rate := &Rate{
-		Limit:     response.Rate.Limit,
-		Remaining: response.Rate.Remaining,
-		Reset:     time.Unix(response.Rate.Reset, 0),
-	}
-	return rate, resp, err
+	return response.Resources, resp, err
 }
 
 /*
