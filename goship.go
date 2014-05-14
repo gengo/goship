@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
 	"html/template"
@@ -163,20 +164,17 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) (b []byte, err 
 	}
 	client, err := ssh.Dial("tcp", hostname, clientConfig)
 	if err != nil {
-		log.Println("ERROR: Failed to dial: " + err.Error())
-		return b, err
+		return b, errors.New("ERROR: Failed to dial: " + err.Error())
 	}
 	defer client.Close()
 	session, err := client.NewSession()
 	if err != nil {
-		log.Println("ERROR: Failed to create session: " + err.Error())
-		return b, err
+		return b, errors.New("ERROR: Failed to create session: " + err.Error())
 	}
 	defer session.Close()
 	b, err = session.Output(cmd)
 	if err != nil {
-		log.Printf("ERROR: Failed to run cmd on host %s: %s", hostname, err.Error())
-		return b, err
+		return b, fmt.Errorf("ERROR: Failed to run cmd on host %s: %s", hostname, err.Error())
 	}
 	return b, nil
 }
@@ -185,13 +183,11 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) (b []byte, err 
 func latestDeployedCommit(username, hostname string, e Environment) (b []byte, err error) {
 	privKey, err := getPrivateKey(*keyPath)
 	if err != nil {
-		log.Println("Failed to open private key file: " + err.Error())
-		return b, err
+		return b, errors.New("Failed to open private key file: " + err.Error())
 	}
 	p := string(privKey)
 	o, err := remoteCmdOutput(username, hostname, p, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath))
 	if err != nil {
-		log.Printf("ERROR: Failed to run remote command: %v", err)
 		return b, err
 	}
 	return o, nil
