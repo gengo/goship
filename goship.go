@@ -2,16 +2,11 @@ package main
 
 import (
 	"bufio"
-	"crypto"
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"flag"
 	"fmt"
 	"html/template"
-	"io"
 	"io/ioutil"
 	"log"
 	"math"
@@ -128,39 +123,20 @@ func getPrivateKey(filename string) (b []byte, err error) {
 	return b, nil
 }
 
-type keychain struct {
-	key *rsa.PrivateKey
-}
-
-func (k *keychain) Key(i int) (ssh.PublicKey, error) {
-	if i != 0 {
-		return nil, nil
-	}
-	pubkey, err := ssh.NewPublicKey(&k.key.PublicKey)
-	if err != nil {
-		log.Panic(err)
-	}
-	return pubkey, nil
-}
-
-func (k *keychain) Sign(i int, rand io.Reader, data []byte) (sig []byte, err error) {
-	hashFunc := crypto.SHA1
-	h := hashFunc.New()
-	h.Write(data)
-	digest := h.Sum(nil)
-	return rsa.SignPKCS1v15(rand, k.key, hashFunc, digest)
-}
-
 // remoteCmdOutput runs the given command on a remote server at the given hostname as the given user.
-func remoteCmdOutput(username, hostname, privateKey, cmd string) (b []byte, err error) {
-	block, _ := pem.Decode([]byte(privateKey))
-	rsakey, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
-	clientKey := &keychain{rsakey}
+func remoteCmdOutput(username, hostname, cmd string, privateKey []byte) (b []byte, err error) {
+	p, err := ssh.ParseRawPrivateKey(privateKey)
+	if err != nil {
+		return b, err
+	}
+	s, err := ssh.NewSignerFromKey(p)
+	if err != nil {
+		return b, err
+	}
+	pub := ssh.PublicKeys(s)
 	clientConfig := &ssh.ClientConfig{
 		User: username,
-		Auth: []ssh.ClientAuth{
-			ssh.ClientAuthKeyring(clientKey),
-		},
+		Auth: []ssh.AuthMethod{pub},
 	}
 	client, err := ssh.Dial("tcp", hostname, clientConfig)
 	if err != nil {
@@ -181,12 +157,11 @@ func remoteCmdOutput(username, hostname, privateKey, cmd string) (b []byte, err 
 
 // latestDeployedCommit gets the latest commit hash on the host.
 func latestDeployedCommit(username, hostname string, e Environment) (b []byte, err error) {
-	privKey, err := getPrivateKey(*keyPath)
+	p, err := getPrivateKey(*keyPath)
 	if err != nil {
 		return b, errors.New("Failed to open private key file: " + err.Error())
 	}
-	p := string(privKey)
-	o, err := remoteCmdOutput(username, hostname, p, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath))
+	o, err := remoteCmdOutput(username, hostname, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath), p)
 	if err != nil {
 		return b, err
 	}
@@ -267,7 +242,7 @@ func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, 
 	defer wg.Done()
 	lc, err := latestDeployedCommit(deployUser, host.URI+":"+sshPort, env)
 	if err != nil {
-		log.Printf("ERROR: failed to get latest deployed commit: %s, %s", host.URI, deployUser)
+		log.Printf("ERROR: failed to get latest deployed commit: %s, %s. Error: %v", host.URI, deployUser, err)
 		host.LatestCommit = string(lc)
 		project.Environments[i].Hosts[j] = host
 	}
