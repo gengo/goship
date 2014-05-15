@@ -2,11 +2,13 @@
 
 A simple tool for deploying code to servers.
 
-![GoShip Index Page Screenshot](http://tryimg.com/4/goshi.png)
+![pirate gopher](http://i.imgur.com/su1iCXA.png)
 
 ### What it does:
 
 GoShip SSHes into the machines that you list in your `config.yml` file and gets the latest revision from the specified git repository. It then compares that to the latest revision on GitHub and, if they differ, shows a link to the diff as well as a Deploy button. You can then deploy by clicking the button, and will show you the output of the deployment command, as well as save the output, diff, and whether the command succeeded.
+
+![GoShip Index Page Screenshot](http://tryimg.com/4/goshi.png)
 
 ### Usage
 
@@ -65,3 +67,5 @@ notify: ./notifications/notify.sh
 [Sevabot](http://sevabot-skype-bot.readthedocs.org/en/latest/) is a good choice for Skype.
 
 GoShip was inspired by [Rackspace's Dreadnot](https://github.com/racker/dreadnot) ([UI image](http://c179631.r31.cf0.rackcdn.com/dreadnot-overview.png)) and [Etsy's Deployinator](https://github.com/etsy/deployinator/) ([UI image](http://farm5.staticflickr.com/4065/4620552264_9e0fdf634d_b.jpg)).
+
+The GoShip logo is an adaptation of the [Go gopher](http://blog.golang.org/gopher) created by Renee French under the [Creative Commons Attribution 3.0 license](https://creativecommons.org/licenses/by/3.0/).
