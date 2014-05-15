@@ -38,6 +38,7 @@ type PullRequest struct {
 	Deletions    *int       `json:"deletions,omitempty"`
 	ChangedFiles *int       `json:"changed_files,omitempty"`
 	HTMLURL      *string    `json:"html_url,omitempty"`
+	StatusesURL  *string    `json:"statuses_url,omitempty"`
 
 	// TODO(willnorris): add head and base once we have a Commit struct defined somewhere
 }
@@ -59,6 +60,8 @@ type PullRequestListOptions struct {
 
 	// Base filters pull requests by base branch name.
 	Base string `url:"base,omitempty"`
+
+	ListOptions
 }
 
 // List the pull requests for the specified repository.
@@ -140,4 +143,101 @@ func (s *PullRequestsService) Edit(owner string, repo string, number int, pull *
 	}
 
 	return p, resp, err
+}
+
+// ListCommits lists the commits in a pull request.
+//
+// GitHub API docs: https://developer.github.com/v3/pulls/#list-commits-on-a-pull-request
+func (s *PullRequestsService) ListCommits(owner string, repo string, number int, opt *ListOptions) (*[]Commit, *Response, error) {
+	u := fmt.Sprintf("repos/%v/%v/pulls/%d/commits", owner, repo, number)
+	u, err := addOptions(u, opt)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	req, err := s.client.NewRequest("GET", u, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	commits := new([]Commit)
+	resp, err := s.client.Do(req, commits)
+	if err != nil {
+		return nil, resp, err
+	}
+
+	return commits, resp, err
+}
+
+// ListFiles lists the files in a pull request.
+//
+// GitHub API docs: https://developer.github.com/v3/pulls/#list-pull-requests-files
+func (s *PullRequestsService) ListFiles(owner string, repo string, number int, opt *ListOptions) (*[]CommitFile, *Response, error) {
+	u := fmt.Sprintf("repos/%v/%v/pulls/%d/files", owner, repo, number)
+	u, err := addOptions(u, opt)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	req, err := s.client.NewRequest("GET", u, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	commitFiles := new([]CommitFile)
+	resp, err := s.client.Do(req, commitFiles)
+	if err != nil {
+		return nil, resp, err
+	}
+
+	return commitFiles, resp, err
+}
+
+// IsMerged checks if a pull request has been merged.
+//
+// GitHub API docs: https://developer.github.com/v3/pulls/#get-if-a-pull-request-has-been-merged
+func (s *PullRequestsService) IsMerged(owner string, repo string, number int) (bool, *Response, error) {
+	u := fmt.Sprintf("repos/%v/%v/pulls/%d/merge", owner, repo, number)
+	req, err := s.client.NewRequest("GET", u, nil)
+	if err != nil {
+		return false, nil, err
+	}
+
+	resp, err := s.client.Do(req, nil)
+	merged, err := parseBoolResponse(err)
+	return merged, resp, err
+}
+
+// PullRequestMergeResult represents the result of merging a pull request.
+type PullRequestMergeResult struct {
+	SHA     *string `json:"sha,omitempty"`
+	Merged  *bool   `json:"merged,omitempty"`
+	Message *string `json:"message,omitempty"`
+}
+
+type pullRequestMergeRequest struct {
+	CommitMessage *string `json:"commit_message"`
+}
+
+// Merge a pull request (Merge Button™).
+//
+// GitHub API docs: https://developer.github.com/v3/pulls/#merge-a-pull-request-merge-buttontrade
+func (s *PullRequestsService) Merge(owner string, repo string, number int, commitMessage string) (*PullRequestMergeResult, *Response, error) {
+	u := fmt.Sprintf("repos/%v/%v/pulls/%d/merge", owner, repo, number)
+
+	req, err := s.client.NewRequest("PUT", u, &pullRequestMergeRequest{
+		CommitMessage: &commitMessage,
+	})
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	mergeResult := new(PullRequestMergeResult)
+	resp, err := s.client.Do(req, mergeResult)
+	if err != nil {
+		return nil, resp, err
+	}
+
+	return mergeResult, resp, err
 }

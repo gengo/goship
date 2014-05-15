@@ -2,15 +2,11 @@ package main
 
 import (
 	"bufio"
-	"crypto"
-	"crypto/rsa"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
+	"errors"
 	"flag"
 	"fmt"
 	"html/template"
-	"io"
 	"io/ioutil"
 	"log"
 	"math"
@@ -127,71 +123,46 @@ func getPrivateKey(filename string) (b []byte, err error) {
 	return b, nil
 }
 
-type keychain struct {
-	key *rsa.PrivateKey
-}
-
-func (k *keychain) Key(i int) (ssh.PublicKey, error) {
-	if i != 0 {
-		return nil, nil
-	}
-	pubkey, err := ssh.NewPublicKey(&k.key.PublicKey)
-	if err != nil {
-		log.Panic(err)
-	}
-	return pubkey, nil
-}
-
-func (k *keychain) Sign(i int, rand io.Reader, data []byte) (sig []byte, err error) {
-	hashFunc := crypto.SHA1
-	h := hashFunc.New()
-	h.Write(data)
-	digest := h.Sum(nil)
-	return rsa.SignPKCS1v15(rand, k.key, hashFunc, digest)
-}
-
 // remoteCmdOutput runs the given command on a remote server at the given hostname as the given user.
-func remoteCmdOutput(username, hostname, privateKey, cmd string) (b []byte, err error) {
-	block, _ := pem.Decode([]byte(privateKey))
-	rsakey, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
-	clientKey := &keychain{rsakey}
+func remoteCmdOutput(username, hostname, cmd string, privateKey []byte) (b []byte, err error) {
+	p, err := ssh.ParseRawPrivateKey(privateKey)
+	if err != nil {
+		return b, err
+	}
+	s, err := ssh.NewSignerFromKey(p)
+	if err != nil {
+		return b, err
+	}
+	pub := ssh.PublicKeys(s)
 	clientConfig := &ssh.ClientConfig{
 		User: username,
-		Auth: []ssh.ClientAuth{
-			ssh.ClientAuthKeyring(clientKey),
-		},
+		Auth: []ssh.AuthMethod{pub},
 	}
 	client, err := ssh.Dial("tcp", hostname, clientConfig)
 	if err != nil {
-		log.Println("ERROR: Failed to dial: " + err.Error())
-		return b, err
+		return b, errors.New("ERROR: Failed to dial: " + err.Error())
 	}
 	defer client.Close()
 	session, err := client.NewSession()
 	if err != nil {
-		log.Println("ERROR: Failed to create session: " + err.Error())
-		return b, err
+		return b, errors.New("ERROR: Failed to create session: " + err.Error())
 	}
 	defer session.Close()
 	b, err = session.Output(cmd)
 	if err != nil {
-		log.Printf("ERROR: Failed to run cmd on host %s: %s", hostname, err.Error())
-		return b, err
+		return b, fmt.Errorf("ERROR: Failed to run cmd on host %s: %s", hostname, err.Error())
 	}
 	return b, nil
 }
 
 // latestDeployedCommit gets the latest commit hash on the host.
 func latestDeployedCommit(username, hostname string, e Environment) (b []byte, err error) {
-	privKey, err := getPrivateKey(*keyPath)
+	p, err := getPrivateKey(*keyPath)
 	if err != nil {
-		log.Println("Failed to open private key file: " + err.Error())
-		return b, err
+		return b, errors.New("Failed to open private key file: " + err.Error())
 	}
-	p := string(privKey)
-	o, err := remoteCmdOutput(username, hostname, p, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath))
+	o, err := remoteCmdOutput(username, hostname, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath), p)
 	if err != nil {
-		log.Printf("ERROR: Failed to run remote command: %v", err)
 		return b, err
 	}
 	return o, nil
@@ -227,14 +198,14 @@ type config struct {
 }
 
 // parseYAML parses the config.yml file and returns the appropriate structs and strings.
-func parseYAML() (c config) {
+func parseYAML() (c config, err error) {
 	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
-		log.Fatal(err)
+		return c, err
 	}
 	deployUser, err := config.Get("deploy_user")
 	if err != nil {
-		log.Fatal("config.yml is missing deploy_user: " + err.Error())
+		return c, err
 	}
 	configRoot, _ := config.Root.(yaml.Map)
 	projects, _ := configRoot["projects"].(yaml.List)
@@ -262,7 +233,7 @@ func parseYAML() (c config) {
 	c.Notify = notify
 	c.Pivotal = piv
 
-	return c
+	return c, nil
 }
 
 // getCommit is called in a goroutine and gets the latest deployed commit on a host.
@@ -271,7 +242,7 @@ func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, 
 	defer wg.Done()
 	lc, err := latestDeployedCommit(deployUser, host.URI+":"+sshPort, env)
 	if err != nil {
-		log.Printf("ERROR: failed to get latest deployed commit: %s, %s", host.URI, deployUser)
+		log.Printf("ERROR: failed to get latest deployed commit: %s, %s. Error: %v", host.URI, deployUser, err)
 		host.LatestCommit = string(lc)
 		project.Environments[i].Hosts[j] = host
 	}
@@ -488,7 +459,11 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
-	c := parseYAML()
+	c, err := parseYAML()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	proj := getProjectFromName(c.Projects, projName)
 
 	p := retrieveCommits(*proj, c.DeployUser)
@@ -637,7 +612,11 @@ func endNotify(n, p, env string, success bool) error {
 }
 
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	c := parseYAML()
+	c, err := parseYAML()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	user := r.FormValue("user")
@@ -770,7 +749,11 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	c := parseYAML()
+	c, err := parseYAML()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
 		log.Panic(err)
