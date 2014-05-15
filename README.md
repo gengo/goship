@@ -2,7 +2,7 @@
 
 A simple tool for deploying code to servers.
 
-![pirate gopher](http://i.imgur.com/su1iCXA.png)
+![pirate gopher](http://i.imgur.com/RLvkHka.png)
 
 ### What it does:
 
