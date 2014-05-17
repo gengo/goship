@@ -1,25 +1,25 @@
 {
 	"ImportPath": "github.com/gengo/goship",
-	"GoVersion": "go1.2.1",
+	"GoVersion": "go1.2",
 	"Deps": [
 		{
 			"ImportPath": "code.google.com/p/go.crypto/ssh",
-			"Comment": "null-192",
-			"Rev": "2990fc550b9ff92bc33c848f92c87a305ae62934"
+			"Comment": "null-209",
+			"Rev": "23b39e4e860172e1983ded00a9d2f7e42b7683d0"
 		},
 		{
 			"ImportPath": "code.google.com/p/go.net/websocket",
-			"Comment": "null-126",
-			"Rev": "53130366067a9f0b47893ae8a81677391fdd0f42"
+			"Comment": "null-128",
+			"Rev": "9c33002573cb03309e20978369b0536f4f00b24d"
 		},
 		{
 			"ImportPath": "code.google.com/p/goauth2/oauth",
-			"Comment": "weekly-43",
-			"Rev": "d4571a95014ff1fdd0055dc0f6b7e977a42b1e5a"
+			"Comment": "weekly-44",
+			"Rev": "696c088491246273e92442aa66b5281e5bb34faa"
 		},
 		{
 			"ImportPath": "github.com/google/go-github/github",
-			"Rev": "50663503319187b17e6d53745fa8eb82be000606"
+			"Rev": "7abf47b273f2ff9f4ccbcb5d304c74f93dc5057f"
 		},
 		{
 			"ImportPath": "github.com/google/go-querystring/query",
