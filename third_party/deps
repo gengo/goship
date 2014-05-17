@@ -1,7 +1,0 @@
-packages="
-        "code.google.com/p/go.crypto/ssh"
-        "code.google.com/p/go.net/websocket"
-        "code.google.com/p/goauth2/oauth"
-        "github.com/google/go-github/github"
-        "github.com/kylelemons/go-gypsy/yaml"
-"
