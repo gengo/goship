@@ -8,9 +8,11 @@
       <th>User</th>
       <th>Deployed Diff</th>
       <th>Result</th>
+      <th>Output</th>
     </tr>
   </thead>
   <tbody>
+   {{$env := .Env}}
    {{range $deployment := .Deployments}}
      <tr>
      <td>{{.FormattedTime}}</td>
@@ -21,6 +23,10 @@
      {{else}}
      <td><span class="label label-danger">Failure</span></td>
      {{end}}
+
+     <td>
+       <a href="/output/{{$env}}/{{.Time}}">Output</a>
+     </td>
      </tr>
   {{end}}
   </tbody>

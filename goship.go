@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"html/template"
+	"io"
 	"io/ioutil"
 	"log"
 	"math"
@@ -340,8 +341,7 @@ func readEntries(env string) ([]DeployLogEntry, error) {
 	return d, nil
 }
 
-func insertEntry(env, owner, repoName, fromRevision, toRevision, user string, success bool, time time.Time) error {
-	path := *dataPath + env + ".json"
+func prepareDataFiles(path string) error {
 	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
 		return err
 	}
@@ -355,6 +355,21 @@ func insertEntry(env, owner, repoName, fromRevision, toRevision, user string, su
 			return err
 		}
 	}
+
+	return nil
+}
+
+func dataFilePath(env string) string {
+	return fmt.Sprintf("%s%s.json", *dataPath, env)
+}
+
+func insertEntry(env, owner, repoName, fromRevision, toRevision, user string, time time.Time) error {
+	path := dataFilePath(env)
+	err := prepareDataFiles(path)
+	if err != nil {
+		return err
+	}
+
 	e, err := readEntries(env)
 	if err != nil {
 		return err
@@ -373,12 +388,64 @@ func insertEntry(env, owner, repoName, fromRevision, toRevision, user string, su
 		m = *com.Message
 	}
 	diffURL := diffURL(owner, repoName, fromRevision, toRevision)
-	d := DeployLogEntry{DiffURL: diffURL, ToRevisionMsg: m, User: user, Success: success, Time: time}
+	d := DeployLogEntry{DiffURL: diffURL, ToRevisionMsg: m, User: user, Time: time}
 	e = append(e, d)
 	err = writeJSON(e, path)
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func appendDeployOutput(env string, output string, timestamp time.Time) {
+	logDir := fmt.Sprintf("%s%s", *dataPath, env)
+	path := fmt.Sprintf("%s/%s.log", logDir, timestamp)
+
+	if _, err := os.Stat(logDir); err != nil {
+		if os.IsNotExist(err) {
+			err := os.Mkdir(logDir, 0755)
+			if err != nil {
+				fmt.Printf("ERROR: %s", err)
+			}
+		}
+	}
+
+	out, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
+	if err != nil {
+		fmt.Printf("ERROR: %s", err)
+	}
+
+	defer out.Close() //we'll close this file as we leave scope, no matter what
+
+	io.WriteString(out, output+"\n")
+}
+
+func updateEntry(env string, success bool, timestamp time.Time) error {
+	path := dataFilePath(env)
+
+	e, err := readEntries(env)
+	if err != nil {
+		return err
+	}
+
+	// find target in e
+	var targetDeploy int
+	for i, deploy := range e {
+		if deploy.Time == timestamp {
+			targetDeploy = i
+			break
+		}
+	}
+
+	if targetDeploy != 0 {
+		e[targetDeploy].Success = success
+
+		err = writeJSON(e, path)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -442,6 +509,17 @@ func formatTime(t time.Time) string {
 	}
 }
 
+func DeployOutputHandler(w http.ResponseWriter, r *http.Request, env string, formattedTime string) {
+	log := fmt.Sprintf("%s%s/%s.log", *dataPath, env, formattedTime)
+
+	b, err := ioutil.ReadFile(log)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	w.Write(b)
+}
+
 func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
 	d, err := readEntries(env)
 	if err != nil {
@@ -457,7 +535,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
 		d[i].FormattedTime = formatTime(d[i].Time)
 	}
 	sort.Sort(ByTime(d))
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d, "Env": env})
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
@@ -567,7 +645,7 @@ func websocketHandler(ws *websocket.Conn) {
 	c.reader()
 }
 
-func sendOutput(scanner *bufio.Scanner, p, e string) {
+func sendOutput(scanner *bufio.Scanner, p, e string, deployTime time.Time) {
 	for scanner.Scan() {
 		t := scanner.Text()
 		msg := struct {
@@ -580,6 +658,8 @@ func sendOutput(scanner *bufio.Scanner, p, e string) {
 			log.Println("ERROR marshalling JSON: ", err.Error())
 		}
 		h.broadcast <- string(cmdOutput)
+
+		go appendDeployOutput(fmt.Sprintf("%s-%s", p, e), t, deployTime)
 	}
 	if err := scanner.Err(); err != nil {
 		log.Println("Error reading command output: " + err.Error())
@@ -637,6 +717,15 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println("Error: ", err.Error())
 		}
 	}
+
+	deployTime := time.Now()
+	err = insertEntry(fmt.Sprintf("%s-%s", p, env), owner, name, fromRevision, toRevision, user, deployTime)
+	if err != nil {
+		log.Printf("ERROR: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	success := true
 	command := getDeployCommand(c.Projects, p, env)
 	cmd := exec.Command(command[0], command[1:]...)
@@ -658,9 +747,9 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	stdoutScanner := bufio.NewScanner(stdout)
-	go sendOutput(stdoutScanner, p, env)
+	go sendOutput(stdoutScanner, p, env, deployTime)
 	stderrScanner := bufio.NewScanner(stderr)
-	go sendOutput(stderrScanner, p, env)
+	go sendOutput(stderrScanner, p, env, deployTime)
 	err = cmd.Wait()
 	if err != nil {
 		success = false
@@ -678,7 +767,8 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println("ERROR: ", err)
 		}
 	}
-	err = insertEntry(fmt.Sprintf("%s-%s", p, env), owner, name, fromRevision, toRevision, user, success, time.Now())
+
+	err = updateEntry(fmt.Sprintf("%s-%s", p, env), success, deployTime)
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -774,16 +864,29 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "Page": "home"})
 }
 
-var validPath = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
+var validPathWithEnv = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
 
 func extractHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		m := validPath.FindStringSubmatch(r.URL.Path)
+		m := validPathWithEnv.FindStringSubmatch(r.URL.Path)
 		if m == nil {
 			http.NotFound(w, r)
 			return
 		}
 		fn(w, r, m[2])
+	}
+}
+
+var validPathWithEnvAndTime = regexp.MustCompile("^/(output)/(.*)/(.*)$")
+
+func extractOutputHandler(fn func(http.ResponseWriter, *http.Request, string, string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		m := validPathWithEnvAndTime.FindStringSubmatch(r.URL.Path)
+		if m == nil {
+			http.NotFound(w, r)
+			return
+		}
+		fn(w, r, m[2], m[3])
 	}
 }
 
@@ -794,6 +897,7 @@ func main() {
 	http.Handle("/web_push", websocket.Handler(websocketHandler))
 	http.HandleFunc("/deploy", DeployPage)
 	http.HandleFunc("/deployLog/", extractHandler(DeployLogHandler))
+	http.HandleFunc("/output/", extractOutputHandler(DeployOutputHandler))
 	http.HandleFunc("/commits/", extractHandler(ProjCommitsHandler))
 	http.HandleFunc("/deploy_handler", DeployHandler)
 	fmt.Printf("Running on %s\n", *bindAddress)
