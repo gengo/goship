@@ -449,6 +449,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
 	}
 	t, err := template.New("deploy_log.html").ParseFiles("templates/deploy_log.html", "templates/base.html")
 	if err != nil {
+		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -462,6 +463,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
 	c, err := parseYAML()
 	if err != nil {
+		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -471,12 +473,14 @@ func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string)
 
 	j, err := json.Marshal(p)
 	if err != nil {
+		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, err = w.Write(j)
 	if err != nil {
+		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -616,6 +620,7 @@ func endNotify(n, p, env string, success bool) error {
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	c, err := parseYAML()
 	if err != nil {
+		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -637,18 +642,18 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	cmd := exec.Command(command[0], command[1:]...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		log.Println("Could not get stdout of command:" + err.Error())
+		log.Println("ERROR: could not get stdout of command:" + err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		log.Println("Could not get stderr of command:" + err.Error())
+		log.Println("ERROR: could not get stderr of command:" + err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if err = cmd.Start(); err != nil {
-		log.Println("Error running command: " + err.Error())
+		log.Println("ERROR: could not run deployment command: " + err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -668,17 +673,20 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if (c.Pivotal.token != "") && (c.Pivotal.project != "") && success {
-		PostToPivotal(c.Pivotal, env, owner, name, toRevision, fromRevision)
+		err := postToPivotal(c.Pivotal, env, owner, name, toRevision, fromRevision)
+		if err != nil {
+			log.Println("ERROR: ", err)
+		}
 	}
 	err = insertEntry(fmt.Sprintf("%s-%s", p, env), owner, name, fromRevision, toRevision, user, success, time.Now())
 	if err != nil {
-		log.Printf("ERROR: %v", err)
+		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }
 
-func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current string) {
+func postToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current string) error {
 	gt := os.Getenv(gitHubAPITokenEnvVar)
 	t := &oauth.Transport{
 		Token: &oauth.Token{AccessToken: gt},
@@ -686,30 +694,29 @@ func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current 
 	c := github.NewClient(t.Client())
 	comp, _, err := c.Repositories.CompareCommits(owner, name, latest, current)
 	if err != nil {
-		log.Println("ERROR: Error getting deployed commits: " + err.Error())
-	} else {
-		pivRE, _ := regexp.Compile("\\[.*#(\\d+)\\].*")
-		if err != nil {
-			log.Println("ERROR: Error compiling regex to match Pivotal commits: " + err.Error())
-		} else {
-			s := map[string]bool{}
-			const layout = "2006-01-02 15:04:05 (JST)"
-			for _, commit := range comp.Commits {
-				cmi := *commit.Commit
-				cm := *cmi.Message
-				ids := pivRE.FindStringSubmatch(cm)
-				if ids != nil {
-					id := ids[1]
-					_, exists := s[id]
-					if !exists {
-						s[id] = true
-						m := fmt.Sprintf("Deployed to %s: %s", env, time.Now().Format(layout))
-						go PostPivotalComment(id, m, piv)
-					}
-				}
+		return err
+	}
+	pivRE, err := regexp.Compile("\\[.*#(\\d+)\\].*")
+	if err != nil {
+		return err
+	}
+	s := map[string]bool{}
+	const layout = "2006-01-02 15:04:05 (JST)"
+	for _, commit := range comp.Commits {
+		cmi := *commit.Commit
+		cm := *cmi.Message
+		ids := pivRE.FindStringSubmatch(cm)
+		if ids != nil {
+			id := ids[1]
+			_, exists := s[id]
+			if !exists {
+				s[id] = true
+				m := fmt.Sprintf("Deployed to %s: %s", env, time.Now().Format(layout))
+				go PostPivotalComment(id, m, piv)
 			}
 		}
 	}
+	return nil
 }
 
 func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err error) {
@@ -717,20 +724,19 @@ func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err err
 	p.Set("text", m)
 	req, err := http.NewRequest("POST", fmt.Sprintf(pivotalCommentURL, piv.project, id), nil)
 	if err != nil {
-		log.Println("ERROR: Error forming put request to Pivotal: ", err.Error())
+		log.Println("ERROR: could not form put request to Pivotal: ", err)
 		return err
 	}
 	req.URL.RawQuery = p.Encode()
 	req.Header.Add("X-TrackerToken", piv.token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Println("ERROR: Error making put request to Pivotal: ", err.Error())
+		log.Println("ERROR: could not make put request to Pivotal: ", err)
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		m := fmt.Sprint("ERROR: Non-200 Response from Pivotal API: ", resp.Status)
-		log.Println(m)
+		log.Printf("ERROR: non-200 Response from Pivotal API: ", resp.Status)
 	}
 	return nil
 }
@@ -745,6 +751,7 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 	repo_name := r.FormValue("repo_name")
 	t, err := template.New("deploy.html").ParseFiles("templates/deploy.html", "templates/base.html")
 	if err != nil {
+		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -754,11 +761,13 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	c, err := parseYAML()
 	if err != nil {
+		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
+		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
