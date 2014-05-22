@@ -449,7 +449,8 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
 	}
 	t, err := template.New("deploy_log.html").ParseFiles("templates/deploy_log.html", "templates/base.html")
 	if err != nil {
-		log.Panic(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	for i := range d {
 		d[i].FormattedTime = formatTime(d[i].Time)
@@ -468,15 +469,16 @@ func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string)
 
 	p := retrieveCommits(*proj, c.DeployUser)
 
-	// Render the template
 	j, err := json.Marshal(p)
 	if err != nil {
-		log.Panic(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, err = w.Write(j)
 	if err != nil {
-		log.Panic(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 }
 
@@ -743,7 +745,8 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 	repo_name := r.FormValue("repo_name")
 	t, err := template.New("deploy.html").ParseFiles("templates/deploy.html", "templates/base.html")
 	if err != nil {
-		log.Panic(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "BindAddress": bindAddress, "RepoOwner": repo_owner, "RepoName": repo_name, "ToRevision": toRevision, "FromRevision": fromRevision})
 }
@@ -756,7 +759,8 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
-		log.Panic(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "Page": "home"})
 }
