@@ -45,7 +45,7 @@ projects:
 Then run the server manually
 
 ```shell
-go run goship.go -p 8888 -k ~/.ssh/id_rsa
+go run goship.go -b localhost:8888 -k ~/.ssh/id_rsa
 ```
 
 Available command line flags for the `go run goship.go` command are:
