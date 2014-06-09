@@ -743,7 +743,7 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 
 	err = insertEntry(fmt.Sprintf("%s-%s", p, env), owner, name, fromRevision, toRevision, user, success, deployTime)
 	if err != nil {
-		log.Printf("ERROR: %v", err)
+		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
