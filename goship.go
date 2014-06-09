@@ -668,7 +668,7 @@ func sendOutput(scanner *bufio.Scanner, p, e string, deployTime time.Time) {
 }
 
 func stripANSICodes(t string) string {
-	ansi := regexp.MustCompile(`\x1B\[[0-9;]{1,3}[mK]`)
+	ansi := regexp.MustCompile(`\x1B\[[0-9;]{1,4}[mK]`)
 	return ansi.ReplaceAllString(t, "")
 }
 

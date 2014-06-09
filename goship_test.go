@@ -8,7 +8,7 @@ func TestStripANSICodes(t *testing.T) {
 		want string
 	}{
 		{"\x1B[0m", ""},
-		{"some text \x1B[23m", "some text "},
+		{"some text \x1B[23m\x1B[2;13m", "some text "},
 		{"no code", "no code"},
 		{"\x1B[13m\x1B[23m\x1B[3m", ""},
 	}
