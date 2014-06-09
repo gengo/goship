@@ -652,7 +652,7 @@ func sendOutput(scanner *bufio.Scanner, p, e string, deployTime time.Time) {
 			Project     string
 			Environment string
 			StdoutLine  string
-		}{p, e, strings.TrimSpace(t)}
+		}{p, e, stripANSICodes(strings.TrimSpace(t))}
 		cmdOutput, err := json.Marshal(msg)
 		if err != nil {
 			log.Println("ERROR marshalling JSON: ", err.Error())
@@ -665,6 +665,11 @@ func sendOutput(scanner *bufio.Scanner, p, e string, deployTime time.Time) {
 		log.Println("Error reading command output: " + err.Error())
 		return
 	}
+}
+
+func stripANSICodes(t string) string {
+	ansi := regexp.MustCompile(`\x1B\[[0-9;]{1,3}[mK]`)
+	return ansi.ReplaceAllString(t, "")
 }
 
 func notify(n, msg string) error {
