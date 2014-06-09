@@ -363,7 +363,7 @@ func dataFilePath(env string) string {
 	return fmt.Sprintf("%s%s.json", *dataPath, env)
 }
 
-func insertEntry(env, owner, repoName, fromRevision, toRevision, user string, time time.Time) error {
+func insertEntry(env, owner, repoName, fromRevision, toRevision, user string, success bool, time time.Time) error {
 	path := dataFilePath(env)
 	err := prepareDataFiles(path)
 	if err != nil {
@@ -388,7 +388,7 @@ func insertEntry(env, owner, repoName, fromRevision, toRevision, user string, ti
 		m = *com.Message
 	}
 	diffURL := diffURL(owner, repoName, fromRevision, toRevision)
-	d := DeployLogEntry{DiffURL: diffURL, ToRevisionMsg: m, User: user, Time: time}
+	d := DeployLogEntry{DiffURL: diffURL, ToRevisionMsg: m, User: user, Time: time, Success: success}
 	e = append(e, d)
 	err = writeJSON(e, path)
 	if err != nil {
@@ -415,38 +415,9 @@ func appendDeployOutput(env string, output string, timestamp time.Time) {
 		fmt.Printf("ERROR: %s", err)
 	}
 
-	defer out.Close() //we'll close this file as we leave scope, no matter what
+	defer out.Close()
 
 	io.WriteString(out, output+"\n")
-}
-
-func updateEntry(env string, success bool, timestamp time.Time) error {
-	path := dataFilePath(env)
-
-	e, err := readEntries(env)
-	if err != nil {
-		return err
-	}
-
-	// find target in e
-	var targetDeploy int
-	for i, deploy := range e {
-		if deploy.Time == timestamp {
-			targetDeploy = i
-			break
-		}
-	}
-
-	if targetDeploy != 0 {
-		e[targetDeploy].Success = success
-
-		err = writeJSON(e, path)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // getProjectFromName takes a project name as a string and returns
@@ -645,7 +616,8 @@ func websocketHandler(ws *websocket.Conn) {
 	c.reader()
 }
 
-func sendOutput(scanner *bufio.Scanner, p, e string, deployTime time.Time) {
+func sendOutput(wg *sync.WaitGroup, scanner *bufio.Scanner, p, e string, deployTime time.Time) {
+	defer wg.Done()
 	for scanner.Scan() {
 		t := scanner.Text()
 		msg := struct {
@@ -724,13 +696,6 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	deployTime := time.Now()
-	err = insertEntry(fmt.Sprintf("%s-%s", p, env), owner, name, fromRevision, toRevision, user, deployTime)
-	if err != nil {
-		log.Printf("ERROR: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
 	success := true
 	command := getDeployCommand(c.Projects, p, env)
 	cmd := exec.Command(command[0], command[1:]...)
@@ -751,10 +716,13 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	stdoutScanner := bufio.NewScanner(stdout)
-	go sendOutput(stdoutScanner, p, env, deployTime)
-	stderrScanner := bufio.NewScanner(stderr)
-	go sendOutput(stderrScanner, p, env, deployTime)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go sendOutput(&wg, bufio.NewScanner(stdout), p, env, deployTime)
+	go sendOutput(&wg, bufio.NewScanner(stderr), p, env, deployTime)
+	wg.Wait()
+
 	err = cmd.Wait()
 	if err != nil {
 		success = false
@@ -773,7 +741,7 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err = updateEntry(fmt.Sprintf("%s-%s", p, env), success, deployTime)
+	err = insertEntry(fmt.Sprintf("%s-%s", p, env), owner, name, fromRevision, toRevision, user, success, deployTime)
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
