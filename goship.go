@@ -342,9 +342,6 @@ func readEntries(env string) ([]DeployLogEntry, error) {
 }
 
 func prepareDataFiles(path string) error {
-	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
-		return err
-	}
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		_, err := os.Create(path)
 		if err != nil {
@@ -864,6 +861,9 @@ func extractOutputHandler(fn func(http.ResponseWriter, *http.Request, string, st
 }
 
 func main() {
+	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
+		log.Fatal("could not create data dir: ", err)
+	}
 	flag.Parse()
 	go h.run()
 	http.HandleFunc("/", HomeHandler)
