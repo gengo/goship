@@ -4,7 +4,7 @@
       <div class="span6">
         {{range $project := .Projects}}
         <div class="project" data-id="{{$project.Name}}">
-          <h3>{{.Name}}</h3>
+          <h3>{{.Name}} <a href="#" class="refresh">↻</a></h3>
           <div class="deployments">
           <table class="table table-striped">
             <thead>
@@ -57,12 +57,23 @@
   <script type="text/javascript">
 
   $(function(){
-    var $hostSkeleton = $("#host-skeleton");
-
     // make ajax queries for each project
     $('.project').each(function(){
-      var $project = $(this),
-          projectId = $project.attr('data-id');
+        refreshProject(this);
+    });
+  });
+
+  $('.refresh').click(function(e) {
+    refreshProject($(this).closest('.project'));
+    e.preventDefault();
+  })
+
+  function refreshProject(project) {
+      var $hostSkeleton = $("#host-skeleton");
+      var $project = $(project),
+      projectId = $project.attr('data-id');
+      $project.find('.hosts').text('Loading...');
+      $project.find('.form-deploy').addClass('hidden');
       $.ajax({
         type: 'GET',
         url: '/commits/' + projectId,
@@ -104,7 +115,6 @@
           }
         }
       });
-    });
-  });
+  }
   </script>
 {{end}}
