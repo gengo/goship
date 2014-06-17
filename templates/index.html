@@ -91,7 +91,7 @@
 
             for (var h = 0; h < env.Hosts.length; h++) {
               var host = env.Hosts[h];
-              var $host = $hostSkeleton.clone().removeClass('hidden');
+              var $host = $hostSkeleton.clone().removeAttr('id').removeClass('hidden');
               $host.find('.GitHubCommitURL').attr({
                 'href': host.GitHubCommitURL
               }).text(host.ShortCommitHash);
