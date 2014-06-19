@@ -4,7 +4,7 @@
       <div class="span6">
         {{range $project := .Projects}}
         <div class="project" data-id="{{$project.Name}}">
-          <h3>{{.Name}} <a href="#" class="refresh">↻</a></h3>
+          <h3><a href="#" class="refresh">↻</a> {{.Name}}</h3>
           <div class="deployments">
           <table class="table table-striped">
             <thead>
