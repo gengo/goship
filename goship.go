@@ -116,15 +116,6 @@ func (h *Host) shortCommitHash() string {
 	return h.LatestCommit[:7]
 }
 
-// getPrivateKey opens a private key file and returns its bytes.
-func getPrivateKey(filename string) (b []byte, err error) {
-	b, err = ioutil.ReadFile(filename)
-	if err != nil {
-		return b, err
-	}
-	return b, nil
-}
-
 // remoteCmdOutput runs the given command on a remote server at the given hostname as the given user.
 func remoteCmdOutput(username, hostname, cmd string, privateKey []byte) (b []byte, err error) {
 	p, err := ssh.ParseRawPrivateKey(privateKey)
@@ -159,7 +150,7 @@ func remoteCmdOutput(username, hostname, cmd string, privateKey []byte) (b []byt
 
 // latestDeployedCommit gets the latest commit hash on the host.
 func latestDeployedCommit(username, hostname string, e Environment) (b []byte, err error) {
-	p, err := getPrivateKey(*keyPath)
+	p, err := ioutil.ReadFile(*keyPath)
 	if err != nil {
 		return b, errors.New("Failed to open private key file: " + err.Error())
 	}
@@ -793,7 +784,7 @@ func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("ERROR: non-200 Response from Pivotal API: ", resp.Status)
+		log.Println("ERROR: non-200 Response from Pivotal API: ", resp.Status)
 	}
 	return nil
 }
