@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestStripANSICodes(t *testing.T) {
 	tests := []struct {
@@ -50,7 +53,31 @@ var deployableTests = []struct {
 func TestDeployable(t *testing.T) {
 	for _, tt := range deployableTests {
 		if got := tt.e.Deployable(); got != tt.want {
-			t.Errorf("Deployable = %s, want %s", got, tt.want)
+			t.Errorf("Deployable = %t, want %t", got, tt.want)
 		}
+	}
+}
+
+var wantConfig = config{
+	Projects: []Project{
+		{Name: "Test Project One", GitHubURL: "https://github.com/test_owner/test_repo_name", RepoName: "test_repo_name", RepoOwner: "test_owner",
+			Environments: []Environment{{Name: "live", Deploy: "/deploy/test_project_one.sh", RepoPath: "/repos/test_repo_name/.git",
+				Hosts: []Host{{URI: "test-project-one.test.com"}}, Branch: "master", IsDeployable: false}}},
+		{Name: "Test Project Two", GitHubURL: "https://github.com/test_owner/test_repo_name_two", RepoName: "test_repo_name_two", RepoOwner: "test_owner",
+			Environments: []Environment{{Name: "live", Deploy: "/deploy/test_project_two.sh", RepoPath: "/repos/test_repo_name_two/.git",
+				Hosts: []Host{{URI: "test-project-two.test.com"}}, Branch: "master", LatestGitHubCommit: "", IsDeployable: false}}}},
+	DeployUser: "deploy_user",
+	Notify:     "/notify/notify.sh",
+	Pivotal:    &PivotalConfiguration{project: "111111", token: "test"}}
+
+func TestParseYAML(t *testing.T) {
+	// set the configFile flag for test
+	*configFile = "testdata/config.yml"
+	got, err := parseYAML()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, wantConfig) {
+		t.Errorf("parseYAML = %v\n, want %v", got, wantConfig)
 	}
 }

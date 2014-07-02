@@ -787,7 +787,7 @@ func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("ERROR: non-200 Response from Pivotal API: ", resp.Status)
+		log.Println("ERROR: non-200 Response from Pivotal API: ", resp.Status)
 	}
 	return nil
 }
