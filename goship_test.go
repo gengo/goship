@@ -3,6 +3,7 @@ package main
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestStripANSICodes(t *testing.T) {
@@ -72,12 +73,35 @@ var wantConfig = config{
 
 func TestParseYAML(t *testing.T) {
 	// set the configFile flag for test
-	*configFile = "testdata/config.yml"
+	*configFile = "testdata/test_config.yml"
 	got, err := parseYAML()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(got, wantConfig) {
 		t.Errorf("parseYAML = %v\n, want %v", got, wantConfig)
+	}
+}
+
+var now = time.Now()
+
+var formatTimeTests = []struct {
+	t    time.Time
+	want string
+}{
+	{time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC), "Nov 10, 2009 at 11:00pm (UTC)"},
+	{time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second()-1, 0, now.Location()), "1 second ago"},
+	{time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second()-30, 0, now.Location()), "30 seconds ago"},
+	{time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute()-1, now.Second(), 0, now.Location()), "1 minute ago"},
+	{time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute()-30, now.Second(), 0, now.Location()), "30 minutes ago"},
+	{time.Date(now.Year(), now.Month(), now.Day(), now.Hour()-1, now.Minute(), now.Second(), 0, now.Location()), "1 hour ago"},
+	{time.Date(now.Year(), now.Month(), now.Day(), now.Hour()-3, now.Minute(), now.Second(), 0, now.Location()), "3 hours ago"},
+}
+
+func TestFormatTime(t *testing.T) {
+	for _, tt := range formatTimeTests {
+		if got := formatTime(tt.t); got != tt.want {
+			t.Errorf("formatTime(%s) = %s, want %s", tt.t, got, tt.want)
+		}
 	}
 }
