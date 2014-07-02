@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"regexp"
 	"sort"
 	"strings"
@@ -326,7 +327,7 @@ func writeJSON(d []DeployLogEntry, file string) error {
 
 func readEntries(env string) ([]DeployLogEntry, error) {
 	var d []DeployLogEntry
-	b, err := ioutil.ReadFile(*dataPath + env + ".json")
+	b, err := ioutil.ReadFile(path.Join(*dataPath, env+".json"))
 	if err != nil {
 		return d, err
 	}
@@ -356,12 +357,8 @@ func prepareDataFiles(path string) error {
 	return nil
 }
 
-func dataFilePath(env string) string {
-	return fmt.Sprintf("%s%s.json", *dataPath, env)
-}
-
 func insertEntry(env, owner, repoName, fromRevision, toRevision, user string, success bool, time time.Time) error {
-	path := dataFilePath(env)
+	path := path.Join(*dataPath, env+".json")
 	err := prepareDataFiles(path)
 	if err != nil {
 		return err
@@ -395,8 +392,8 @@ func insertEntry(env, owner, repoName, fromRevision, toRevision, user string, su
 }
 
 func appendDeployOutput(env string, output string, timestamp time.Time) {
-	logDir := fmt.Sprintf("%s%s", *dataPath, env)
-	path := fmt.Sprintf("%s/%s.log", logDir, timestamp)
+	logDir := path.Join(*dataPath, env)
+	path := path.Join(logDir, timestamp.String()+".log")
 
 	if _, err := os.Stat(logDir); err != nil {
 		if os.IsNotExist(err) {
@@ -478,7 +475,7 @@ func formatTime(t time.Time) string {
 }
 
 func DeployOutputHandler(w http.ResponseWriter, r *http.Request, env string, formattedTime string) {
-	log := fmt.Sprintf("%s%s/%s.log", *dataPath, env, formattedTime)
+	log := path.Join(*dataPath, env, formattedTime+".log")
 
 	b, err := ioutil.ReadFile(log)
 	if err != nil {
