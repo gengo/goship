@@ -20,3 +20,37 @@ func TestStripANSICodes(t *testing.T) {
 		}
 	}
 }
+
+var githubDiffURLTests = []struct {
+	h    Host
+	p    Project
+	e    Environment
+	want string
+}{
+	{Host{LatestCommit: "abc123"}, Project{"test project", "https://github.com/test/foo", "foo", "test", []Environment{}}, Environment{LatestGitHubCommit: "abc123"}, ""},
+	{Host{LatestCommit: "abc123"}, Project{"test project", "https://github.com/test/foo", "foo", "test", []Environment{}}, Environment{LatestGitHubCommit: "abc456"}, "https://github.com/test/foo/compare/abc123...abc456"},
+}
+
+func TestGitHubDiffURL(t *testing.T) {
+	for _, tt := range githubDiffURLTests {
+		if got := tt.h.gitHubDiffURL(tt.p, tt.e); got != tt.want {
+			t.Errorf("gitHubDiffURL = %s, want %s", got, tt.want)
+		}
+	}
+}
+
+var deployableTests = []struct {
+	e    Environment
+	want bool
+}{
+	{Environment{LatestGitHubCommit: "abc123", Hosts: []Host{{LatestCommit: "abc456"}}}, true},
+	{Environment{LatestGitHubCommit: "abc456", Hosts: []Host{{LatestCommit: "abc456"}}}, false},
+}
+
+func TestDeployable(t *testing.T) {
+	for _, tt := range deployableTests {
+		if got := tt.e.Deployable(); got != tt.want {
+			t.Errorf("Deployable = %s, want %s", got, tt.want)
+		}
+	}
+}
