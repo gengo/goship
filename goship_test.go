@@ -105,3 +105,38 @@ func TestFormatTime(t *testing.T) {
 		}
 	}
 }
+
+func TestGetProjectFromName(t *testing.T) {
+	var want = Project{Name: "TestProject"}
+	projects := []Project{want}
+	got, err := getProjectFromName(projects, "TestProject")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, &want) {
+		t.Errorf("getProjectFromName = %v, want %v", got, want)
+	}
+	got, err = getProjectFromName(projects, "BadProject")
+	if err == nil {
+		t.Errorf("getProjectFromName error case did not error", got, nil)
+	}
+}
+
+func TestGetEnvironmentFromName(t *testing.T) {
+	var (
+		want = Environment{Name: "TestEnvironment"}
+		envs = []Environment{want}
+	)
+	projects := []Project{Project{Name: "TestProject", Environments: envs}}
+	got, err := getEnvironmentFromName(projects, "TestProject", "TestEnvironment")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, &want) {
+		t.Errorf("getEnvironmentFromName = %v, want %v", got, want)
+	}
+	got, err = getEnvironmentFromName(projects, "BadProject", "BadEnvironment")
+	if err == nil {
+		t.Errorf("getEnvironmentFromName error case did not error")
+	}
+}
