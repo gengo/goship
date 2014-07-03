@@ -163,7 +163,11 @@ func latestDeployedCommit(username, hostname string, e Environment) (b []byte, e
 
 // getYAMLString is a helper function for extracting strings from a yaml.Node.
 func getYAMLString(n yaml.Node, key string) string {
-	return strings.TrimSpace(n.(yaml.Map)[key].(yaml.Scalar).String())
+	s, ok := n.(yaml.Map)[key].(yaml.Scalar)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(s.String())
 }
 
 // parseYAMLEnvironment populates an Environment given a yaml.Node and returns the Environment.
@@ -407,35 +411,40 @@ func appendDeployOutput(env string, output string, timestamp time.Time) {
 
 // getProjectFromName takes a project name as a string and returns
 // a Project by that name if it can find one.
-func getProjectFromName(projects []Project, projectName string) *Project {
+func getProjectFromName(projects []Project, projectName string) (*Project, error) {
 	for _, project := range projects {
 		if project.Name == projectName {
-			return &project
+			return &project, nil
 		}
 	}
-	return nil
+	return nil, fmt.Errorf("No project found: %s", projectName)
 }
 
 // getEnvironmentFromName takes an environment and project name as a string and returns
 // an Environmnet by the given environment name under a project with the given
 // project name if it can find one.
-func getEnvironmentFromName(projects []Project, projectName, environmentName string) *Environment {
-	p := getProjectFromName(projects, projectName)
+func getEnvironmentFromName(projects []Project, projectName, environmentName string) (*Environment, error) {
+	p, err := getProjectFromName(projects, projectName)
+	if err != nil {
+		return nil, err
+	}
 	for _, environment := range p.Environments {
 		if environment.Name == environmentName {
-			return &environment
+			return &environment, nil
 		}
 	}
-	return nil
+	return nil, fmt.Errorf("No environment found: %s", environmentName)
 }
 
 // getDeployCommand returns the deployment command for a given
 // environment as a string slice that has been split on spaces.
-func getDeployCommand(projects []Project, projectName, environmentName string) []string {
-	var command []string
-	e := getEnvironmentFromName(projects, projectName, environmentName)
-	command = strings.Split(e.Deploy, " ")
-	return command
+func getDeployCommand(projects []Project, projectName, environmentName string) (s []string, err error) {
+	e, err := getEnvironmentFromName(projects, projectName, environmentName)
+	if err != nil {
+		return s, err
+	}
+
+	return strings.Split(e.Deploy, " "), nil
 }
 
 func formatTime(t time.Time) string {
@@ -501,7 +510,12 @@ func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	proj := getProjectFromName(c.Projects, projName)
+	proj, err := getProjectFromName(c.Projects, projName)
+	if err != nil {
+		log.Println("ERROR: ", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	p := retrieveCommits(*proj, c.DeployUser)
 
@@ -682,7 +696,12 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 
 	deployTime := time.Now()
 	success := true
-	command := getDeployCommand(c.Projects, p, env)
+	command, err := getDeployCommand(c.Projects, p, env)
+	if err != nil {
+		log.Println("ERROR: ", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	cmd := exec.Command(command[0], command[1:]...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
