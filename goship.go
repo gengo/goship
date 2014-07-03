@@ -162,7 +162,11 @@ func latestDeployedCommit(username, hostname string, e Environment) (b []byte, e
 
 // getYAMLString is a helper function for extracting strings from a yaml.Node.
 func getYAMLString(n yaml.Node, key string) string {
-	return strings.TrimSpace(n.(yaml.Map)[key].(yaml.Scalar).String())
+	s, ok := n.(yaml.Map)[key].(yaml.Scalar)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(s.String())
 }
 
 // parseYAMLEnvironment populates an Environment given a yaml.Node and returns the Environment.
@@ -696,6 +700,11 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	deployTime := time.Now()
 	success := true
 	command, err := getDeployCommand(c.Projects, p, env)
+	if err != nil {
+		log.Println("ERROR: ", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	cmd := exec.Command(command[0], command[1:]...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
