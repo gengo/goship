@@ -874,6 +874,9 @@ func main() {
 	flag.Parse()
 	go h.run()
 	http.HandleFunc("/", HomeHandler)
+	http.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, r.URL.Path[1:])
+	})
 	http.Handle("/web_push", websocket.Handler(websocketHandler))
 	http.HandleFunc("/deploy", DeployPage)
 	http.HandleFunc("/deployLog/", extractHandler(DeployLogHandler))
