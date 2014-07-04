@@ -1,0 +1,1 @@
+[{"DiffURL":"https://github.com/test/test/compare/firstsha...secondsha","ToRevisionMsg":"add test","User":"PlaceholderUser","Success":true,"Time":"2014-07-03T13:33:24.00000000+09:00"},{"DiffURL":"https://github.com/test/test/compare/thirdsha...fourthsha","ToRevisionMsg":"add another test","User":"PlaceholderUser","Success":false,"Time":"2014-07-04T17:11:32.000000000+09:00"}]
