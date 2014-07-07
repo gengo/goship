@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/gengo/goship.svg?branch=master)](https://travis-ci.org/gengo/goship)
+
 # GoShip
 
 A simple tool for deploying code to servers.
