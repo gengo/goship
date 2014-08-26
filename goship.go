@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"code.google.com/p/go.crypto/ssh"
 	"code.google.com/p/go.net/websocket"
 	"code.google.com/p/goauth2/oauth"
+	"github.com/coreos/go-etcd/etcd"
 	"github.com/google/go-github/github"
 	"github.com/kylelemons/go-gypsy/yaml"
 )
@@ -60,6 +62,7 @@ type Environment struct {
 	RepoPath           string
 	Hosts              []Host
 	Branch             string
+	Revision           string
 	LatestGitHubCommit string
 	IsDeployable       bool
 }
@@ -225,6 +228,107 @@ func parseYAML() (c config, err error) {
 	piv.token, _ = config.Get("pivotal_token")
 
 	notify, _ := config.Get("notify")
+	c.Projects = allProjects
+	c.DeployUser = deployUser
+	c.Notify = notify
+	c.Pivotal = piv
+
+	return c, nil
+}
+
+func parseETCD() (c config, err error) {
+	client := etcd.NewClient([]string{"http://127.0.0.1:4001"})
+
+	// Get Base Project info //
+	baseInfo, err := client.Get("/", false, false)
+	if err != nil {
+		log.Fatal(err)
+	}
+	deployUser := ""
+	pivotalProject := ""
+	token := ""
+	notify := ""
+	for _, b := range baseInfo.Node.Nodes {
+		switch filepath.Base(b.Key) {
+		case "deploy_user":
+			deployUser = filepath.Base(b.Value)
+		case "pivotal_project":
+			pivotalProject = filepath.Base(b.Value)
+		case "token":
+			token = filepath.Base(b.Value)
+		case "notify":
+			notify = filepath.Base(b.Value)
+		}
+	}
+
+	allProjects := []Project{}
+	//  Get Projects //
+	projectNodes, err := client.Get("/projects", false, false)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, p := range projectNodes.Node.Nodes {
+		name := filepath.Base(p.Key)
+		projectNode, err := client.Get("/projects/"+name, false, false)
+		if err != nil {
+			log.Fatal(err)
+		}
+		projectInfo := projectNode.Node.Nodes
+		repoOwner := ""
+		repoName := ""
+		for _, k := range projectInfo {
+			switch filepath.Base(k.Key) {
+			case "repo_owner":
+				repoOwner = filepath.Base(k.Value)
+			case "repo_name":
+				repoName = filepath.Base(k.Value)
+			}
+		}
+		githubUrl := fmt.Sprintf("https://github.com/%s/%s", repoOwner, repoName)
+		proj := Project{Name: name, GitHubURL: githubUrl, RepoName: repoName, RepoOwner: repoOwner}
+		environments, err := client.Get("/projects/"+name+"/environments", false, false)
+		if err != nil {
+			log.Fatal(err)
+		}
+		allEnvironments := []Environment{}
+		for _, e := range environments.Node.Nodes {
+			log.Println(e)
+			revision := "head"
+			branch := "master"
+			deploy := ""
+			repoPath := ""
+			//TODO remove this name
+			envName := filepath.Base(e.Key)
+			switch filepath.Base(e.Key) {
+			case "revision":
+				revision = filepath.Base(e.Value)
+			case "branch":
+				branch = filepath.Base(e.Value)
+			case "deploy":
+				deploy = filepath.Base(e.Value)
+			case "repo_path":
+				repoPath = filepath.Base(e.Value)
+			}
+			//Get Hosts per Environment.
+			hosts, err := client.Get("/projects/"+name+"/environments/"+envName+"/hosts", false, false)
+			if err != nil {
+				log.Fatal(err)
+			}
+			allHosts := []Host{}
+			for _, h := range hosts.Node.Nodes {
+				host := Host{URI: filepath.Base(h.Key)}
+				allHosts = append(allHosts, host)
+			}
+			env := Environment{Name: envName, Deploy: deploy, RepoPath: repoPath, Branch: branch, Revision: revision}
+			env.Hosts = allHosts
+			allEnvironments = append(allEnvironments, env)
+		}
+		proj.Environments = allEnvironments
+		allProjects = append(allProjects, proj)
+	}
+	piv := new(PivotalConfiguration)
+	piv.project = pivotalProject
+	piv.token = token
 	c.Projects = allProjects
 	c.DeployUser = deployUser
 	c.Notify = notify
@@ -826,7 +930,7 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	c, err := parseYAML()
+	c, err := parseETCD()
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
