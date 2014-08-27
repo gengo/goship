@@ -246,7 +246,7 @@ func parseETCD(client *etcd.Client) (c config, err error) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println baseInfo
+	log.Println(baseInfo)
 	deployUser := ""
 	pivotalProject := ""
 	token := ""
