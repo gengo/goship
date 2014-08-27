@@ -759,7 +759,7 @@ func postToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current 
 		Token: &oauth.Token{AccessToken: gt},
 	}
 	c := github.NewClient(t.Client())
-	comp, _, err := c.Repositories.CompareCommits(owner, name, latest, current)
+	comp, _, err := c.Repositories.CompareCommits(owner, name, current, latest)
 	if err != nil {
 		return err
 	}
@@ -768,7 +768,16 @@ func postToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current 
 		return err
 	}
 	s := map[string]bool{}
-	const layout = "2006-01-02 15:04:05 (JST)"
+	layout := "2006-01-02 15:04:05"
+	timestamp := time.Now()
+	loc, err := time.LoadLocation("Asia/Tokyo")
+	if err != nil {
+		layout += " (UTC)"
+		log.Println("error: time zone information for Asia/Tokyo not found")
+	} else {
+		layout += " (JST)"
+		timestamp = timestamp.In(loc)
+	}
 	for _, commit := range comp.Commits {
 		cmi := *commit.Commit
 		cm := *cmi.Message
@@ -778,7 +787,7 @@ func postToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current 
 			_, exists := s[id]
 			if !exists {
 				s[id] = true
-				m := fmt.Sprintf("Deployed to %s: %s", env, time.Now().Format(layout))
+				m := fmt.Sprintf("Deployed to %s: %s", env, timestamp.Format(layout))
 				go PostPivotalComment(id, m, piv)
 			}
 		}
@@ -795,6 +804,7 @@ func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err err
 		return err
 	}
 	req.URL.RawQuery = p.Encode()
+	req.Header.Add("Content-Typen", "application/json")
 	req.Header.Add("X-TrackerToken", piv.token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
