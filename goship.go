@@ -804,7 +804,7 @@ func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err err
 		return err
 	}
 	req.URL.RawQuery = p.Encode()
-	req.Header.Add("Content-Typen", "application/json")
+	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("X-TrackerToken", piv.token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
