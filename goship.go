@@ -236,14 +236,17 @@ func parseYAML() (c config, err error) {
 	return c, nil
 }
 
-func parseETCD() (c config, err error) {
-	client := etcd.NewClient([]string{"http://127.0.0.1:4001"})
+func connectETCD(conn string) *etcd.Client {
+	return etcd.NewClient([]string{conn})
+}
 
+func parseETCD(client *etcd.Client) (c config, err error) {
 	// Get Base Project info //
 	baseInfo, err := client.Get("/", false, false)
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Println baseInfo
 	deployUser := ""
 	pivotalProject := ""
 	token := ""
@@ -930,7 +933,8 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	c, err := parseETCD()
+	d := connectETCD("http://127.0.0.1:4001")
+	c, err := parseETCD(d)
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

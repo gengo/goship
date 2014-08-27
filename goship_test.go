@@ -71,15 +71,27 @@ var wantConfig = config{
 	Notify:     "/notify/notify.sh",
 	Pivotal:    &PivotalConfiguration{project: "111111", token: "test"}}
 
-func TestParseYAML(t *testing.T) {
-	// set the configFile flag for test
-	*configFile = "testdata/test_config.yml"
-	got, err := parseYAML()
+var wantRequestBody = []byte("api_key=password&api_user=user&from=from%40gengo.com&fromname=From&headers=%7B%22Cc%22%3A%22cc1%40gengo.com%2C+cc2%40gengo.com%22%7D&html=%0A%0A%0A%0A%0A%0A%0A&replyto=&subject=Test+email&text=&to%5B%5D=to%40gengo.com&to%5B%5D=cc1%40gengo.com&to%5B%5D=cc2%40gengo.com&x-smtpapi=%7B%22to%22%3A%5B%22%5Cu003cto%40gengo.com%5Cu003e%22%2C%22%5Cu003ccc1%40gengo.com%5Cu003e%22%2C%22%5Cu003ccc2%40gengo.com%5Cu003e%22%5D%7D")
+
+func TestParseEtcd(t *testing.T) {
+
+	d := connectETCD("http://127.0.0.1:4001")
+	got, err := parseETCD(d)
+
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(got, wantConfig) {
-		t.Errorf("parseYAML = %v\n, want %v", got, wantConfig)
+	if got.DeployUser != "ubuntu" {
+		t.Error("expected ubuntu != " + got.DeployUser)
+	}
+	if got.Projects[0].Name != "translate_core" {
+		t.Error("expected translate_core != " + got.Projects[0].Name)
+	}
+	if got.Projects[0].Environments[0].Name != "qa" {
+		t.Error("expected qa name != " + got.Projects[0].Environments[0].Name)
+	}
+	if got.Projects[0].Environments[0].Hosts[0].URI != "www-qa-01.gengo.com" {
+		t.Error("expected www-qa-01.gengo.com != " + got.Projects[0].Environments[0].Hosts[0].URI)
 	}
 }
 
