@@ -81,6 +81,11 @@ type PivotalConfiguration struct {
 	token   string
 }
 
+//type ETCDConfig struct {
+//	url       string
+//	etcServer func(msg string) (*etc.Server, error)
+//}
+
 // gitHubCommitURL takes a project and returns the GitHub URL for its latest commit hash.
 func (h *Host) gitHubCommitURL(p Project) string {
 	return fmt.Sprintf("%s/commit/%s", p.GitHubURL, h.LatestCommit)
@@ -236,17 +241,16 @@ func parseYAML() (c config, err error) {
 	return c, nil
 }
 
-func connectETCD(conn string) *etcd.Client {
-	return etcd.NewClient([]string{conn})
+type EtcdInterface interface {
+	Get(string, bool, bool) (*etcd.Response, error)
 }
 
-func parseETCD(client *etcd.Client) (c config, err error) {
+func parseETCD(client EtcdInterface) (c config, err error) {
 	// Get Base Project info //
 	baseInfo, err := client.Get("/", false, false)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println(baseInfo)
 	deployUser := ""
 	pivotalProject := ""
 	token := ""
@@ -271,6 +275,7 @@ func parseETCD(client *etcd.Client) (c config, err error) {
 		log.Fatal(err)
 	}
 	for _, p := range projectNodes.Node.Nodes {
+		//name := filepath.Base(p.Key)
 		name := filepath.Base(p.Key)
 		projectNode, err := client.Get("/projects/"+name, false, false)
 		if err != nil {
@@ -295,7 +300,6 @@ func parseETCD(client *etcd.Client) (c config, err error) {
 		}
 		allEnvironments := []Environment{}
 		for _, e := range environments.Node.Nodes {
-			log.Println(e)
 			revision := "head"
 			branch := "master"
 			deploy := ""
@@ -933,8 +937,7 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	d := connectETCD("http://127.0.0.1:4001")
-	c, err := parseETCD(d)
+	c, err := parseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

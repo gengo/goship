@@ -1,10 +1,108 @@
 package main
 
 import (
+	"github.com/coreos/go-etcd/etcd"
 	"reflect"
 	"testing"
 	"time"
 )
+
+/// ETCD Mock ///
+
+type MockEtcdClient struct{}
+
+//type Mocks maps
+
+func (*MockEtcdClient) Get(s string, t bool, x bool) (*etcd.Response, error) {
+	mockResponse := &etcd.Response{}
+	case1 := "/"
+	case2 := "/projects"
+	case3 := "/projects/pivotal_project"
+	case4 := "/projects/pivotal_project/environments"
+	case5 := "/projects/pivotal_project/environments/qa/hosts"
+	switch s {
+	case case1:
+		mockResponse = &etcd.Response{
+			Action: "Get",
+			Node: &etcd.Node{
+				Key:   "projects",
+				Value: "",
+				Nodes: etcd.Nodes{
+					{Key: "deploy_user", Value: "test_user", Dir: false},
+					{Key: "pivotal_project", Value: "111111", Dir: false},
+				}, Dir: true}, EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
+		}
+	case case2:
+		mockResponse = &etcd.Response{
+			Action: "Get",
+			Node: &etcd.Node{
+				Key:   "projects",
+				Value: "",
+				Nodes: etcd.Nodes{
+					{
+						Key: "/projects/pivotal_project", Dir: true,
+					},
+				},
+				Dir: true,
+			},
+			EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
+		}
+	case case3:
+		mockResponse = &etcd.Response{
+			Action: "Get",
+			Node: &etcd.Node{
+				Key:   "/projects/pivotal_project",
+				Value: "",
+				Nodes: etcd.Nodes{
+					{
+						Key: "project_name", Value: "/projects/pivotal_project/project_name/TC", Dir: true,
+					},
+				},
+				Dir: true,
+			},
+			EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
+		}
+	case case4:
+		mockResponse = &etcd.Response{
+			Action: "Get",
+			Node: &etcd.Node{
+				Key:   "/projects/pivotal_project/environments",
+				Value: "",
+				Nodes: etcd.Nodes{
+					{
+						Key: "qa",
+						Dir: true,
+					},
+				},
+				Dir: true,
+			},
+			EtcdIndex: 1,
+			RaftIndex: 1,
+			RaftTerm:  1,
+		}
+	case case5:
+		mockResponse = &etcd.Response{
+			Action: "Get",
+			Node: &etcd.Node{
+				Key:   "/projects/pivotal_project/environments/qa/hosts",
+				Value: "",
+				Nodes: etcd.Nodes{
+					{
+						Key: "test-qa-01.somewhere.com",
+						Dir: true,
+					},
+				},
+				Dir: true,
+			},
+			EtcdIndex: 1,
+			RaftIndex: 1,
+			RaftTerm:  1,
+		}
+	}
+	return mockResponse, nil
+}
+
+//// END SETUP ///
 
 func TestStripANSICodes(t *testing.T) {
 	tests := []struct {
@@ -71,27 +169,25 @@ var wantConfig = config{
 	Notify:     "/notify/notify.sh",
 	Pivotal:    &PivotalConfiguration{project: "111111", token: "test"}}
 
-var wantRequestBody = []byte("api_key=password&api_user=user&from=from%40gengo.com&fromname=From&headers=%7B%22Cc%22%3A%22cc1%40gengo.com%2C+cc2%40gengo.com%22%7D&html=%0A%0A%0A%0A%0A%0A%0A&replyto=&subject=Test+email&text=&to%5B%5D=to%40gengo.com&to%5B%5D=cc1%40gengo.com&to%5B%5D=cc2%40gengo.com&x-smtpapi=%7B%22to%22%3A%5B%22%5Cu003cto%40gengo.com%5Cu003e%22%2C%22%5Cu003ccc1%40gengo.com%5Cu003e%22%2C%22%5Cu003ccc2%40gengo.com%5Cu003e%22%5D%7D")
-
 func TestParseEtcd(t *testing.T) {
-
-	d := connectETCD("http://127.0.0.1:4001")
-	got, err := parseETCD(d)
-
+	got, err := parseETCD(&MockEtcdClient{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.DeployUser != "ubuntu" {
-		t.Error("expected ubuntu != " + got.DeployUser)
+	if got.DeployUser != "test_user" {
+		t.Error("expected test_user != " + got.DeployUser)
 	}
-	if got.Projects[0].Name != "translate_core" {
-		t.Error("expected translate_core != " + got.Projects[0].Name)
+	if got.Pivotal.project != "111111" {
+		t.Error("expected 111111 != " + got.Pivotal.project)
 	}
-	if got.Projects[0].Environments[0].Name != "qa" {
-		t.Error("expected qa name != " + got.Projects[0].Environments[0].Name)
+	if got.Projects[0].Name != "pivotal_project" {
+		t.Error("expected pivotal_project != " + got.Projects[0].Name)
 	}
-	if got.Projects[0].Environments[0].Hosts[0].URI != "www-qa-01.gengo.com" {
-		t.Error("expected www-qa-01.gengo.com != " + got.Projects[0].Environments[0].Hosts[0].URI)
+	//if got.Projects[0].Environments[0].Name != "test_env" {
+	//	t.Error("expected test_env name != " + got.Projects[0].Environments[0].Name)
+	//}
+	if got.Projects[0].Environments[0].Hosts[0].URI != "test-qa-01.somewhere.com" {
+		t.Error("expected test-qa-01.somewhere.com != " + got.Projects[0].Environments[0].Hosts[0].URI)
 	}
 }
 
