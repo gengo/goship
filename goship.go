@@ -202,45 +202,6 @@ type config struct {
 	Pivotal    *PivotalConfiguration
 }
 
-// parseYAML parses the config.yml file and returns the appropriate structs and strings.
-func parseYAML() (c config, err error) {
-	config, err := yaml.ReadFile(*configFile)
-	if err != nil {
-		return c, err
-	}
-	deployUser, err := config.Get("deploy_user")
-	if err != nil {
-		return c, err
-	}
-	configRoot, _ := config.Root.(yaml.Map)
-	projects, _ := configRoot["projects"].(yaml.List)
-	allProjects := []Project{}
-	for _, p := range projects {
-		for _, v := range p.(yaml.Map) {
-			name := getYAMLString(v, "project_name")
-			repoOwner := getYAMLString(v, "repo_owner")
-			repoName := getYAMLString(v, "repo_name")
-			githubUrl := fmt.Sprintf("https://github.com/%s/%s", repoOwner, repoName)
-			proj := Project{Name: name, GitHubURL: githubUrl, RepoName: repoName, RepoOwner: repoOwner}
-			for _, v := range v.(yaml.Map)["environments"].(yaml.List) {
-				proj.Environments = append(proj.Environments, parseYAMLEnvironment(v))
-			}
-			allProjects = append(allProjects, proj)
-		}
-	}
-	piv := new(PivotalConfiguration)
-	piv.project, _ = config.Get("pivotal_project")
-	piv.token, _ = config.Get("pivotal_token")
-
-	notify, _ := config.Get("notify")
-	c.Projects = allProjects
-	c.DeployUser = deployUser
-	c.Notify = notify
-	c.Pivotal = piv
-
-	return c, nil
-}
-
 type EtcdInterface interface {
 	Get(string, bool, bool) (*etcd.Response, error)
 }
@@ -615,7 +576,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
-	c, err := parseYAML()
+	c, err := parseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -785,7 +746,7 @@ func endNotify(n, p, env string, success bool) error {
 }
 
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	c, err := parseYAML()
+	c, err := parseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
