@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/coreos/go-etcd/etcd"
 	"reflect"
 	"testing"
 	"time"
@@ -71,15 +72,25 @@ var wantConfig = config{
 	Notify:     "/notify/notify.sh",
 	Pivotal:    &PivotalConfiguration{project: "111111", token: "test"}}
 
-func TestParseYAML(t *testing.T) {
-	// set the configFile flag for test
-	*configFile = "testdata/test_config.yml"
-	got, err := parseYAML()
+func TestParseEtcd(t *testing.T) {
+	got, err := parseETCD(&MockEtcdClient{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(got, wantConfig) {
-		t.Errorf("parseYAML = %v\n, want %v", got, wantConfig)
+	if got.DeployUser != "test_user" {
+		t.Error("expected test_user != " + got.DeployUser)
+	}
+	if got.Pivotal.project != "111111" {
+		t.Error("expected 111111 != " + got.Pivotal.project)
+	}
+	if got.Projects[0].Name != "pivotal_project" {
+		t.Error("expected pivotal_project != " + got.Projects[0].Name)
+	}
+	//if got.Projects[0].Environments[0].Name != "test_env" {
+	//	t.Error("expected test_env name != " + got.Projects[0].Environments[0].Name)
+	//}
+	if got.Projects[0].Environments[0].Hosts[0].URI != "test-qa-01.somewhere.com" {
+		t.Error("expected test-qa-01.somewhere.com != " + got.Projects[0].Environments[0].Hosts[0].URI)
 	}
 }
 
@@ -140,3 +151,70 @@ func TestGetEnvironmentFromName(t *testing.T) {
 		t.Errorf("getEnvironmentFromName error case did not error")
 	}
 }
+
+/// ETCD Mock ///
+
+type MockEtcdClient struct{}
+
+//Mock calls to ETCD here. Each etcd Response should return the structs you need.
+func (*MockEtcdClient) Get(s string, t bool, x bool) (*etcd.Response, error) {
+	m := make(map[string]*etcd.Response)
+	m["/"] = &etcd.Response{Action: "Get", Node: &etcd.Node{
+		Key: "projects", Value: "",
+		Nodes: etcd.Nodes{
+			{Key: "deploy_user", Value: "test_user", Dir: false},
+			{Key: "pivotal_project", Value: "111111", Dir: false},
+		}, Dir: true,
+	}, EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
+	}
+	m["/projects"] = &etcd.Response{
+		Action: "Get",
+		Node: &etcd.Node{
+			Key: "projects", Value: "",
+			Nodes: etcd.Nodes{
+				{Key: "/projects/pivotal_project", Dir: true},
+			}, Dir: true,
+		},
+		EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
+	}
+	m["/projects/pivotal_project"] = &etcd.Response{
+		Action: "Get",
+		Node: &etcd.Node{
+			Key: "/projects/pivotal_project", Value: "",
+			Nodes: etcd.Nodes{
+				{
+					Key: "project_name", Value: "/projects/pivotal_project/project_name/TC", Dir: true,
+				},
+			},
+			Dir: true,
+		},
+		EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
+	}
+	m["/projects/pivotal_project/environments"] = &etcd.Response{
+		Action: "Get",
+		Node: &etcd.Node{
+			Key:   "/projects/pivotal_project/environments",
+			Value: "",
+			Nodes: etcd.Nodes{
+				{Key: "qa", Dir: true},
+			},
+			Dir: true,
+		},
+		EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
+	}
+	m["/projects/pivotal_project/environments/qa/hosts"] = &etcd.Response{
+		Action: "Get",
+		Node: &etcd.Node{
+			Key: "/projects/pivotal_project/environments/qa/hosts", Value: "",
+			Nodes: etcd.Nodes{
+				{Key: "test-qa-01.somewhere.com", Dir: true},
+			},
+			Dir: true,
+		},
+		EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
+	}
+	mockResponse := m[s]
+	return mockResponse, nil
+}
+
+//// END MOCK ///
