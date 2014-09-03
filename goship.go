@@ -81,11 +81,6 @@ type PivotalConfiguration struct {
 	token   string
 }
 
-//type ETCDConfig struct {
-//	url       string
-//	etcServer func(msg string) (*etc.Server, error)
-//}
-
 // gitHubCommitURL takes a project and returns the GitHub URL for its latest commit hash.
 func (h *Host) gitHubCommitURL(p Project) string {
 	return fmt.Sprintf("%s/commit/%s", p.GitHubURL, h.LatestCommit)
@@ -206,11 +201,11 @@ type EtcdInterface interface {
 	Get(string, bool, bool) (*etcd.Response, error)
 }
 
+// connects to ETCD and returns the appropriate structs and strings.
 func parseETCD(client EtcdInterface) (c config, err error) {
-	// Get Base Project info //
 	baseInfo, err := client.Get("/", false, false)
 	if err != nil {
-		log.Fatal(err)
+		return c, err
 	}
 	deployUser := ""
 	pivotalProject := ""
@@ -233,14 +228,14 @@ func parseETCD(client EtcdInterface) (c config, err error) {
 	//  Get Projects //
 	projectNodes, err := client.Get("/projects", false, false)
 	if err != nil {
-		log.Fatal(err)
+		return c, err
 	}
 	for _, p := range projectNodes.Node.Nodes {
 		//name := filepath.Base(p.Key)
 		name := filepath.Base(p.Key)
 		projectNode, err := client.Get("/projects/"+name, false, false)
 		if err != nil {
-			log.Fatal(err)
+			return c, err
 		}
 		projectInfo := projectNode.Node.Nodes
 		repoOwner := ""
@@ -257,7 +252,7 @@ func parseETCD(client EtcdInterface) (c config, err error) {
 		proj := Project{Name: name, GitHubURL: githubUrl, RepoName: repoName, RepoOwner: repoOwner}
 		environments, err := client.Get("/projects/"+name+"/environments", false, false)
 		if err != nil {
-			log.Fatal(err)
+			return c, err
 		}
 		allEnvironments := []Environment{}
 		for _, e := range environments.Node.Nodes {
@@ -280,7 +275,7 @@ func parseETCD(client EtcdInterface) (c config, err error) {
 			//Get Hosts per Environment.
 			hosts, err := client.Get("/projects/"+name+"/environments/"+envName+"/hosts", false, false)
 			if err != nil {
-				log.Fatal(err)
+				return c, err
 			}
 			allHosts := []Host{}
 			for _, h := range hosts.Node.Nodes {
