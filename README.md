@@ -8,7 +8,7 @@ A simple tool for deploying code to servers.
 
 ### What it does:
 
-GoShip SSHes into the machines that you list in your `config.yml` file and gets the latest revision from the specified git repository. It then compares that to the latest revision on GitHub and, if they differ, shows a link to the diff as well as a Deploy button. You can then deploy by clicking the button, and will show you the output of the deployment command, as well as save the output, diff, and whether the command succeeded.
+GoShip SSHes into the machines that you list in ETCD and gets the latest revision from the specified git repository. It then compares that to the latest revision on GitHub and, if they differ, shows a link to the diff as well as a Deploy button. You can then deploy by clicking the button, and will show you the output of the deployment command, as well as save the output, diff, and whether the command succeeded.
 
 ![GoShip Index Page Screenshot](http://tryimg.com/4/goshi.png)
 
@@ -18,32 +18,49 @@ Export your GitHub API token:
 
     export GITHUB_API_TOKEN="your-organization-github-token-here"
 
-Create a config.yml file:
+Create an ETCD server / follow the instrutions in the etcd README:
 
-```yaml
-# The user that will SSH into the servers to get the latest git revisions
-deploy_user: deployer
-projects:
-    - my_project:
-        project_name: My Project
-        repo_owner: github-user
-        repo_name: my-project
-        environments:
-            - staging:
-                deploy: /path/to/deployscripts/myproj_staging.sh
-                repo_path: /path/to/myproject/.git
-                hosts:
-                    - staging.myproject.com
-                branch: code_freeze
-            - production:
-                deploy: /path/to/deployscripts/myproj_live.sh
-                repo_path: /path/to/myproject/.git
-                hosts:
-                    - prod-01.myproject.com
-                    - prod-02.myproject.com
-                branch: master
+    https://github.com/coreos/etcd
+
+Update your ETCD server via the Etcctl client or curl:
+
+   https://github.com/coreos/etcdctl/
+
+   #example setup using etcd
+
+```
+   etcdctl set /deploy_user 'deployer'
+   etcdctl mkdir 'projects'
+   etcdctl mkdir 'projects/my-project'
+   etcdctl set /projects/project_name 'My Project'
+   etcdctl set /projects/repo_owner 'github-user'
+   etcdctl set /projects/project_name 'My Project'
+   
+   etcdctl mkdir 'projects/my-project/environments'
+
+   etcdctl mkdir 'projects/my-project/environments/staging'
+   etcdctl set 'projects/my-project/environments/staging/deploy' '/path/to/deployscripts/myproj_staging.sh'
+   etcdctl set 'projects/my-project/environments/staging/branch' 'code_freeze'
+   etcdctl set 'projects/my-project/environments/staging/revision' '1234567'
+   etcdctl set 'projects/my-project/environments/staging/repo_path' /path/to/myproject/.git
+   etcdctl mkdir 'projects/my-project/environments/staging/hosts'
+   etcdctl mkdir 'projects/my-project/environments/staging/hosts/staging.myproject.com'
+
+   etcdctl mkdir 'projects/my-project/environments/production'
+   etcdctl set 'projects/my-project/environments/production/deploy' '/path/to/deployscripts/myproj_live.sh'
+   etcdctl set 'projects/my-project/environments/staging/repo_path' /path/to/myproject/.git
+   etcdctl set 'projects/my-project/environments/staging/branch' 'master'
+   etcdctl set 'projects/my-project/environments/staging/revision' 'head'
+   etcdctl mkdir 'projects/my-project/environments/staging/hosts'
+   etcdctl mkdir 'projects/my-project/environments/staging/hosts/prod-01.myproject.com'
+   etcdctl mkdir 'projects/my-project/environments/staging/hosts/prod-02.myproject.com'
 ```
 
+   #curl example
+```
+   curl -L http://127.0.0.1:4001/projects/my-project/environments/staging/deploy -XPUT -d value="/path/to/deployscripts/myproj_staging.sh"
+```
+   
 Then run the server manually
 
 ```shell
