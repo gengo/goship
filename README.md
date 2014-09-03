@@ -18,15 +18,16 @@ Export your GitHub API token:
 
     export GITHUB_API_TOKEN="your-organization-github-token-here"
 
-Create an ETCD server / follow the instrutions in the etcd README:
+Create an ETCD server / follow the instructions in the etcd README:
 
     https://github.com/coreos/etcd
 
-Update your ETCD server via the Etcctl client or curl:
+Update your ETCD server via the etcctl client or curl:
 
-   https://github.com/coreos/etcdctl/
+
 
    #example setup using etcd
+   https://github.com/coreos/etcdctl/
 
 ```
    etcdctl set /deploy_user 'deployer'
