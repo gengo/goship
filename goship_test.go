@@ -72,22 +72,22 @@ var wantConfig = config{
 	Notify:     "/notify/notify.sh",
 	Pivotal:    &PivotalConfiguration{project: "111111", token: "test"}}
 
-func compareEtcdResult(a, b, c string, t *testing.T) {
+func compareStrings(a, b, c string, t *testing.T) {
 	if b != c {
 		t.Errorf("got %s = %s; want %s", a, b, c)
 	}
 }
 
-func TestParseEtcdParsesConfig(t *testing.T) {
+func TestCanParseETCD(t *testing.T) {
 
 	got, err := parseETCD(&MockEtcdClient{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	compareEtcdResult("deploy user", got.DeployUser, "test_user", t)
-	compareEtcdResult("project", got.Pivotal.project, "111111", t)
-	compareEtcdResult("project name", got.Projects[0].Name, "pivotal_project", t)
-	compareEtcdResult("host name", got.Projects[0].Environments[0].Hosts[0].URI, "test-qa-01.somewhere.com", t)
+	compareStrings("deploy user", got.DeployUser, "test_user", t)
+	compareStrings("project", got.Pivotal.project, "111111", t)
+	compareStrings("project name", got.Projects[0].Name, "pivotal_project", t)
+	compareStrings("host name", got.Projects[0].Environments[0].Hosts[0].URI, "test-qa-01.somewhere.com", t)
 }
 
 var now = time.Now()

@@ -72,7 +72,6 @@ Available command line flags for the `go run goship.go` command are:
 
 ```
  -b [bind address]  Address to bind (default localhost:8000)
- -c [config file]   Config file (default ./config.yml)
  -k [id_rsa key]    Path to private SSH key for connecting to Github (default id_rsa)
  -d [data path]     Path to data directory (default ./data/)
 ```

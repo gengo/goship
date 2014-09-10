@@ -171,12 +171,12 @@ type config struct {
 	Pivotal    *PivotalConfiguration
 }
 
-type EtcdInterface interface {
+type ETCDInterface interface {
 	Get(string, bool, bool) (*etcd.Response, error)
 }
 
 // connects to ETCD and returns the appropriate structs and strings.
-func parseETCD(client EtcdInterface) (c config, err error) {
+func parseETCD(client ETCDInterface) (c config, err error) {
 	baseInfo, err := client.Get("/", false, false)
 	if err != nil {
 		return c, err
