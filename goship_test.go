@@ -72,26 +72,22 @@ var wantConfig = config{
 	Notify:     "/notify/notify.sh",
 	Pivotal:    &PivotalConfiguration{project: "111111", token: "test"}}
 
-func TestParseEtcd(t *testing.T) {
+func compareEtcdResult(a, b, c string, t *testing.T) {
+	if b != c {
+		t.Errorf("got %s = %s; want %s", a, b, c)
+	}
+}
+
+func TestParseEtcdParsesConfig(t *testing.T) {
+
 	got, err := parseETCD(&MockEtcdClient{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.DeployUser != "test_user" {
-		t.Error("expected test_user != " + got.DeployUser)
-	}
-	if got.Pivotal.project != "111111" {
-		t.Error("expected 111111 != " + got.Pivotal.project)
-	}
-	if got.Projects[0].Name != "pivotal_project" {
-		t.Error("expected pivotal_project != " + got.Projects[0].Name)
-	}
-	//if got.Projects[0].Environments[0].Name != "test_env" {
-	//	t.Error("expected test_env name != " + got.Projects[0].Environments[0].Name)
-	//}
-	if got.Projects[0].Environments[0].Hosts[0].URI != "test-qa-01.somewhere.com" {
-		t.Error("expected test-qa-01.somewhere.com != " + got.Projects[0].Environments[0].Hosts[0].URI)
-	}
+	compareEtcdResult("deploy user", got.DeployUser, "test_user", t)
+	compareEtcdResult("project", got.Pivotal.project, "111111", t)
+	compareEtcdResult("project name", got.Projects[0].Name, "pivotal_project", t)
+	compareEtcdResult("host name", got.Projects[0].Environments[0].Hosts[0].URI, "test-qa-01.somewhere.com", t)
 }
 
 var now = time.Now()
@@ -151,8 +147,6 @@ func TestGetEnvironmentFromName(t *testing.T) {
 		t.Errorf("getEnvironmentFromName error case did not error")
 	}
 }
-
-/// ETCD Mock ///
 
 type MockEtcdClient struct{}
 
@@ -216,5 +210,3 @@ func (*MockEtcdClient) Get(s string, t bool, x bool) (*etcd.Response, error) {
 	mockResponse := m[s]
 	return mockResponse, nil
 }
-
-//// END MOCK ///

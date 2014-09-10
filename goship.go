@@ -28,7 +28,6 @@ import (
 	"code.google.com/p/goauth2/oauth"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/google/go-github/github"
-	"github.com/kylelemons/go-gypsy/yaml"
 )
 
 var (
@@ -164,31 +163,6 @@ func latestDeployedCommit(username, hostname string, e Environment) (b []byte, e
 	return o, nil
 }
 
-// getYAMLString is a helper function for extracting strings from a yaml.Node.
-func getYAMLString(n yaml.Node, key string) string {
-	s, ok := n.(yaml.Map)[key].(yaml.Scalar)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(s.String())
-}
-
-// parseYAMLEnvironment populates an Environment given a yaml.Node and returns the Environment.
-func parseYAMLEnvironment(m yaml.Node) Environment {
-	e := Environment{}
-	for k, v := range m.(yaml.Map) {
-		e.Name = k
-		e.Branch = getYAMLString(v, "branch")
-		e.RepoPath = getYAMLString(v, "repo_path")
-		e.Deploy = getYAMLString(v, "deploy")
-		for _, host := range v.(yaml.Map)["hosts"].(yaml.List) {
-			h := Host{URI: host.(yaml.Scalar).String()}
-			e.Hosts = append(e.Hosts, h)
-		}
-	}
-	return e
-}
-
 // config contains the information from config.yml.
 type config struct {
 	Projects   []Project
@@ -231,7 +205,6 @@ func parseETCD(client EtcdInterface) (c config, err error) {
 		return c, err
 	}
 	for _, p := range projectNodes.Node.Nodes {
-		//name := filepath.Base(p.Key)
 		name := filepath.Base(p.Key)
 		projectNode, err := client.Get("/projects/"+name, false, false)
 		if err != nil {
@@ -260,9 +233,9 @@ func parseETCD(client EtcdInterface) (c config, err error) {
 			branch := "master"
 			deploy := ""
 			repoPath := ""
-			//TODO remove this name
+			//  TODO remove this name
 			envName := filepath.Base(e.Key)
-			switch filepath.Base(e.Key) {
+			switch envName {
 			case "revision":
 				revision = filepath.Base(e.Value)
 			case "branch":
@@ -272,7 +245,7 @@ func parseETCD(client EtcdInterface) (c config, err error) {
 			case "repo_path":
 				repoPath = filepath.Base(e.Value)
 			}
-			//Get Hosts per Environment.
+			//  Get Hosts per Environment.
 			hosts, err := client.Get("/projects/"+name+"/environments/"+envName+"/hosts", false, false)
 			if err != nil {
 				return c, err
