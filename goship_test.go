@@ -73,7 +73,7 @@ var wantConfig = config{
 	Pivotal:    &PivotalConfiguration{project: "111111", token: "test"}}
 
 func compareStrings(name, got, want string, t *testing.T) {
-	if b != c {
+	if got != want {
 		t.Errorf("got %s = %s; want %s", name, got, want)
 	}
 }

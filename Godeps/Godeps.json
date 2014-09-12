@@ -1,29 +1,34 @@
 {
 	"ImportPath": "github.com/gengo/goship",
-	"GoVersion": "go1.2",
+	"GoVersion": "go1.2.1",
 	"Deps": [
 		{
 			"ImportPath": "code.google.com/p/go.crypto/ssh",
-			"Comment": "null-209",
-			"Rev": "23b39e4e860172e1983ded00a9d2f7e42b7683d0"
+			"Comment": "null-215",
+			"Rev": "2a61df2221b6be21be1c1ded77821b0f71b29584"
 		},
 		{
 			"ImportPath": "code.google.com/p/go.net/websocket",
-			"Comment": "null-128",
-			"Rev": "9c33002573cb03309e20978369b0536f4f00b24d"
+			"Comment": "null-119",
+			"Rev": "cdbc77c5e0064a55bdd9a6decd6e0d8f23c779ef"
 		},
 		{
 			"ImportPath": "code.google.com/p/goauth2/oauth",
-			"Comment": "weekly-44",
-			"Rev": "696c088491246273e92442aa66b5281e5bb34faa"
+			"Comment": "weekly-48",
+			"Rev": "6a3615e294b534a1c24cb5d3d7570fa8bbc30c99"
+		},
+		{
+			"ImportPath": "github.com/coreos/go-etcd/etcd",
+			"Comment": "v0.2.0-rc1-120-g23142f6",
+			"Rev": "23142f6773a676cc2cae8dd0cb90b2ea761c853f"
 		},
 		{
 			"ImportPath": "github.com/google/go-github/github",
-			"Rev": "7abf47b273f2ff9f4ccbcb5d304c74f93dc5057f"
+			"Rev": "ce77fc643b6bb907f482cf0948070caf88d5f071"
 		},
 		{
 			"ImportPath": "github.com/google/go-querystring/query",
 			"Rev": "ec0a78e0f4db229b7897be36596a8944230b857a"
-		},
+		}
 	]
 }
