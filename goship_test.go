@@ -72,9 +72,9 @@ var wantConfig = config{
 	Notify:     "/notify/notify.sh",
 	Pivotal:    &PivotalConfiguration{project: "111111", token: "test"}}
 
-func compareStrings(a, b, c string, t *testing.T) {
+func compareStrings(name, got, want string, t *testing.T) {
 	if b != c {
-		t.Errorf("got %s = %s; want %s", a, b, c)
+		t.Errorf("got %s = %s; want %s", name, got, want)
 	}
 }
 

@@ -33,9 +33,9 @@ import (
 var (
 	bindAddress = flag.String("b", "localhost:8000", "Address to bind (default localhost:8000)")
 	sshPort     = "22"
-	configFile  = flag.String("c", "config.yml", "Config file (default ./config.yml)")
 	keyPath     = flag.String("k", "id_rsa", "Path to private SSH key (default id_rsa)")
 	dataPath    = flag.String("d", "data/", "Path to data directory (default ./data/)")
+	ETCDServer  = flag.String("e", "http://127.0.0.1:4001", "Etcd Server (default http://127.0.0.1:4001")
 )
 
 // gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
@@ -177,6 +177,7 @@ type ETCDInterface interface {
 
 // connects to ETCD and returns the appropriate structs and strings.
 func parseETCD(client ETCDInterface) (c config, err error) {
+	log.Printf("Connecting to %s", *ETCDServer)
 	baseInfo, err := client.Get("/", false, false)
 	if err != nil {
 		return c, err
@@ -544,7 +545,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
-	c, err := parseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
+	c, err := parseETCD(etcd.NewClient([]string{*ETCDServer}))
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
