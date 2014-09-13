@@ -87,6 +87,8 @@ func TestCanParseETCD(t *testing.T) {
 	compareStrings("deploy user", got.DeployUser, "test_user", t)
 	compareStrings("project", got.Pivotal.project, "111111", t)
 	compareStrings("project name", got.Projects[0].Name, "pivotal_project", t)
+	compareStrings("repo path", got.Projects[0].Environments[0].RepoPath, "/repos/test_repo_name/.git", t)
+	compareStrings("repo path", got.Projects[0].Environments[0].Branch, "master", t)
 	compareStrings("host name", got.Projects[0].Environments[0].Hosts[0].URI, "test-qa-01.somewhere.com", t)
 }
 
@@ -195,6 +197,17 @@ func (*MockEtcdClient) Get(s string, t bool, x bool) (*etcd.Response, error) {
 			Dir: true,
 		},
 		EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
+	}
+	m["/projects/pivotal_project/environments/qa"] = &etcd.Response{
+		Action: "Get",
+		Node: &etcd.Node{
+			Key:   "qa",
+			Value: "",
+			Nodes: etcd.Nodes{
+				{Key: "repo_path", Value: "/repos/test_repo_name/.git", Dir: false},
+				{Key: "branch", Value: "master", Dir: false},
+			}, Dir: true,
+		}, EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
 	}
 	m["/projects/pivotal_project/environments/qa/hosts"] = &etcd.Response{
 		Action: "Get",

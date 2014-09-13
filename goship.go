@@ -230,21 +230,24 @@ func parseETCD(client ETCDInterface) (c config, err error) {
 		}
 		allEnvironments := []Environment{}
 		for _, e := range environments.Node.Nodes {
+			envSettings, err := client.Get("/projects/"+name+"/environments/"+filepath.Base(e.Key), false, false)
+			envName := filepath.Base(e.Key)
 			revision := "head"
 			branch := "master"
 			deploy := ""
 			repoPath := ""
-			//  TODO remove this name
-			envName := filepath.Base(e.Key)
-			switch envName {
-			case "revision":
-				revision = filepath.Base(e.Value)
-			case "branch":
-				branch = filepath.Base(e.Value)
-			case "deploy":
-				deploy = filepath.Base(e.Value)
-			case "repo_path":
-				repoPath = filepath.Base(e.Value)
+			for _, n := range envSettings.Node.Nodes {
+				//  TODO remove this name
+				switch filepath.Base(n.Key) {
+				case "revision":
+					revision = filepath.Base(n.Value)
+				case "branch":
+					branch = filepath.Base(n.Value)
+				case "deploy":
+					deploy = filepath.Base(n.Value)
+				case "repo_path":
+					repoPath = filepath.Base(n.Value)
+				}
 			}
 			//  Get Hosts per Environment.
 			hosts, err := client.Get("/projects/"+name+"/environments/"+envName+"/hosts", false, false)
