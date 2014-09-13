@@ -189,7 +189,7 @@ func parseETCD(client ETCDInterface) (c config, err error) {
 	for _, b := range baseInfo.Node.Nodes {
 		switch filepath.Base(b.Key) {
 		case "deploy_user":
-			deployUser = filepath.Base(b.Value)
+			deployUser = b.Value
 		case "pivotal_project":
 			pivotalProject = filepath.Base(b.Value)
 		case "token":
@@ -240,13 +240,13 @@ func parseETCD(client ETCDInterface) (c config, err error) {
 				//  TODO remove this name
 				switch filepath.Base(n.Key) {
 				case "revision":
-					revision = filepath.Base(n.Value)
+					revision = n.Value
 				case "branch":
-					branch = filepath.Base(n.Value)
+					branch = n.Value
 				case "deploy":
-					deploy = filepath.Base(n.Value)
+					deploy = n.Value
 				case "repo_path":
-					repoPath = filepath.Base(n.Value)
+					repoPath = n.Value
 				}
 			}
 			//  Get Hosts per Environment.
