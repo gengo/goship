@@ -68,30 +68,36 @@ func getYAMLString(n yaml.Node, key string) string {
 	return strings.TrimSpace(s.String())
 }
 
+// Send etcd Data and output.
+func setETCD(client *etcd.Client, full_key, value string) {
+	log.Printf("Setting %s => %s \n", full_key, value)
+	client.Create(full_key, value, 0)
+}
+
 // parseYAMLEnvironment populates an Environment given a yaml.Node and returns the Environment.
-func parseYAMLEnvironment(m yaml.Node, client *etcd.Client, proj_path string) Environment {
-	e := Environment{}
+func parseYAMLEnvironment(m yaml.Node, client *etcd.Client, projPath string) {
+
 	for k, v := range m.(yaml.Map) {
-		e.Name = k
-		proj_path = proj_path + "environments/" + e.Name + "/"
-		log.Printf("Setting env name=> %s \n", proj_path)
-		client.CreateDir(proj_path, 0)
-		e.Branch = getYAMLString(v, "branch")
-		log.Printf("Setting branch => %s \n", e.Branch)
-		client.Create(proj_path+"branch", e.Branch, 0)
-		e.RepoPath = getYAMLString(v, "repo_path")
-		log.Printf("Setting repo_path => %s \n", e.RepoPath)
-		client.Create(proj_path+"repo_path", e.Branch, 0)
-		e.Deploy = getYAMLString(v, "deploy")
-		log.Printf("Setting deploy => %s \n", e.Deploy)
-		client.Create(proj_path+"deploy", e.Deploy, 0)
+		projPath = projPath + "environments/" + k + "/"
+
+		log.Printf("Setting env name=> %s \n", projPath)
+		client.CreateDir(projPath, 0)
+
+		branch := getYAMLString(v, "branch")
+		setETCD(client, projPath+"branch", branch)
+
+		repoPath := getYAMLString(v, "repo_path")
+		setETCD(client, projPath+"repo_path", repoPath)
+
+		deploy := getYAMLString(v, "deploy")
+		setETCD(client, projPath+"deploy", deploy)
+
 		for _, host := range v.(yaml.Map)["hosts"].(yaml.List) {
 			h := Host{URI: host.(yaml.Scalar).String()}
-			log.Printf("Setting Hosts => %s \n", proj_path+h.URI)
-			client.CreateDir(proj_path+h.URI, 0)
+			log.Printf("Setting Hosts => %s \n", projPath+h.URI)
+			client.CreateDir(projPath+h.URI, 0)
 		}
 	}
-	return e
 }
 
 // parseYAML parses the config.yml file and returns the appropriate structs and strings.
@@ -100,39 +106,40 @@ func YAMLtoETCD(client *etcd.Client) (c config, err error) {
 	if err != nil {
 		return c, err
 	}
-	//client.Create("deploy_user", deployUser, 0)
-	//log.Printf("Setting deploy_user => %s \n", deployUser)
 	configRoot, _ := config.Root.(yaml.Map)
 	projects, _ := configRoot["projects"].(yaml.List)
 	for _, p := range projects {
 		for k, v := range p.(yaml.Map) {
+
 			log.Printf("Setting project => %s \n", k)
 			client.CreateDir(k, 0)
-			project_path := "/projects/" + k + "/"
+
+			projectPath := "/projects/" + k + "/"
+
 			name := getYAMLString(v, "project_name")
-			log.Printf("Setting project name=> %s \n", name)
-			client.Create(project_path+"project_name", name, 0)
+			setETCD(client, projectPath+"project_name", name)
+
 			repoOwner := getYAMLString(v, "repo_owner")
-			log.Printf("Setting repo owner=> %s \n", repoOwner)
-			client.Create(project_path+"repo_owner", repoOwner, 0)
+			setETCD(client, projectPath+"repo_owner", repoOwner)
+
 			repoName := getYAMLString(v, "repo_name")
-			log.Printf("Setting repo owner=> %s \n", repoName)
-			client.Create(project_path+"repo_name", repoName, 0)
+			setETCD(client, projectPath+"repo_name", repoName)
+
 			for _, v := range v.(yaml.Map)["environments"].(yaml.List) {
-				parseYAMLEnvironment(v, client, project_path)
+				parseYAMLEnvironment(v, client, projectPath)
 			}
+
 		}
 	}
-	piv := new(PivotalConfiguration)
-	piv.project, _ = config.Get("pivotal_project")
-	client.Create("pivotal_project", piv.project, 0)
-	log.Printf("Setting pivotal project => %s \n", piv.project)
-	piv.token, _ = config.Get("pivotal_token")
-	client.Create("piv token", piv.token, 0)
-	log.Printf("Setting piv token => %s \n", piv.token)
+
+	piv_project, _ := config.Get("pivotal_project")
+	setETCD(client, "pivotal_project", piv_project)
+
+	piv_token, _ := config.Get("pivotal_token")
+	setETCD(client, "piv_token", piv_token)
+
 	notify, _ := config.Get("notify")
-	client.Create("notify", notify, 0)
-	log.Printf("Setting notify => %s \n", notify)
+	setETCD(client, "notify", notify)
 
 	return c, err
 }
