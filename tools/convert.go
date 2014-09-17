@@ -75,7 +75,7 @@ func setETCD(client *etcd.Client, full_key, value string) {
 }
 
 // parseYAMLEnvironment populates an Environment given a yaml.Node and returns the Environment.
-func parseYAMLEnvironment(m yaml.Node, client *etcd.Client, projPath string) {
+func YAMLtoETCDEnvironment(m yaml.Node, client *etcd.Client, projPath string) {
 
 	for k, v := range m.(yaml.Map) {
 		projPath = projPath + "environments/" + k + "/"
@@ -126,7 +126,7 @@ func YAMLtoETCD(client *etcd.Client) (c config, err error) {
 			setETCD(client, projectPath+"repo_name", repoName)
 
 			for _, v := range v.(yaml.Map)["environments"].(yaml.List) {
-				parseYAMLEnvironment(v, client, projectPath)
+				YAMLtoETCDEnvironment(v, client, projectPath)
 			}
 
 		}
@@ -151,6 +151,6 @@ func main() {
 	a := etcd.NewClient([]string{*ETCDServer})
 	_, err := YAMLtoETCD(a)
 	if err != nil {
-		fmt.Printf("Failed to Parse Yaml  [%s]\n", err)
+		fmt.Printf("Failed to Parse Yaml and Add to ETCD [%s]\n", err)
 	}
 }
