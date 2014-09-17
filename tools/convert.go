@@ -1,4 +1,4 @@
-package convert
+package main
 
 // This is a simple quick script to take a goship config file and put into ETCD. Note: It does not wipe out your
 // existing etcd setup.
@@ -100,8 +100,8 @@ func YAMLtoETCD(client *etcd.Client) (c config, err error) {
 	if err != nil {
 		return c, err
 	}
-	client.Create("deploy_user", deployUser, 0)
-	log.Printf("Setting deploy_user => %s \n", deployUser)
+	//client.Create("deploy_user", deployUser, 0)
+	//log.Printf("Setting deploy_user => %s \n", deployUser)
 	configRoot, _ := config.Root.(yaml.Map)
 	projects, _ := configRoot["projects"].(yaml.List)
 	for _, p := range projects {
@@ -133,9 +133,7 @@ func YAMLtoETCD(client *etcd.Client) (c config, err error) {
 	notify, _ := config.Get("notify")
 	client.Create("notify", notify, 0)
 	log.Printf("Setting notify => %s \n", notify)
-	c.DeployUser = deployUser
-	client.Create("deploy_user", deployUser, 0)
-	log.Printf("Setting deploy_user => %s \n", deployUser)
+
 	return c, err
 }
 
