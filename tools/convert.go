@@ -92,9 +92,12 @@ func YAMLtoETCDEnvironment(m yaml.Node, client *etcd.Client, projPath string) {
 		deploy := getYAMLString(v, "deploy")
 		setETCD(client, projPath+"deploy", deploy)
 
+		log.Printf("Creating Host Directory => %s \n", projPath+"hosts/")
+		client.CreateDir(projPath+"hosts/", 0)
+
 		for _, host := range v.(yaml.Map)["hosts"].(yaml.List) {
 			h := Host{URI: host.(yaml.Scalar).String()}
-			log.Printf("Setting Hosts => %s \n", projPath+h.URI)
+			log.Printf("Setting Hosts => %s \n", projPath+"hosts/"+h.URI)
 			client.CreateDir(projPath+h.URI, 0)
 		}
 	}
