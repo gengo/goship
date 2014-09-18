@@ -142,7 +142,7 @@ func YAMLtoETCD(client *etcd.Client) (c config, err error) {
 	setETCD(client, "pivotal_project", piv_project)
 
 	piv_token, _ := config.Get("pivotal_token")
-	setETCD(client, "piv_token", pivotal_token)
+	setETCD(client, "pivotal_token", piv_token)
 
 	notify, _ := config.Get("notify")
 	setETCD(client, "notify", notify)
