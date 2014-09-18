@@ -144,6 +144,12 @@ func YAMLtoETCD(client *etcd.Client) (c config, err error) {
 	piv_token, _ := config.Get("pivotal_token")
 	setETCD(client, "pivotal_token", piv_token)
 
+	deploy_user := getYAMLString(v, "deploy_user")
+	setETCD(client, "deploy_user", deploy_user)
+
+	goship_host := getYAMLString(v, "goship_host")
+	setETCD(client, "goship_host", dgoship_host)
+
 	notify, _ := config.Get("notify")
 	setETCD(client, "notify", notify)
 
