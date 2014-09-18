@@ -24,6 +24,7 @@ Create an ETCD server / follow the instructions in the etcd README:
 
 
 There are various tools to update your ETCD server including the etcctl client or curl, you can also use a variety of clients and JSON formatting:
+There is also a convert.go in tools that can be used to 'bootstrap' etcd.
 
 
    #example setup using etcd
@@ -36,30 +37,18 @@ There are various tools to update your ETCD server including the etcctl client o
    etcdctl set /projects/project_name 'My Project'
    etcdctl set /projects/repo_owner 'github-user'
    etcdctl set /projects/project_name 'My Project'
-   
-   etcdctl mkdir 'projects/my-project/environments'
-
-   etcdctl mkdir 'projects/my-project/environments/staging'
-   etcdctl set 'projects/my-project/environments/staging/deploy' '/path/to/deployscripts/myproj_staging.sh'
-   etcdctl set 'projects/my-project/environments/staging/branch' 'code_freeze'
-   etcdctl set 'projects/my-project/environments/staging/revision' '1234567'
-   etcdctl set 'projects/my-project/environments/staging/repo_path' /path/to/myproject/.git
-   etcdctl mkdir 'projects/my-project/environments/staging/hosts'
-   etcdctl mkdir 'projects/my-project/environments/staging/hosts/staging.myproject.com'
-
-   etcdctl mkdir 'projects/my-project/environments/production'
-   etcdctl set 'projects/my-project/environments/production/deploy' '/path/to/deployscripts/myproj_live.sh'
-   etcdctl set 'projects/my-project/environments/staging/repo_path' /path/to/myproject/.git
-   etcdctl set 'projects/my-project/environments/staging/branch' 'master'
-   etcdctl set 'projects/my-project/environments/staging/revision' 'head'
-   etcdctl mkdir 'projects/my-project/environments/staging/hosts'
-   etcdctl mkdir 'projects/my-project/environments/staging/hosts/prod-01.myproject.com'
-   etcdctl mkdir 'projects/my-project/environments/staging/hosts/prod-02.myproject.com'
 ```
 
    #curl example
+
 ```
    curl -L http://127.0.0.1:4001/projects/my-project/environments/staging/deploy -XPUT -d value="/path/to/deployscripts/myproj_staging.sh"
+```
+
+   #convert.go example in the tools folder of goship. ( config.yml and etcd settings are configurable - run with -h for options)
+
+```
+   go run convert.go -c /mnt/srv/http/gengo/goship/shared/config.yml 
 ```
    
 Then run the server manually
