@@ -117,10 +117,10 @@ func YAMLtoETCD(client *etcd.Client) (c config, err error) {
 	for _, p := range projects {
 		for k, v := range p.(yaml.Map) {
 
-			log.Printf("Setting project => %s \n", k)
-			client.CreateDir(k, 0)
-
 			projectPath := "/projects/" + k + "/"
+
+			log.Printf("Setting project => %s \n", projectPath)
+			client.CreateDir(projectPath, 0)
 
 			name := getYAMLString(v, "project_name")
 			setETCD(client, projectPath+"project_name", name)
