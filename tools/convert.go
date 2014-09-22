@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/gengo/lib/goship"
+	"github.com/gengo/goship/lib"
 	"github.com/kylelemons/go-gypsy/yaml"
 )
 

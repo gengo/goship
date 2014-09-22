@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/gengo/goship/goship"
+	"github.com/gengo/goship/lib"
 )
 
 func TestStripANSICodes(t *testing.T) {
