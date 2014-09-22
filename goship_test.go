@@ -1,10 +1,12 @@
 package main
 
 import (
-	"github.com/coreos/go-etcd/etcd"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/coreos/go-etcd/etcd"
+	"github.com/gengo/goship/goship"
 )
 
 func TestStripANSICodes(t *testing.T) {
@@ -27,29 +29,29 @@ func TestStripANSICodes(t *testing.T) {
 }
 
 var githubDiffURLTests = []struct {
-	h    Host
-	p    Project
-	e    Environment
+	h    goship.Host
+	p    goship.Project
+	e    goship.Environment
 	want string
 }{
-	{Host{LatestCommit: "abc123"}, Project{"test project", "https://github.com/test/foo", "foo", "test", []Environment{}}, Environment{LatestGitHubCommit: "abc123"}, ""},
-	{Host{LatestCommit: "abc123"}, Project{"test project", "https://github.com/test/foo", "foo", "test", []Environment{}}, Environment{LatestGitHubCommit: "abc456"}, "https://github.com/test/foo/compare/abc123...abc456"},
+	{goship.Host{LatestCommit: "abc123"}, goship.Project{"test project", "https://github.com/test/foo", "foo", "test", []goship.Environment{}}, goship.Environment{LatestGitHubCommit: "abc123"}, ""},
+	{goship.Host{LatestCommit: "abc123"}, goship.Project{"test project", "https://github.com/test/foo", "foo", "test", []goship.Environment{}}, goship.Environment{LatestGitHubCommit: "abc456"}, "https://github.com/test/foo/compare/abc123...abc456"},
 }
 
 func TestGitHubDiffURL(t *testing.T) {
 	for _, tt := range githubDiffURLTests {
-		if got := tt.h.gitHubDiffURL(tt.p, tt.e); got != tt.want {
+		if got := tt.h.GetGitHubDiffURL(tt.p, tt.e); got != tt.want {
 			t.Errorf("gitHubDiffURL = %s, want %s", got, tt.want)
 		}
 	}
 }
 
 var deployableTests = []struct {
-	e    Environment
+	e    goship.Environment
 	want bool
 }{
-	{Environment{LatestGitHubCommit: "abc123", Hosts: []Host{{LatestCommit: "abc456"}}}, true},
-	{Environment{LatestGitHubCommit: "abc456", Hosts: []Host{{LatestCommit: "abc456"}}}, false},
+	{goship.Environment{LatestGitHubCommit: "abc123", Hosts: []goship.Host{{LatestCommit: "abc456"}}}, true},
+	{goship.Environment{LatestGitHubCommit: "abc456", Hosts: []goship.Host{{LatestCommit: "abc456"}}}, false},
 }
 
 func TestDeployable(t *testing.T) {
@@ -61,13 +63,13 @@ func TestDeployable(t *testing.T) {
 }
 
 var wantConfig = config{
-	Projects: []Project{
+	Projects: []goship.Project{
 		{Name: "Test Project One", GitHubURL: "https://github.com/test_owner/test_repo_name", RepoName: "test_repo_name", RepoOwner: "test_owner",
-			Environments: []Environment{{Name: "live", Deploy: "/deploy/test_project_one.sh", RepoPath: "/repos/test_repo_name/.git",
-				Hosts: []Host{{URI: "test-project-one.test.com"}}, Branch: "master", IsDeployable: false}}},
+			Environments: []goship.Environment{{Name: "live", Deploy: "/deploy/test_project_one.sh", RepoPath: "/repos/test_repo_name/.git",
+				Hosts: []goship.Host{{URI: "test-project-one.test.com"}}, Branch: "master", IsDeployable: false}}},
 		{Name: "Test Project Two", GitHubURL: "https://github.com/test_owner/test_repo_name_two", RepoName: "test_repo_name_two", RepoOwner: "test_owner",
-			Environments: []Environment{{Name: "live", Deploy: "/deploy/test_project_two.sh", RepoPath: "/repos/test_repo_name_two/.git",
-				Hosts: []Host{{URI: "test-project-two.test.com"}}, Branch: "master", LatestGitHubCommit: "", IsDeployable: false}}}},
+			Environments: []goship.Environment{{Name: "live", Deploy: "/deploy/test_project_two.sh", RepoPath: "/repos/test_repo_name_two/.git",
+				Hosts: []goship.Host{{URI: "test-project-two.test.com"}}, Branch: "master", LatestGitHubCommit: "", IsDeployable: false}}}},
 	DeployUser: "deploy_user",
 	Notify:     "/notify/notify.sh",
 	Pivotal:    &PivotalConfiguration{project: "111111", token: "test"}}
@@ -116,8 +118,8 @@ func TestFormatTime(t *testing.T) {
 }
 
 func TestGetProjectFromName(t *testing.T) {
-	var want = Project{Name: "TestProject"}
-	projects := []Project{want}
+	var want = goship.Project{Name: "TestProject"}
+	projects := []goship.Project{want}
 	got, err := getProjectFromName(projects, "TestProject")
 	if err != nil {
 		t.Fatal(err)
@@ -133,10 +135,10 @@ func TestGetProjectFromName(t *testing.T) {
 
 func TestGetEnvironmentFromName(t *testing.T) {
 	var (
-		want = Environment{Name: "TestEnvironment"}
-		envs = []Environment{want}
+		want = goship.Environment{Name: "TestEnvironment"}
+		envs = []goship.Environment{want}
 	)
-	projects := []Project{Project{Name: "TestProject", Environments: envs}}
+	projects := []goship.Project{goship.Project{Name: "TestProject", Environments: envs}}
 	got, err := getEnvironmentFromName(projects, "TestProject", "TestEnvironment")
 	if err != nil {
 		t.Fatal(err)

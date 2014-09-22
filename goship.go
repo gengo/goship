@@ -27,6 +27,7 @@ import (
 	"code.google.com/p/go.net/websocket"
 	"code.google.com/p/goauth2/oauth"
 	"github.com/coreos/go-etcd/etcd"
+	"github.com/gengo/goship/goship"
 	"github.com/google/go-github/github"
 )
 
@@ -45,77 +46,13 @@ const (
 	gitHubAPITokenEnvVar  = "GITHUB_API_TOKEN"
 )
 
-// Host stores information on a host, such as URI and the latest commit revision.
-type Host struct {
-	URI             string
-	LatestCommit    string
-	GitHubCommitURL string
-	GitHubDiffURL   string
-	ShortCommitHash string
-}
-
-// Environment stores information about an individual environment, such as its name and whether it is deployable.
-type Environment struct {
-	Name               string
-	Deploy             string
-	RepoPath           string
-	Hosts              []Host
-	Branch             string
-	Revision           string
-	LatestGitHubCommit string
-	IsDeployable       bool
-}
-
-// Project stores information about a GitHub project, such as its GitHub URL and repo name.
-type Project struct {
-	Name         string
-	GitHubURL    string
-	RepoName     string
-	RepoOwner    string
-	Environments []Environment
-}
-
 type PivotalConfiguration struct {
 	project string
 	token   string
 }
 
-// gitHubCommitURL takes a project and returns the GitHub URL for its latest commit hash.
-func (h *Host) gitHubCommitURL(p Project) string {
-	return fmt.Sprintf("%s/commit/%s", p.GitHubURL, h.LatestCommit)
-}
-
-// gitHubDiffURL takes a project and an environment and returns the GitHub diff URL
-// for the latest commit on the host compared to the latest commit on GitHub.
-func (h *Host) gitHubDiffURL(p Project, e Environment) string {
-	var s string
-	if h.LatestCommit != e.LatestGitHubCommit {
-		s = fmt.Sprintf("%s/compare/%s...%s", p.GitHubURL, h.LatestCommit, e.LatestGitHubCommit)
-	}
-	return s
-}
-
 func diffURL(owner, repoName, fromRevision, toRevision string) string {
 	return fmt.Sprintf("https://github.com/%s/%s/compare/%s...%s", owner, repoName, fromRevision, toRevision)
-}
-
-// Deployable returns true if the latest commit for any of the hosts in an environment
-// differs from the latest commit on GitHub, and false if all of the commits match.
-func (e *Environment) Deployable() bool {
-	for _, h := range e.Hosts {
-		if e.LatestGitHubCommit != h.LatestCommit {
-			return true
-		}
-	}
-	return false
-}
-
-// ShortCommitHash returns a shortened version of the latest commit hash on a host.
-func (h *Host) shortCommitHash() string {
-	if len(h.LatestCommit) == 0 {
-		return ""
-	}
-	return h.LatestCommit[:7]
 }
 
 // remoteCmdOutput runs the given command on a remote server at the given hostname as the given user.
@@ -151,7 +88,7 @@ func remoteCmdOutput(username, hostname, cmd string, privateKey []byte) (b []byt
 }
 
 // latestDeployedCommit gets the latest commit hash on the host.
-func latestDeployedCommit(username, hostname string, e Environment) (b []byte, err error) {
+func latestDeployedCommit(username, hostname string, e goship.Environment) (b []byte, err error) {
 	p, err := ioutil.ReadFile(*keyPath)
 	if err != nil {
 		return b, errors.New("Failed to open private key file: " + err.Error())
@@ -165,7 +102,7 @@ func latestDeployedCommit(username, hostname string, e Environment) (b []byte, e
 
 // config contains the information from config.yml.
 type config struct {
-	Projects   []Project
+	Projects   []goship.Project
 	DeployUser string
 	Notify     string
 	Pivotal    *PivotalConfiguration
@@ -199,7 +136,7 @@ func parseETCD(client ETCDInterface) (c config, err error) {
 		}
 	}
 
-	allProjects := []Project{}
+	allProjects := []goship.Project{}
 	//  Get Projects //
 	projectNodes, err := client.Get("/projects", false, false)
 	if err != nil {
@@ -223,12 +160,12 @@ func parseETCD(client ETCDInterface) (c config, err error) {
 			}
 		}
 		githubUrl := fmt.Sprintf("https://github.com/%s/%s", repoOwner, repoName)
-		proj := Project{Name: name, GitHubURL: githubUrl, RepoName: repoName, RepoOwner: repoOwner}
+		proj := goship.Project{Name: name, GitHubURL: githubUrl, RepoName: repoName, RepoOwner: repoOwner}
 		environments, err := client.Get("/projects/"+name+"/environments", false, false)
 		if err != nil {
 			return c, err
 		}
-		allEnvironments := []Environment{}
+		allEnvironments := []goship.Environment{}
 		for _, e := range environments.Node.Nodes {
 			envSettings, err := client.Get("/projects/"+name+"/environments/"+filepath.Base(e.Key), false, false)
 			envName := filepath.Base(e.Key)
@@ -254,12 +191,12 @@ func parseETCD(client ETCDInterface) (c config, err error) {
 			if err != nil {
 				return c, err
 			}
-			allHosts := []Host{}
+			allHosts := []goship.Host{}
 			for _, h := range hosts.Node.Nodes {
-				host := Host{URI: filepath.Base(h.Key)}
+				host := goship.Host{URI: filepath.Base(h.Key)}
 				allHosts = append(allHosts, host)
 			}
-			env := Environment{Name: envName, Deploy: deploy, RepoPath: repoPath, Branch: branch, Revision: revision}
+			env := goship.Environment{Name: envName, Deploy: deploy, RepoPath: repoPath, Branch: branch, Revision: revision}
 			env.Hosts = allHosts
 			allEnvironments = append(allEnvironments, env)
 		}
@@ -279,7 +216,7 @@ func parseETCD(client ETCDInterface) (c config, err error) {
 
 // getCommit is called in a goroutine and gets the latest deployed commit on a host.
 // It updates the Environment in-place.
-func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, deployUser string, i, j int) {
+func getCommit(wg *sync.WaitGroup, project goship.Project, env goship.Environment, host goship.Host, deployUser string, i, j int) {
 	defer wg.Done()
 	lc, err := latestDeployedCommit(deployUser, host.URI+":"+sshPort, env)
 	if err != nil {
@@ -293,7 +230,7 @@ func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, 
 
 // getLatestGitHubCommit is called in a goroutine and retrieves the latest commit
 // from GitHub for a given branch of a project. It updates the Environment in-place.
-func getLatestGitHubCommit(wg *sync.WaitGroup, project Project, environment Environment, c *github.Client, repoOwner, repoName string, i int) {
+func getLatestGitHubCommit(wg *sync.WaitGroup, project goship.Project, environment goship.Environment, c *github.Client, repoOwner, repoName string, i int) {
 	defer wg.Done()
 	opts := &github.CommitsListOptions{SHA: environment.Branch}
 	commits, _, err := c.Repositories.ListCommits(repoOwner, repoName, opts)
@@ -308,7 +245,7 @@ func getLatestGitHubCommit(wg *sync.WaitGroup, project Project, environment Envi
 
 // retrieveCommits fetches the latest deployed commits as well
 // as the latest GitHub commits for a given Project.
-func retrieveCommits(project Project, deployUser string) Project {
+func retrieveCommits(project goship.Project, deployUser string) goship.Project {
 	// define a wait group to wait for all goroutines to finish
 	var wg sync.WaitGroup
 	githubToken := os.Getenv(gitHubAPITokenEnvVar)
@@ -331,9 +268,9 @@ func retrieveCommits(project Project, deployUser string) Project {
 		e.IsDeployable = e.Deployable()
 		project.Environments[i] = e
 		for j, host := range e.Hosts {
-			host.GitHubCommitURL = host.gitHubCommitURL(project)
-			host.GitHubDiffURL = host.gitHubDiffURL(project, e)
-			host.ShortCommitHash = host.shortCommitHash()
+			host.GitHubCommitURL = host.GetGitHubCommitURL(project)
+			host.GitHubDiffURL = host.GetGitHubDiffURL(project, e)
+			host.ShortCommitHash = host.GetShortCommitHash()
 			project.Environments[i].Hosts[j] = host
 		}
 	}
@@ -455,7 +392,7 @@ func appendDeployOutput(env string, output string, timestamp time.Time) {
 
 // getProjectFromName takes a project name as a string and returns
 // a Project by that name if it can find one.
-func getProjectFromName(projects []Project, projectName string) (*Project, error) {
+func getProjectFromName(projects []goship.Project, projectName string) (*goship.Project, error) {
 	for _, project := range projects {
 		if project.Name == projectName {
 			return &project, nil
@@ -467,7 +404,7 @@ func getProjectFromName(projects []Project, projectName string) (*Project, error
 // getEnvironmentFromName takes an environment and project name as a string and returns
 // an Environmnet by the given environment name under a project with the given
 // project name if it can find one.
-func getEnvironmentFromName(projects []Project, projectName, environmentName string) (*Environment, error) {
+func getEnvironmentFromName(projects []goship.Project, projectName, environmentName string) (*goship.Environment, error) {
 	p, err := getProjectFromName(projects, projectName)
 	if err != nil {
 		return nil, err
@@ -482,7 +419,7 @@ func getEnvironmentFromName(projects []Project, projectName, environmentName str
 
 // getDeployCommand returns the deployment command for a given
 // environment as a string slice that has been split on spaces.
-func getDeployCommand(projects []Project, projectName, environmentName string) (s []string, err error) {
+func getDeployCommand(projects []goship.Project, projectName, environmentName string) (s []string, err error) {
 	e, err := getEnvironmentFromName(projects, projectName, environmentName)
 	if err != nil {
 		return s, err
