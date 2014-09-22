@@ -62,7 +62,7 @@ func TestDeployable(t *testing.T) {
 	}
 }
 
-var wantConfig = config{
+var wantConfig = goship.Config{
 	Projects: []goship.Project{
 		{Name: "Test Project One", GitHubURL: "https://github.com/test_owner/test_repo_name", RepoName: "test_repo_name", RepoOwner: "test_owner",
 			Environments: []goship.Environment{{Name: "live", Deploy: "/deploy/test_project_one.sh", RepoPath: "/repos/test_repo_name/.git",
@@ -72,7 +72,7 @@ var wantConfig = config{
 				Hosts: []goship.Host{{URI: "test-project-two.test.com"}}, Branch: "master", LatestGitHubCommit: "", IsDeployable: false}}}},
 	DeployUser: "deploy_user",
 	Notify:     "/notify/notify.sh",
-	Pivotal:    &PivotalConfiguration{project: "111111", token: "test"}}
+	Pivotal:    &goship.PivotalConfiguration{Project: "111111", Token: "test"}}
 
 func compareStrings(name, got, want string, t *testing.T) {
 	if got != want {
@@ -82,12 +82,12 @@ func compareStrings(name, got, want string, t *testing.T) {
 
 func TestCanParseETCD(t *testing.T) {
 
-	got, err := parseETCD(&MockEtcdClient{})
+	got, err := goship.ParseETCD(&MockEtcdClient{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	compareStrings("deploy user", got.DeployUser, "test_user", t)
-	compareStrings("project", got.Pivotal.project, "111111", t)
+	compareStrings("project", got.Pivotal.Project, "111111", t)
 	compareStrings("project name", got.Projects[0].Name, "pivotal_project", t)
 	compareStrings("repo path", got.Projects[0].Environments[0].RepoPath, "/repos/test_repo_name/.git", t)
 	compareStrings("repo path", got.Projects[0].Environments[0].Branch, "master", t)

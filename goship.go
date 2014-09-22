@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -27,7 +26,7 @@ import (
 	"code.google.com/p/go.net/websocket"
 	"code.google.com/p/goauth2/oauth"
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/gengo/goship/goship"
+	"github.com/gengo/goship/lib"
 	"github.com/google/go-github/github"
 )
 
@@ -45,11 +44,6 @@ const (
 	pivotalCommentURL     = "https://www.pivotaltracker.com/services/v5/projects/%s/stories/%s/comments"
 	gitHubAPITokenEnvVar  = "GITHUB_API_TOKEN"
 )
-
-type PivotalConfiguration struct {
-	project string
-	token   string
-}
 
 func diffURL(owner, repoName, fromRevision, toRevision string) string {
 	return fmt.Sprintf("https://github.com/%s/%s/compare/%s...%s", owner, repoName, fromRevision, toRevision)
@@ -98,120 +92,6 @@ func latestDeployedCommit(username, hostname string, e goship.Environment) (b []
 		return b, err
 	}
 	return o, nil
-}
-
-// config contains the information from config.yml.
-type config struct {
-	Projects   []goship.Project
-	DeployUser string
-	Notify     string
-	Pivotal    *PivotalConfiguration
-}
-
-type ETCDInterface interface {
-	Get(string, bool, bool) (*etcd.Response, error)
-}
-
-// connects to ETCD and returns the appropriate structs and strings.
-func parseETCD(client ETCDInterface) (c config, err error) {
-	log.Printf("Connecting to %s", *ETCDServer)
-	baseInfo, err := client.Get("/", false, false)
-	if err != nil {
-		return c, err
-	}
-	deployUser := ""
-	pivotalProject := ""
-	token := ""
-	notify := ""
-	for _, b := range baseInfo.Node.Nodes {
-		switch filepath.Base(b.Key) {
-		case "deploy_user":
-			deployUser = b.Value
-		case "pivotal_project":
-			pivotalProject = filepath.Base(b.Value)
-		case "token":
-			token = filepath.Base(b.Value)
-		case "notify":
-			notify = filepath.Base(b.Value)
-		}
-	}
-
-	allProjects := []goship.Project{}
-	//  Get Projects //
-	projectNodes, err := client.Get("/projects", false, false)
-	if err != nil {
-		return c, err
-	}
-	for _, p := range projectNodes.Node.Nodes {
-		name := filepath.Base(p.Key)
-		projectNode, err := client.Get("/projects/"+name, false, false)
-		if err != nil {
-			return c, err
-		}
-		projectInfo := projectNode.Node.Nodes
-		repoOwner := ""
-		repoName := ""
-		for _, k := range projectInfo {
-			switch filepath.Base(k.Key) {
-			case "repo_owner":
-				repoOwner = filepath.Base(k.Value)
-			case "repo_name":
-				repoName = filepath.Base(k.Value)
-			}
-		}
-		githubUrl := fmt.Sprintf("https://github.com/%s/%s", repoOwner, repoName)
-		proj := goship.Project{Name: name, GitHubURL: githubUrl, RepoName: repoName, RepoOwner: repoOwner}
-		environments, err := client.Get("/projects/"+name+"/environments", false, false)
-		if err != nil {
-			return c, err
-		}
-		allEnvironments := []goship.Environment{}
-		for _, e := range environments.Node.Nodes {
-			envSettings, err := client.Get("/projects/"+name+"/environments/"+filepath.Base(e.Key), false, false)
-			envName := filepath.Base(e.Key)
-			revision := "head"
-			branch := "master"
-			deploy := ""
-			repoPath := ""
-			for _, n := range envSettings.Node.Nodes {
-				//  TODO remove this name
-				switch filepath.Base(n.Key) {
-				case "revision":
-					revision = n.Value
-				case "branch":
-					branch = n.Value
-				case "deploy":
-					deploy = n.Value
-				case "repo_path":
-					repoPath = n.Value
-				}
-			}
-			//  Get Hosts per Environment.
-			hosts, err := client.Get("/projects/"+name+"/environments/"+envName+"/hosts", false, false)
-			if err != nil {
-				return c, err
-			}
-			allHosts := []goship.Host{}
-			for _, h := range hosts.Node.Nodes {
-				host := goship.Host{URI: filepath.Base(h.Key)}
-				allHosts = append(allHosts, host)
-			}
-			env := goship.Environment{Name: envName, Deploy: deploy, RepoPath: repoPath, Branch: branch, Revision: revision}
-			env.Hosts = allHosts
-			allEnvironments = append(allEnvironments, env)
-		}
-		proj.Environments = allEnvironments
-		allProjects = append(allProjects, proj)
-	}
-	piv := new(PivotalConfiguration)
-	piv.project = pivotalProject
-	piv.token = token
-	c.Projects = allProjects
-	c.DeployUser = deployUser
-	c.Notify = notify
-	c.Pivotal = piv
-
-	return c, nil
 }
 
 // getCommit is called in a goroutine and gets the latest deployed commit on a host.
@@ -485,7 +365,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
-	c, err := parseETCD(etcd.NewClient([]string{*ETCDServer}))
+	c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -655,7 +535,7 @@ func endNotify(n, p, env string, success bool) error {
 }
 
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	c, err := parseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
+	c, err := goship.ParseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -719,7 +599,8 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println("Error: ", err.Error())
 		}
 	}
-	if (c.Pivotal.token != "") && (c.Pivotal.project != "") && success {
+
+	if (c.Pivotal.Token != "") && (c.Pivotal.Project != "") && success {
 		err := postToPivotal(c.Pivotal, env, owner, name, toRevision, fromRevision)
 		if err != nil {
 			log.Println("ERROR: ", err)
@@ -734,7 +615,7 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func postToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current string) error {
+func postToPivotal(piv *goship.PivotalConfiguration, env, owner, name, latest, current string) error {
 	gt := os.Getenv(gitHubAPITokenEnvVar)
 	t := &oauth.Transport{
 		Token: &oauth.Token{AccessToken: gt},
@@ -767,16 +648,16 @@ func postToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current 
 	return nil
 }
 
-func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err error) {
+func PostPivotalComment(id string, m string, piv *goship.PivotalConfiguration) (err error) {
 	p := url.Values{}
 	p.Set("text", m)
-	req, err := http.NewRequest("POST", fmt.Sprintf(pivotalCommentURL, piv.project, id), nil)
+	req, err := http.NewRequest("POST", fmt.Sprintf(pivotalCommentURL, piv.Project, id), nil)
 	if err != nil {
 		log.Println("ERROR: could not form put request to Pivotal: ", err)
 		return err
 	}
 	req.URL.RawQuery = p.Encode()
-	req.Header.Add("X-TrackerToken", piv.token)
+	req.Header.Add("X-TrackerToken", piv.Token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Println("ERROR: could not make put request to Pivotal: ", err)
@@ -807,7 +688,7 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	c, err := parseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
+	c, err := goship.ParseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

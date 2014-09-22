@@ -6,58 +6,18 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/coreos/go-etcd/etcd"
-	"github.com/kylelemons/go-gypsy/yaml"
 	"log"
 	"strings"
+
+	"github.com/coreos/go-etcd/etcd"
+	"github.com/gengo/goship/goship"
+	"github.com/kylelemons/go-gypsy/yaml"
 )
 
 var (
 	ConfigFile = flag.String("c", "config.yml", "Path to data directory (default config.yml)")
 	ETCDServer = flag.String("e", "http://127.0.0.1:4001", "Etcd Server (default http://127.0.0.1:4001")
 )
-
-// Host stores information on a host, such as URI and the latest commit revision.
-type Host struct {
-	URI             string
-	LatestCommit    string
-	GitHubCommitURL string
-	GitHubDiffURL   string
-	ShortCommitHash string
-}
-
-// Environment stores information about an individual environment, such as its name and whether it is deployable.
-type Environment struct {
-	Name               string
-	Deploy             string
-	RepoPath           string
-	Hosts              []Host
-	Branch             string
-	LatestGitHubCommit string
-	IsDeployable       bool
-}
-
-// Project stores information about a GitHub project, such as its GitHub URL and repo name.
-type Project struct {
-	Name         string
-	GitHubURL    string
-	RepoName     string
-	RepoOwner    string
-	Environments []Environment
-}
-
-type PivotalConfiguration struct {
-	project string
-	token   string
-}
-
-// config contains the information from config.yml.
-type config struct {
-	Projects   []Project
-	DeployUser string
-	Notify     string
-	Pivotal    *PivotalConfiguration
-}
 
 // getYAMLString is a helper function for extracting strings from a yaml.Node.
 func getYAMLString(n yaml.Node, key string) string {
@@ -97,7 +57,7 @@ func YAMLtoETCDEnvironment(m yaml.Node, client *etcd.Client, projPath string) {
 		client.CreateDir(projPath, 0)
 
 		for _, host := range v.(yaml.Map)["hosts"].(yaml.List) {
-			h := Host{URI: host.(yaml.Scalar).String()}
+			h := goship.Host{URI: host.(yaml.Scalar).String()}
 			log.Printf("Setting Hosts => %s \n", projPath+h.URI)
 			client.CreateDir(projPath+h.URI, 0)
 		}
@@ -105,7 +65,7 @@ func YAMLtoETCDEnvironment(m yaml.Node, client *etcd.Client, projPath string) {
 }
 
 // parseYAML parses the config.yml file and returns the appropriate structs and strings.
-func YAMLtoETCD(client *etcd.Client) (c config, err error) {
+func YAMLtoETCD(client *etcd.Client) (c goship.Config, err error) {
 	config, err := yaml.ReadFile(*ConfigFile)
 	if err != nil {
 		return c, err
@@ -144,11 +104,11 @@ func YAMLtoETCD(client *etcd.Client) (c config, err error) {
 	piv_token, _ := config.Get("pivotal_token")
 	setETCD(client, "pivotal_token", piv_token)
 
-	deploy_user := getYAMLString(v, "deploy_user")
+	deploy_user, _ := config.Get("deploy_user")
 	setETCD(client, "deploy_user", deploy_user)
 
-	goship_host := getYAMLString(v, "goship_host")
-	setETCD(client, "goship_host", dgoship_host)
+	goship_host, _ := config.Get("goship_host")
+	setETCD(client, "goship_host", goship_host)
 
 	notify, _ := config.Get("notify")
 	setETCD(client, "notify", notify)
