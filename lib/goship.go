@@ -95,6 +95,33 @@ type ETCDInterface interface {
 	Get(string, bool, bool) (*etcd.Response, error)
 }
 
+// getProjectFromName takes a project name as a string and returns
+// a Project by that name if it can find one.
+func GetProjectFromName(projects []Project, projectName string) (*Project, error) {
+	for _, project := range projects {
+		if project.Name == projectName {
+			return &project, nil
+		}
+	}
+	return nil, fmt.Errorf("No project found: %s", projectName)
+}
+
+// getEnvironmentFromName takes an environment and project name as a string and returns
+// an Environment by the given environment name under a project with the given
+// project name if it can find one.
+func GetEnvironmentFromName(projects []Project, projectName, environmentName string) (*Environment, error) {
+	p, err := GetProjectFromName(projects, projectName)
+	if err != nil {
+		return nil, err
+	}
+	for _, environment := range p.Environments {
+		if environment.Name == environmentName {
+			return &environment, nil
+		}
+	}
+	return nil, fmt.Errorf("No environment found: %s", environmentName)
+}
+
 // connects to ETCD and returns the appropriate structs and strings.
 func ParseETCD(client ETCDInterface) (c Config, err error) {
 	baseInfo, err := client.Get("/", false, false)

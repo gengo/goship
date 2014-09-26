@@ -120,16 +120,16 @@ func TestFormatTime(t *testing.T) {
 func TestGetProjectFromName(t *testing.T) {
 	var want = goship.Project{Name: "TestProject"}
 	projects := []goship.Project{want}
-	got, err := getProjectFromName(projects, "TestProject")
+	got, err := goship.GetProjectFromName(projects, "TestProject")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(got, &want) {
-		t.Errorf("getProjectFromName = %v, want %v", got, want)
+		t.Errorf("goship.GetProjectFromName = %v, want %v", got, want)
 	}
-	got, err = getProjectFromName(projects, "BadProject")
+	got, err = goship.GetProjectFromName(projects, "BadProject")
 	if err == nil {
-		t.Errorf("getProjectFromName error case did not error", got, nil)
+		t.Errorf("goship.GetProjectFromName error case did not error", got, nil)
 	}
 }
 
@@ -139,16 +139,16 @@ func TestGetEnvironmentFromName(t *testing.T) {
 		envs = []goship.Environment{want}
 	)
 	projects := []goship.Project{goship.Project{Name: "TestProject", Environments: envs}}
-	got, err := getEnvironmentFromName(projects, "TestProject", "TestEnvironment")
+	got, err := goship.GetEnvironmentFromName(projects, "TestProject", "TestEnvironment")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(got, &want) {
-		t.Errorf("getEnvironmentFromName = %v, want %v", got, want)
+		t.Errorf("goship.GetEnvironmentFromName = %v, want %v", got, want)
 	}
-	got, err = getEnvironmentFromName(projects, "BadProject", "BadEnvironment")
+	got, err = goship.GetEnvironmentFromName(projects, "BadProject", "BadEnvironment")
 	if err == nil {
-		t.Errorf("getEnvironmentFromName error case did not error")
+		t.Errorf("goship.GetEnvironmentFromName error case did not error")
 	}
 }
 

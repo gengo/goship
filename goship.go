@@ -270,37 +270,10 @@ func appendDeployOutput(env string, output string, timestamp time.Time) {
 	io.WriteString(out, output+"\n")
 }
 
-// getProjectFromName takes a project name as a string and returns
-// a Project by that name if it can find one.
-func getProjectFromName(projects []goship.Project, projectName string) (*goship.Project, error) {
-	for _, project := range projects {
-		if project.Name == projectName {
-			return &project, nil
-		}
-	}
-	return nil, fmt.Errorf("No project found: %s", projectName)
-}
-
-// getEnvironmentFromName takes an environment and project name as a string and returns
-// an Environmnet by the given environment name under a project with the given
-// project name if it can find one.
-func getEnvironmentFromName(projects []goship.Project, projectName, environmentName string) (*goship.Environment, error) {
-	p, err := getProjectFromName(projects, projectName)
-	if err != nil {
-		return nil, err
-	}
-	for _, environment := range p.Environments {
-		if environment.Name == environmentName {
-			return &environment, nil
-		}
-	}
-	return nil, fmt.Errorf("No environment found: %s", environmentName)
-}
-
 // getDeployCommand returns the deployment command for a given
 // environment as a string slice that has been split on spaces.
 func getDeployCommand(projects []goship.Project, projectName, environmentName string) (s []string, err error) {
-	e, err := getEnvironmentFromName(projects, projectName, environmentName)
+	e, err := goship.GetEnvironmentFromName(projects, projectName, environmentName)
 	if err != nil {
 		return s, err
 	}
@@ -371,7 +344,7 @@ func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	proj, err := getProjectFromName(c.Projects, projName)
+	proj, err := goship.GetProjectFromName(c.Projects, projName)
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
