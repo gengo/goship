@@ -98,17 +98,17 @@ func YAMLtoETCD(client *etcd.Client) (c goship.Config, err error) {
 		}
 	}
 
-	piv_project, _ := config.Get("pivotal_project")
-	setETCD(client, "pivotal_project", piv_project)
+	pivProject, _ := config.Get("pivotal_project")
+	setETCD(client, "pivotal_project", pivProject)
 
-	piv_token, _ := config.Get("pivotal_token")
-	setETCD(client, "pivotal_token", piv_token)
+	pivToken, _ := config.Get("pivotal_token")
+	setETCD(client, "pivotal_token", pivToken)
 
-	deploy_user, _ := config.Get("deploy_user")
-	setETCD(client, "deploy_user", deploy_user)
+	deployUser, _ := config.Get("deploy_user")
+	setETCD(client, "deploy_user", deployUser)
 
-	goship_host, _ := config.Get("goship_host")
-	setETCD(client, "goship_host", goship_host)
+	goshipHost, _ := config.Get("goship_host")
+	setETCD(client, "goship_host", goshipHost)
 
 	notify, _ := config.Get("notify")
 	setETCD(client, "notify", notify)

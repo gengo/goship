@@ -168,8 +168,8 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 				repoName = filepath.Base(k.Value)
 			}
 		}
-		githubUrl := fmt.Sprintf("https://github.com/%s/%s", repoOwner, repoName)
-		proj := Project{Name: name, GitHubURL: githubUrl, RepoName: repoName, RepoOwner: repoOwner}
+		githubURL := fmt.Sprintf("https://github.com/%s/%s", repoOwner, repoName)
+		proj := Project{Name: name, GitHubURL: githubURL, RepoName: repoName, RepoOwner: repoOwner}
 		environments, err := client.Get("/projects/"+name+"/environments", false, false)
 		if err != nil {
 			return c, err
@@ -183,7 +183,6 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 			deploy := ""
 			repoPath := ""
 			for _, n := range envSettings.Node.Nodes {
-				//  TODO remove this name
 				switch filepath.Base(n.Key) {
 				case "revision":
 					revision = n.Value

@@ -25,8 +25,6 @@ var (
 )
 
 func execCmd(icmd string) {
-
-	log.Println(mcmd)
 	os.Chdir(*chefPath)
 
 	parts := strings.Fields(icmd)
