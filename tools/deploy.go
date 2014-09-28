@@ -1,11 +1,13 @@
-// #!/bin/bash
 package main
 
 // This script polls ETCD and builds a Chef deploy script.
 
 import (
+	"bufio"
 	"flag"
+	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -13,7 +15,6 @@ import (
 	"github.com/gengo/goship/lib"
 )
 
-// Variables
 var (
 	knifePath  = flag.String("s", ".chef/knife.rb", "KnifePath (.chef/knife.rb)")
 	chefPath   = flag.String("c", "/srv/http/gengo/devops-tools/daidokoro", "Chef Path (required)")
@@ -23,15 +24,44 @@ var (
 	deployEnv  = flag.String("e", "", "environment (required)")
 )
 
-func execCmd(cmd string) {
-	parts := strings.Fields(cmd)
+func execCmd(icmd string) {
+
+	log.Println(mcmd)
+	os.Chdir(*chefPath)
+
+	parts := strings.Fields(icmd)
 	head := parts[0]
 	parts = parts[1:len(parts)]
-	out, err := exec.Command(head, parts...).Output()
+
+	cmd := exec.Command(head, parts...)
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		log.Fatal("Command failed to run: ", err)
+		log.Fatal(err)
 	}
-	log.Print(out)
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		fmt.Println(scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		log.Printf("Error reading standard input: %s", err)
+	}
+	scanner = bufio.NewScanner(stderr)
+	for scanner.Scan() {
+		log.Println(scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		log.Printf("Error reading standard input: %s", err)
+	}
+	if err := cmd.Wait(); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func main() {
@@ -47,7 +77,8 @@ func main() {
 	log.Printf("Project Name: %s Environment Name: %s", *deployEnv, projectEnv.Name)
 	servers := projectEnv.Hosts
 	for _, h := range servers {
-		d := "cd " + *chefPath + " && knife solo cook -c " + *knifePath + " -i " + *pemKey + " " + *deployUser + "@" + h.URI
+		d := "knife solo cook -c " + *knifePath + " -i " + *pemKey + " " + *deployUser + "@" + h.URI
+		log.Printf("Deploying to: %s", h.URI)
 		log.Printf("Preparing Knife command: %s", d)
 		execCmd(d)
 	}
