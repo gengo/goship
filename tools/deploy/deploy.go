@@ -48,17 +48,17 @@ func execCmd(icmd string) {
 		fmt.Println(scanner.Text())
 	}
 	if err := scanner.Err(); err != nil {
-		log.Printf("Error reading standard input: %s", err)
+		log.Printf("Error reading standard output stream: %s", err)
 	}
 	scanner = bufio.NewScanner(stderr)
 	for scanner.Scan() {
 		log.Println(scanner.Text())
 	}
 	if err := scanner.Err(); err != nil {
-		log.Printf("Error reading standard input: %s", err)
+		log.Printf("Error reading standard error stream: %s", err)
 	}
 	if err := cmd.Wait(); err != nil {
-		log.Fatal(err)
+		log.Fatalf("Error waiting for Chef to complete %s", err)
 	}
 }
 
@@ -72,7 +72,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error Getting Project %s %s %s", *deployProj, *deployEnv, err)
 	}
-	log.Printf("Project Name: %s Environment Name: %s", *deployEnv, projectEnv.Name)
+	log.Printf("Deploying Project Name: %s Environment Name: %s", *deployEnv, projectEnv.Name)
 	servers := projectEnv.Hosts
 	for _, h := range servers {
 		d := "knife solo cook -c " + *knifePath + " -i " + *pemKey + " " + *deployUser + "@" + h.URI

@@ -119,7 +119,6 @@ func YAMLtoETCD(client *etcd.Client) (c goship.Config, err error) {
 func main() {
 	flag.Parse()
 	log.Printf("Reading Config file: %s Connecting to ETCD server: %s", *ConfigFile, *ETCDServer)
-	// Note the ETCD client library swallows errors connecting to etcd (worry)
 	a := etcd.NewClient([]string{*ETCDServer})
 	_, err := YAMLtoETCD(a)
 	if err != nil {
