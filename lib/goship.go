@@ -45,13 +45,13 @@ type Project struct {
 }
 
 // gitHubCommitURL takes a project and returns the GitHub URL for its latest commit hash.
-func (h *Host) GetGitHubCommitURL(p Project) string {
+func (h *Host) LatestGitHubCommitURL(p Project) string {
 	return fmt.Sprintf("%s/commit/%s", p.GitHubURL, h.LatestCommit)
 }
 
 // gitHubDiffURL takes a project and an environment and returns the GitHub diff URL
 // for the latest commit on the host compared to the latest commit on GitHub.
-func (h *Host) GetGitHubDiffURL(p Project, e Environment) string {
+func (h *Host) LatestGitHubDiffURL(p Project, e Environment) string {
 	var s string
 	if h.LatestCommit != e.LatestGitHubCommit {
 		s = fmt.Sprintf("%s/compare/%s...%s", p.GitHubURL, h.LatestCommit, e.LatestGitHubCommit)
@@ -71,7 +71,7 @@ func (e *Environment) Deployable() bool {
 }
 
 // ShortCommitHash returns a shortened version of the latest commit hash on a host.
-func (h *Host) GetShortCommitHash() string {
+func (h *Host) LatestShortCommitHash() string {
 	if len(h.LatestCommit) == 0 {
 		return ""
 	}
@@ -95,9 +95,9 @@ type ETCDInterface interface {
 	Get(string, bool, bool) (*etcd.Response, error)
 }
 
-// getProjectFromName takes a project name as a string and returns
+// ProjectFromName takes a project name as a string and returns
 // a Project by that name if it can find one.
-func GetProjectFromName(projects []Project, projectName string) (*Project, error) {
+func ProjectFromName(projects []Project, projectName string) (*Project, error) {
 	for _, project := range projects {
 		if project.Name == projectName {
 			return &project, nil
@@ -106,11 +106,11 @@ func GetProjectFromName(projects []Project, projectName string) (*Project, error
 	return nil, fmt.Errorf("No project found: %s", projectName)
 }
 
-// getEnvironmentFromName takes an environment and project name as a string and returns
+// EnvironmentFromName takes an environment and project name as a string and returns
 // an Environment by the given environment name under a project with the given
 // project name if it can find one.
-func GetEnvironmentFromName(projects []Project, projectName, environmentName string) (*Environment, error) {
-	p, err := GetProjectFromName(projects, projectName)
+func EnvironmentFromName(projects []Project, projectName, environmentName string) (*Environment, error) {
+	p, err := ProjectFromName(projects, projectName)
 	if err != nil {
 		return nil, err
 	}

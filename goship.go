@@ -148,9 +148,9 @@ func retrieveCommits(project goship.Project, deployUser string) goship.Project {
 		e.IsDeployable = e.Deployable()
 		project.Environments[i] = e
 		for j, host := range e.Hosts {
-			host.GitHubCommitURL = host.GetGitHubCommitURL(project)
-			host.GitHubDiffURL = host.GetGitHubDiffURL(project, e)
-			host.ShortCommitHash = host.GetShortCommitHash()
+			host.GitHubCommitURL = host.LatestGitHubCommitURL(project)
+			host.GitHubDiffURL = host.LatestGitHubDiffURL(project, e)
+			host.ShortCommitHash = host.LatestShortCommitHash()
 			project.Environments[i].Hosts[j] = host
 		}
 	}
@@ -273,7 +273,7 @@ func appendDeployOutput(env string, output string, timestamp time.Time) {
 // getDeployCommand returns the deployment command for a given
 // environment as a string slice that has been split on spaces.
 func getDeployCommand(projects []goship.Project, projectName, environmentName string) (s []string, err error) {
-	e, err := goship.GetEnvironmentFromName(projects, projectName, environmentName)
+	e, err := goship.EnvironmentFromName(projects, projectName, environmentName)
 	if err != nil {
 		return s, err
 	}
@@ -344,7 +344,7 @@ func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	proj, err := goship.GetProjectFromName(c.Projects, projName)
+	proj, err := goship.ProjectFromName(c.Projects, projName)
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

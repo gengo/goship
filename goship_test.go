@@ -40,7 +40,7 @@ var githubDiffURLTests = []struct {
 
 func TestGitHubDiffURL(t *testing.T) {
 	for _, tt := range githubDiffURLTests {
-		if got := tt.h.GetGitHubDiffURL(tt.p, tt.e); got != tt.want {
+		if got := tt.h.LatestGitHubDiffURL(tt.p, tt.e); got != tt.want {
 			t.Errorf("gitHubDiffURL = %s, want %s", got, tt.want)
 		}
 	}
@@ -117,17 +117,17 @@ func TestFormatTime(t *testing.T) {
 	}
 }
 
-func TestGetProjectFromName(t *testing.T) {
+func TestProjectFromName(t *testing.T) {
 	var want = goship.Project{Name: "TestProject"}
 	projects := []goship.Project{want}
-	got, err := goship.GetProjectFromName(projects, "TestProject")
+	got, err := goship.ProjectFromName(projects, "TestProject")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(got, &want) {
 		t.Errorf("goship.GetProjectFromName = %v, want %v", got, want)
 	}
-	got, err = goship.GetProjectFromName(projects, "BadProject")
+	got, err = goship.ProjectFromName(projects, "BadProject")
 	if err == nil {
 		t.Errorf("goship.GetProjectFromName error case did not error", got, nil)
 	}
@@ -139,16 +139,16 @@ func TestGetEnvironmentFromName(t *testing.T) {
 		envs = []goship.Environment{want}
 	)
 	projects := []goship.Project{goship.Project{Name: "TestProject", Environments: envs}}
-	got, err := goship.GetEnvironmentFromName(projects, "TestProject", "TestEnvironment")
+	got, err := goship.EnvironmentFromName(projects, "TestProject", "TestEnvironment")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(got, &want) {
-		t.Errorf("goship.GetEnvironmentFromName = %v, want %v", got, want)
+		t.Errorf("goship.EnvironmentFromName = %v, want %v", got, want)
 	}
-	got, err = goship.GetEnvironmentFromName(projects, "BadProject", "BadEnvironment")
+	got, err = goship.EnvironmentFromName(projects, "BadProject", "BadEnvironment")
 	if err == nil {
-		t.Errorf("goship.GetEnvironmentFromName error case did not error")
+		t.Errorf("goship.EnvironmentFromName error case did not error")
 	}
 }
 

@@ -66,17 +66,17 @@ func main() {
 	flag.Parse()
 	c, err := goship.ParseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
 	if err != nil {
-		log.Fatalf("Error Parsing ETCD: %s", err)
+		log.Fatalf("Error parsing ETCD: %s", err)
 	}
-	projectEnv, err := goship.GetEnvironmentFromName(c.Projects, *deployProj, *deployEnv)
+	projectEnv, err := goship.EnvironmentFromName(c.Projects, *deployProj, *deployEnv)
 	if err != nil {
-		log.Fatalf("Error Getting Project %s %s %s", *deployProj, *deployEnv, err)
+		log.Fatalf("Error getting project %s %s %s", *deployProj, *deployEnv, err)
 	}
-	log.Printf("Deploying Project Name: %s Environment Name: %s", *deployEnv, projectEnv.Name)
+	log.Printf("Deploying project name: %s environment Name: %s", *deployEnv, projectEnv.Name)
 	servers := projectEnv.Hosts
 	for _, h := range servers {
 		d := "knife solo cook -c " + *knifePath + " -i " + *pemKey + " " + *deployUser + "@" + h.URI
-		log.Printf("Deploying to: %s", h.URI)
+		log.Printf("Deploying to server: %s", h.URI)
 		log.Printf("Preparing Knife command: %s", d)
 		execCmd(d)
 	}
