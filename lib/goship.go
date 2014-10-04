@@ -219,5 +219,5 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 	c.Notify = notify
 	c.Pivotal = piv
 
-	return c, nil
+	return c, err
 }
