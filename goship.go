@@ -640,7 +640,7 @@ func PostPivotalComment(id string, m string, piv *goship.PivotalConfiguration) (
 	}
 	req.URL.RawQuery = p.Encode()
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("X-TrackerToken", piv.token)
+	req.Header.Add("X-TrackerToken", piv.Token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Println("ERROR: could not make put request to Pivotal: ", err)
