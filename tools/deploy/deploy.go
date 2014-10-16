@@ -55,7 +55,9 @@ func updateChefRepo(deployUser string) {
 	} else {
 		log.Printf("Chef is not up to date: \n %s does not equal %s", localHash, remoteHash)
 		log.Println("Updating devops-tools")
-		s := "git --git-dir=" + *chefRepo + "/.git pull origin master"
+		os.Setenv("GIT_SSH", "/tmp/private_code/wrap-ssh4git.sh")
+		gitcmd := "/usr/bin/git --git-dir=" + *chefRepo + ".git pull origin master"
+		s := gitcmd
 		_, err := execCmd(s)
 		if err != nil {
 			log.Fatal("ERROR:  Failed to pull latest devops_tools: ", err)
