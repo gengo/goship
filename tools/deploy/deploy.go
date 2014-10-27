@@ -27,8 +27,17 @@ var (
 	deployEnv  = flag.String("e", "", "environment (required)")
 	pullOnly   = flag.Bool("o", false, "chef update only (default false)")
 	skipUpdate = flag.Bool("m", false, "skip the chef update (default false)")
-	bootstrap  = flag.Bool("b", false, "bootstrap a servers ( default false)")
+	bootstrap  = flag.Bool("b", false, "bootstrap a server ( default false)")
+	confFile   = flag.String("e", "/etc/goship/conf/goship.yaml", "global conf settings ( default /etc/goship/conf/goship.yaml")
 )
+
+// type Conf struct{}
+
+// func (h Conf) loadConfFile() {
+
+// 	flag.Parse()
+
+//}
 
 // gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
 const (
@@ -125,11 +134,12 @@ func main() {
 		}
 		log.Printf("Deploying project name: %s environment Name: %s", *deployEnv, projectEnv.Name)
 		servers := projectEnv.Hosts
+		var d string
 		for _, h := range servers {
 			if *bootstrap == true {
-				d := "knife solo bootstrap -c " + *knifePath + " -i " + *pemKey + " --no-host-key-verify " + *deployUser + "@" + h.URI
+				d = "knife solo bootstrap -c " + *knifePath + " -i " + *pemKey + " --no-host-key-verify " + *deployUser + "@" + h.URI
 			} else {
-				d := "knife solo cook -c " + *knifePath + " -i " + *pemKey + " --no-host-key-verify " + *deployUser + "@" + h.URI
+				d = "knife solo cook -c " + *knifePath + " -i " + *pemKey + " --no-host-key-verify " + *deployUser + "@" + h.URI
 			}
 			log.Printf("Deploying to server: %s", h.URI)
 			log.Printf("Preparing Knife command: %s", d)

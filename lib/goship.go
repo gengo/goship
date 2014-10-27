@@ -3,7 +3,6 @@ package goship
 import (
 	"fmt"
 	"path/filepath"
-	"sort"
 
 	"github.com/coreos/go-etcd/etcd"
 )
@@ -218,7 +217,6 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 		}
 		proj.Environments = allEnvironments
 		allProjects = append(allProjects, proj)
-		sort.Sort(ByName(allProjects))
 	}
 	piv := new(PivotalConfiguration)
 	piv.Project = pivotalProject
