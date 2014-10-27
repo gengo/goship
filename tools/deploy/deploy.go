@@ -1,6 +1,6 @@
 package main
 
-// This script polls ETCD and builds a Chef deploy script.
+// This script polls ETCD and executes Chef knife solo cook.
 
 import (
 	"bufio"
@@ -19,14 +19,15 @@ import (
 
 var (
 	knifePath  = flag.String("s", ".chef/knife.rb", "KnifePath (.chef/knife.rb)")
-	chefRepo   = flag.String("r", "/srv/http/gengo/devops-tools/", "Chef Repo (/srv/http/gengo/devops-tools/)")
-	chefPath   = flag.String("c", "/srv/http/gengo/devops-tools/daidokoro", "Chef Path (/srv/http/gengo/devops-tools/daidokoro)")
-	pemKey     = flag.String("k", "/home/deployer/.ssh/dszydlowski.pem", "PEM Key (default /home/deployer/.ssh/dszydlowski.pem)")
+	chefRepo   = flag.String("r", "", "Chef Repo (required )")
+	chefPath   = flag.String("c", "", "Chef Path (required)")
+	pemKey     = flag.String("k", "/home/deployer/.ssh/chef.pem", "PEM Key (default /home/deployer/.ssh/chef.pem)")
 	deployUser = flag.String("u", "ubuntu", "deploy user (default /ubuntu)")
 	deployProj = flag.String("p", "", "project (required)")
 	deployEnv  = flag.String("e", "", "environment (required)")
 	pullOnly   = flag.Bool("o", false, "chef update only (default false)")
 	skipUpdate = flag.Bool("m", false, "skip the chef update (default false)")
+	bootstrap  = flag.Bool("b", false, "bootstrap a servers ( default false)")
 )
 
 // gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
@@ -125,7 +126,11 @@ func main() {
 		log.Printf("Deploying project name: %s environment Name: %s", *deployEnv, projectEnv.Name)
 		servers := projectEnv.Hosts
 		for _, h := range servers {
-			d := "knife solo cook -c " + *knifePath + " -i " + *pemKey + " --no-host-key-verify " + *deployUser + "@" + h.URI
+			if *bootstrap == true {
+				d := "knife solo bootstrap -c " + *knifePath + " -i " + *pemKey + " --no-host-key-verify " + *deployUser + "@" + h.URI
+			} else {
+				d := "knife solo cook -c " + *knifePath + " -i " + *pemKey + " --no-host-key-verify " + *deployUser + "@" + h.URI
+			}
 			log.Printf("Deploying to server: %s", h.URI)
 			log.Printf("Preparing Knife command: %s", d)
 			_, err := execCmd(d)

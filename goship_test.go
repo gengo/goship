@@ -84,7 +84,7 @@ func TestCanParseETCD(t *testing.T) {
 
 	got, err := goship.ParseETCD(&MockEtcdClient{})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Can't parse %s %s", t, err)
 	}
 	compareStrings("deploy user", got.DeployUser, "test_user", t)
 	compareStrings("token", got.Pivotal.Token, "XXXXXX", t)
@@ -162,8 +162,8 @@ func (*MockEtcdClient) Get(s string, t bool, x bool) (*etcd.Response, error) {
 		Key: "projects", Value: "",
 		Nodes: etcd.Nodes{
 			{Key: "deploy_user", Value: "test_user", Dir: false},
-			{Key: "pivotal_project", Value: "111111", Dir: false},
 			{Key: "token", Value: "XXXXXX", Dir: false},
+			{Key: "pivotal_project", Value: "111111", Dir: false},
 		}, Dir: true,
 	}, EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
 	}

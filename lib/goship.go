@@ -3,6 +3,7 @@ package goship
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 
 	"github.com/coreos/go-etcd/etcd"
 )
@@ -43,6 +44,13 @@ type Project struct {
 	RepoOwner    string
 	Environments []Environment
 }
+
+// Sort interface for sorting projects
+type ByName []Project
+
+func (slice ByName) Len() int           { return len(slice) }
+func (slice ByName) Less(i, j int) bool { return slice[i].Name < slice[j].Name }
+func (slice ByName) Swap(i, j int)      { slice[i], slice[j] = slice[j], slice[i] }
 
 // gitHubCommitURL takes a project and returns the GitHub URL for its latest commit hash.
 func (h *Host) LatestGitHubCommitURL(p Project) string {
@@ -210,6 +218,7 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 		}
 		proj.Environments = allEnvironments
 		allProjects = append(allProjects, proj)
+		sort.Sort(ByName(allProjects))
 	}
 	piv := new(PivotalConfiguration)
 	piv.Project = pivotalProject

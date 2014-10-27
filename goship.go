@@ -319,7 +319,7 @@ func DeployOutputHandler(w http.ResponseWriter, r *http.Request, env string, for
 	w.Write(b)
 }
 
-func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
+func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string, environment goship.Environment) {
 	d, err := readEntries(env)
 	if err != nil {
 		log.Println("Error: ", err)
@@ -334,10 +334,10 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
 		d[i].FormattedTime = formatTime(d[i].Time)
 	}
 	sort.Sort(ByTime(d))
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d, "Env": env})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d, "Environment": environment})
 }
 
-func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
+func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string, g goship.Environment) {
 	c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
 	if err != nil {
 		log.Println("ERROR: ", err)
@@ -688,14 +688,31 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 
 var validPathWithEnv = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
 
-func extractHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+func extractHandler(fn func(http.ResponseWriter, *http.Request, string, goship.Environment)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		m := validPathWithEnv.FindStringSubmatch(r.URL.Path)
 		if m == nil {
 			http.NotFound(w, r)
 			return
 		}
-		fn(w, r, m[2])
+		c, err := goship.ParseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
+		if err != nil {
+			log.Println("ERROR: ", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// get project name and env from url
+		a := strings.Split(m[2], "-")
+		l := len(a)
+		environmentName := a[l-1]
+		projectName := strings.Join(a[0:l-1], "-")
+		e, err := goship.EnvironmentFromName(c.Projects, projectName, environmentName)
+		if err != nil {
+			log.Println("ERROR: ", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		fn(w, r, m[2], *e)
 	}
 }
 
