@@ -337,16 +337,16 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string, enviro
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d, "Environment": environment})
 }
 
-func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string, g goship.Environment) {
+func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
 	c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
 	if err != nil {
-		log.Println("ERROR: ", err)
+		log.Println("ERROR: Parsing etc ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	proj, err := goship.ProjectFromName(c.Projects, projName)
 	if err != nil {
-		log.Println("ERROR: ", err)
+		log.Println("ERROR:  Getting Project from name", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -355,7 +355,7 @@ func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string,
 
 	j, err := json.Marshal(p)
 	if err != nil {
-		log.Println("ERROR: ", err)
+		log.Println("ERROR: Retrieving Commits ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -689,7 +689,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 
 var validPathWithEnv = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
 
-func extractHandler(fn func(http.ResponseWriter, *http.Request, string, goship.Environment)) http.HandlerFunc {
+func extractDeployLogHandler(fn func(http.ResponseWriter, *http.Request, string, goship.Environment)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		m := validPathWithEnv.FindStringSubmatch(r.URL.Path)
 		if m == nil {
@@ -706,14 +706,30 @@ func extractHandler(fn func(http.ResponseWriter, *http.Request, string, goship.E
 		a := strings.Split(m[2], "-")
 		l := len(a)
 		environmentName := a[l-1]
-		projectName := strings.Join(a[0:l-1], "-")
+		var projectName string
+		if m[1] == "commits" {
+			projectName = m[2]
+		} else {
+			projectName = strings.Join(a[0:l-1], "-")
+		}
 		e, err := goship.EnvironmentFromName(c.Projects, projectName, environmentName)
 		if err != nil {
-			log.Println("ERROR: ", err)
+			log.Println("ERROR: Can't get environment from name", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		fn(w, r, m[2], *e)
+	}
+}
+
+func extractCommitHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		m := validPathWithEnv.FindStringSubmatch(r.URL.Path)
+		if m == nil {
+			http.NotFound(w, r)
+			return
+		}
+		fn(w, r, m[2])
 	}
 }
 
@@ -743,9 +759,9 @@ func main() {
 	})
 	http.Handle("/web_push", websocket.Handler(websocketHandler))
 	http.HandleFunc("/deploy", DeployPage)
-	http.HandleFunc("/deployLog/", extractHandler(DeployLogHandler))
+	http.HandleFunc("/deployLog/", extractDeployLogHandler(DeployLogHandler))
 	http.HandleFunc("/output/", extractOutputHandler(DeployOutputHandler))
-	http.HandleFunc("/commits/", extractHandler(ProjCommitsHandler))
+	http.HandleFunc("/commits/", extractCommitHandler(ProjCommitsHandler))
 	http.HandleFunc("/deploy_handler", DeployHandler)
 	fmt.Printf("Running on %s\n", *bindAddress)
 	log.Fatal(http.ListenAndServe(*bindAddress, nil))

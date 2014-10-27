@@ -111,7 +111,7 @@ func ProjectFromName(projects []Project, projectName string) (*Project, error) {
 			return &project, nil
 		}
 	}
-	return nil, fmt.Errorf("Getting Project by Name:No project found: %s", projectName)
+	return nil, fmt.Errorf("No project found: %s", projectName)
 }
 
 // EnvironmentFromName takes an environment and project name as a string and returns
