@@ -131,6 +131,7 @@ func EnvironmentFromName(projects []Project, projectName, environmentName string
 
 // connects to ETCD and returns the appropriate structs and strings.
 func ParseETCD(client ETCDInterface) (c Config, err error) {
+	fmt.Println("hello")
 	baseInfo, err := client.Get("/", false, false)
 	if err != nil {
 		return c, err
