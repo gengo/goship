@@ -217,6 +217,7 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 		}
 		proj.Environments = allEnvironments
 		allProjects = append(allProjects, proj)
+		fmt.Printf("PROJECTS: %s", allProjects)
 	}
 	piv := new(PivotalConfiguration)
 	piv.Project = pivotalProject
