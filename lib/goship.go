@@ -2,6 +2,7 @@ package goship
 
 import (
 	"fmt"
+	"log"
 	"path/filepath"
 
 	"github.com/coreos/go-etcd/etcd"
@@ -131,7 +132,7 @@ func EnvironmentFromName(projects []Project, projectName, environmentName string
 
 // connects to ETCD and returns the appropriate structs and strings.
 func ParseETCD(client ETCDInterface) (c Config, err error) {
-	fmt.Println("hello")
+	log.Println("Parsinf ETCD")
 	baseInfo, err := client.Get("/", false, false)
 	if err != nil {
 		return c, err
@@ -218,7 +219,7 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 		}
 		proj.Environments = allEnvironments
 		allProjects = append(allProjects, proj)
-		fmt.Printf("PROJECTS: %s", allProjects)
+		log.Printf("PROJECTS: %s", allProjects)
 	}
 	piv := new(PivotalConfiguration)
 	piv.Project = pivotalProject
