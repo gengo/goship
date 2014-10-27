@@ -46,11 +46,11 @@ type Project struct {
 }
 
 // Sort interface for sorting projects
-type ByName []Project
+//type ByName []Project
 
-func (slice ByName) Len() int           { return len(slice) }
-func (slice ByName) Less(i, j int) bool { return slice[i].Name < slice[j].Name }
-func (slice ByName) Swap(i, j int)      { slice[i], slice[j] = slice[j], slice[i] }
+//func (slice ByName) Len() int           { return len(slice) }
+//func (slice ByName) Less(i, j int) bool { return slice[i].Name < slice[j].Name }
+//func (slice ByName) Swap(i, j int)      { slice[i], slice[j] = slice[j], slice[i] }
 
 // gitHubCommitURL takes a project and returns the GitHub URL for its latest commit hash.
 func (h *Host) LatestGitHubCommitURL(p Project) string {

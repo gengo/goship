@@ -677,6 +677,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	log.Printf(":::::%s", c)
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
 		log.Println("ERROR: ", err)
@@ -730,6 +731,7 @@ func extractOutputHandler(fn func(http.ResponseWriter, *http.Request, string, st
 }
 
 func main() {
+	log.Printf("Starting")
 	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
 		log.Fatal("could not create data dir: ", err)
 	}
