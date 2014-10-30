@@ -188,6 +188,7 @@ func readEntries(env string) ([]DeployLogEntry, error) {
 		return d, err
 	}
 	if len(b) == 0 {
+		log.Printf("No deploy logs found for: %s", env)
 		return []DeployLogEntry{}, nil
 	}
 	err = json.Unmarshal(b, &d)
@@ -319,8 +320,8 @@ func DeployOutputHandler(w http.ResponseWriter, r *http.Request, env string, for
 	w.Write(b)
 }
 
-func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string, environment goship.Environment) {
-	d, err := readEntries(env)
+func DeployLogHandler(w http.ResponseWriter, r *http.Request, full_env string, environment goship.Environment) {
+	d, err := readEntries(full_env)
 	if err != nil {
 		log.Println("Error: ", err)
 	}
@@ -334,7 +335,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string, enviro
 		d[i].FormattedTime = formatTime(d[i].Time)
 	}
 	sort.Sort(ByTime(d))
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d, "Environment": environment})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d, "Env": full_env, "Environment": environment})
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
@@ -677,7 +678,6 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	log.Printf(":::::%s", c)
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
 		log.Println("ERROR: ", err)
@@ -747,7 +747,7 @@ func extractOutputHandler(fn func(http.ResponseWriter, *http.Request, string, st
 }
 
 func main() {
-	log.Printf("Starting")
+	log.Printf("Starting Goship")
 	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
 		log.Fatal("could not create data dir: ", err)
 	}
