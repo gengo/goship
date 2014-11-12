@@ -222,7 +222,6 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 	piv := new(PivotalConfiguration)
 	piv.Project = pivotalProject
 	piv.Token = token
-	sort.Sort(ByName(allProjects))
 	c.Projects = allProjects
 	c.DeployUser = deployUser
 	c.Notify = notify

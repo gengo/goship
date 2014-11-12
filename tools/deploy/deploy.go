@@ -28,16 +28,7 @@ var (
 	pullOnly   = flag.Bool("o", false, "chef update only (default false)")
 	skipUpdate = flag.Bool("m", false, "skip the chef update (default false)")
 	bootstrap  = flag.Bool("b", false, "bootstrap a server ( default false)")
-	confFile   = flag.String("e", "/etc/goship/conf/goship.yaml", "global conf settings ( default /etc/goship/conf/goship.yaml")
 )
-
-// type Conf struct{}
-
-// func (h Conf) loadConfFile() {
-
-// 	flag.Parse()
-
-//}
 
 // gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
 const (
@@ -66,7 +57,7 @@ func updateChefRepo(deployUser string) {
 		log.Printf("Chef is not up to date: \n %s does not equal %s", localHash, remoteHash)
 		log.Println("Updating devops-tools")
 		os.Setenv("GIT_SSH", "/tmp/private_code/wrap-ssh4git.sh")
-		gitcmd := "/usr/bin/git --git-dir=" + *chefRepo + ".git pull origin master"
+		gitcmd := "/usr/bin/git --git-dir=" + *chefRepo + "/.git --work-tree=" + *chefRepo + " pull origin master"
 		s := gitcmd
 		_, err := execCmd(s)
 		if err != nil {
@@ -151,3 +142,4 @@ func main() {
 	}
 
 }
+go
