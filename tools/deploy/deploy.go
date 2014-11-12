@@ -48,7 +48,7 @@ func checkMissingConf(s, v, f string) {
 	}
 }
 
-func parseConfig() (c config, err error) {
+func parseConfig() (c config) {
 	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
 		log.Fatalf("Fatal: Can't parse conf file %s", *configFile)
