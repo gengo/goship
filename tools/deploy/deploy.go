@@ -21,7 +21,7 @@ import (
 var (
 	deployProj = flag.String("p", "", "project (required)")
 	deployEnv  = flag.String("e", "", "environment (required)")
-	configFile = flag.String("g", "./deploy.yaml", "shared config setting ( default ./deploy.yaml)")
+	configFile = flag.String("g", "/tmp/deploy.yaml", "shared config setting ( default ./deploy.yaml)")
 	pullOnly   = flag.Bool("o", false, "chef update only (default false)")
 	skipUpdate = flag.Bool("m", false, "skip the chef update (default false)")
 	bootstrap  = flag.Bool("b", false, "bootstrap a server ( default false)")
@@ -48,7 +48,7 @@ func checkMissingConf(s, v, f string) {
 	}
 }
 
-func parseConfig() (c config) {
+func parseConfig() (c config, err error) {
 	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
 		log.Fatalf("Fatal: Can't parse conf file %s", *configFile)
