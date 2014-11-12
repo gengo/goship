@@ -21,7 +21,7 @@ import (
 var (
 	deployProj = flag.String("p", "", "project (required)")
 	deployEnv  = flag.String("e", "", "environment (required)")
-	configFile = flag.String("g", "/tmp/deploy.yaml", "shared config setting ( default ./deploy.yaml)")
+	configFile = flag.String("g", "/tmp/deploy.yaml", "shared config setting ( default /tmp/deploy.yaml)")
 	pullOnly   = flag.Bool("o", false, "chef update only (default false)")
 	skipUpdate = flag.Bool("m", false, "skip the chef update (default false)")
 	bootstrap  = flag.Bool("b", false, "bootstrap a server ( default false)")
@@ -53,6 +53,8 @@ func parseConfig() (c config) {
 	if err != nil {
 		log.Fatalf("Fatal: Can't parse conf file %s", *configFile)
 	}
+	c.chefRepo, err = config.Get("chef_repo")
+	checkMissingConf(c.chefRepo, "chef_repo", *configFile)
 	c.chefPath, err = config.Get("chef_path")
 	checkMissingConf(c.chefPath, "chef_path", *configFile)
 	c.knifePath, _ = config.Get("knife_path")
