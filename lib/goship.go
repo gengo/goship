@@ -3,7 +3,6 @@ package goship
 import (
 	"fmt"
 	"path/filepath"
-	"sort"
 
 	"github.com/coreos/go-etcd/etcd"
 )

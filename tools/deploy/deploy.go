@@ -15,16 +15,13 @@ import (
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gengo/goship/lib"
 	"github.com/google/go-github/github"
+	"github.com/kylelemons/go-gypsy/yaml"
 )
 
 var (
-	knifePath  = flag.String("s", ".chef/knife.rb", "KnifePath (.chef/knife.rb)")
-	chefRepo   = flag.String("r", "", "Chef Repo (required )")
-	chefPath   = flag.String("c", "", "Chef Path (required)")
-	pemKey     = flag.String("k", "/home/deployer/.ssh/chef.pem", "PEM Key (default /home/deployer/.ssh/chef.pem)")
-	deployUser = flag.String("u", "ubuntu", "deploy user (default /ubuntu)")
 	deployProj = flag.String("p", "", "project (required)")
 	deployEnv  = flag.String("e", "", "environment (required)")
+	configFile = flag.String("g", "./deploy.yaml", "shared config setting ( default ./deploy.yaml)")
 	pullOnly   = flag.Bool("o", false, "chef update only (default false)")
 	skipUpdate = flag.Bool("m", false, "skip the chef update (default false)")
 	bootstrap  = flag.Bool("b", false, "bootstrap a server ( default false)")
@@ -36,16 +33,47 @@ const (
 	gitHubAPITokenEnvVar  = "GITHUB_API_TOKEN"
 )
 
+// config contains the information from config.yml.
+type config struct {
+	chefRepo   string
+	chefPath   string
+	knifePath  string
+	pemKey     string
+	deployUser string
+}
+
+func checkMissingConf(s, v, f string) {
+	if len(s) < 1 {
+		log.Fatalf("Warning: Missing %s in config file [%s]", v, f)
+	}
+}
+
+func parseConfig() (c config, err error) {
+	config, err := yaml.ReadFile(*configFile)
+	if err != nil {
+		log.Fatalf("Fatal: Can't parse conf file %s", *configFile)
+	}
+	c.chefPath, err = config.Get("chef_path")
+	checkMissingConf(c.chefPath, "chef_path", *configFile)
+	c.knifePath, _ = config.Get("knife_path")
+	checkMissingConf(c.knifePath, "knife_path", *configFile)
+	c.pemKey, err = config.Get("pem_key")
+	checkMissingConf(c.pemKey, "pem_key", *configFile)
+	c.deployUser, err = config.Get("deploy_user")
+	checkMissingConf(c.deployUser, "deploy_user", *configFile)
+	return c
+}
+
 // updateChefRepo ensures the lates chef cookbooks are pulled before deploying.
 // Checks github first and ignores pull if already up to date.
-func updateChefRepo(deployUser string) {
+func updateChefRepo(conf config) {
 	githubToken := os.Getenv(gitHubAPITokenEnvVar)
 	t := &oauth.Transport{
 		Token: &oauth.Token{AccessToken: githubToken},
 	}
 	client := github.NewClient(t.Client())
-	s := "git --git-dir=" + *chefRepo + "/.git rev-parse HEAD"
-	localHash, _ := execCmd(s)
+	s := "git --git-dir=" + conf.chefRepo + "/.git rev-parse HEAD"
+	localHash, _ := execCmd(s, conf)
 	commits, _, err := client.Repositories.ListCommits("Gengo", "devops-tools", nil)
 	if err != nil {
 		log.Fatal("ERROR:  failed to get commits from GitHub: Please try again later ", err)
@@ -57,9 +85,9 @@ func updateChefRepo(deployUser string) {
 		log.Printf("Chef is not up to date: \n %s does not equal %s", localHash, remoteHash)
 		log.Println("Updating devops-tools")
 		os.Setenv("GIT_SSH", "/tmp/private_code/wrap-ssh4git.sh")
-		gitcmd := "/usr/bin/git --git-dir=" + *chefRepo + "/.git --work-tree=" + *chefRepo + " pull origin master"
+		gitcmd := "/usr/bin/git --git-dir=" + conf.chefRepo + "/.git --work-tree=" + conf.chefRepo + " pull origin master"
 		s := gitcmd
-		_, err := execCmd(s)
+		_, err := execCmd(s, conf)
 		if err != nil {
 			log.Fatal("ERROR:  Failed to pull latest devops_tools: ", err)
 		}
@@ -67,8 +95,8 @@ func updateChefRepo(deployUser string) {
 	}
 }
 
-func execCmd(icmd string) (output string, err error) {
-	os.Chdir(*chefPath)
+func execCmd(icmd string, conf config) (output string, err error) {
+	os.Chdir(conf.chefPath)
 
 	parts := strings.Fields(icmd)
 	head := parts[0]
@@ -111,8 +139,9 @@ func execCmd(icmd string) (output string, err error) {
 
 func main() {
 	flag.Parse()
+	conf := parseConfig()
 	if *skipUpdate == false {
-		updateChefRepo(*deployUser)
+		updateChefRepo(conf)
 	}
 	if *pullOnly == false {
 		c, err := goship.ParseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
@@ -128,13 +157,13 @@ func main() {
 		var d string
 		for _, h := range servers {
 			if *bootstrap == true {
-				d = "knife solo bootstrap -c " + *knifePath + " -i " + *pemKey + " --no-host-key-verify " + *deployUser + "@" + h.URI
+				d = "knife solo bootstrap -c " + conf.knifePath + " -i " + conf.pemKey + " --no-host-key-verify " + conf.deployUser + "@" + h.URI
 			} else {
-				d = "knife solo cook -c " + *knifePath + " -i " + *pemKey + " --no-host-key-verify " + *deployUser + "@" + h.URI
+				d = "knife solo cook -c " + conf.knifePath + " -i " + conf.pemKey + " --no-host-key-verify " + conf.deployUser + "@" + h.URI
 			}
 			log.Printf("Deploying to server: %s", h.URI)
 			log.Printf("Preparing Knife command: %s", d)
-			_, err := execCmd(d)
+			_, err := execCmd(d, conf)
 			if err != nil {
 				log.Fatalf("Error Executing command %s", err)
 			}
