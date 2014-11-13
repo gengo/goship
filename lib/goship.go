@@ -45,11 +45,11 @@ type Project struct {
 }
 
 // Sort interface for sorting projects
-type ByName []Project
+//type ByName []Project
 
-func (slice ByName) Len() int           { return len(slice) }
-func (slice ByName) Less(i, j int) bool { return slice[i].Name < slice[j].Name }
-func (slice ByName) Swap(i, j int)      { slice[i], slice[j] = slice[j], slice[i] }
+//func (slice ByName) Len() int           { return len(slice) }
+//func (slice ByName) Less(i, j int) bool { return slice[i].Name < slice[j].Name }
+//func (slice ByName) Swap(i, j int)      { slice[i], slice[j] = slice[j], slice[i] }
 
 // gitHubCommitURL takes a project and returns the GitHub URL for its latest commit hash.
 func (h *Host) LatestGitHubCommitURL(p Project) string {
@@ -184,6 +184,9 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 		allEnvironments := []Environment{}
 		for _, e := range environments.Node.Nodes {
 			envSettings, err := client.Get("/projects/"+name+"/environments/"+filepath.Base(e.Key), false, false)
+			if err != nil {
+				return c, err
+			}
 			envName := filepath.Base(e.Key)
 			revision := "head"
 			branch := "master"
@@ -214,6 +217,10 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 			env := Environment{Name: envName, Deploy: deploy, RepoPath: repoPath, Branch: branch, Revision: revision}
 			env.Hosts = allHosts
 			allEnvironments = append(allEnvironments, env)
+		}
+		if err != nil {
+			fmt.Printf("Skipping Project: %s", err)
+			continue
 		}
 		proj.Environments = allEnvironments
 		allProjects = append(allProjects, proj)

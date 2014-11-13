@@ -671,6 +671,13 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "BindAddress": bindAddress, "RepoOwner": repo_owner, "RepoName": repo_name, "ToRevision": toRevision, "FromRevision": fromRevision})
 }
 
+// Sort interface for sorting projects
+type ByName []goship.Project
+
+func (slice ByName) Len() int           { return len(slice) }
+func (slice ByName) Less(i, j int) bool { return slice[i].Name < slice[j].Name }
+func (slice ByName) Swap(i, j int)      { slice[i], slice[j] = slice[j], slice[i] }
+
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	c, err := goship.ParseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
 	if err != nil {
@@ -685,7 +692,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// TODO: why does this work on some env and not another
-	// sort.Sort(goship.ByName(c.Projects))
+	sort.Sort(ByName(c.Projects))
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "Page": "home"})
 }
 
