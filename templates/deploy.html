@@ -28,6 +28,8 @@
       var to_revision = {{.ToRevision}};
       var $main = $(".main");
       var $scrollToggleBtn = $('#scroll-toggle-btn');
+      var scrollBtnStartText = 'Start auto scroll';
+      var scrollBtnStopText = 'Stop auto scroll';
 
       ws.onopen = function () {
         $.post('deploy_handler', { project: project, repo_owner: repo_owner, repo_name: repo_name, from_revision: from_revision, to_revision: to_revision, environment: environment, user: user});
@@ -47,15 +49,25 @@
       }
       startAutoScroll();
 
-      $scrollToggleBtn.click(function(){
+      $scrollToggleBtn.click(function(e) {
         if ($scrollToggleBtn.hasClass('stopped'))
         {
-          $scrollToggleBtn.removeClass('stopped').text('Stop auto scroll');
+          $scrollToggleBtn.removeClass('stopped').text(scrollBtnStopText);
           startAutoScroll();
         }
         else {
-          $scrollToggleBtn.addClass('stopped').text('Start auto scroll');
+          $scrollToggleBtn.addClass('stopped').text();
           clearInterval(scrollInterval);
+          scrollInterval = null;
+        }
+      });
+
+      var mousewheelevent = 'onwheel' in document ? 'wheel' : 'onmousewheel' in document ? 'mousewheel' : 'DOMMouseScroll';
+      $(document).on(mousewheelevent, function(e) {
+        if (scrollInterval) {
+          $scrollToggleBtn.addClass('stopped').text(scrollBtnStartText);
+          clearInterval(scrollInterval);
+          scrollInterval = null;
         }
       });
     });
