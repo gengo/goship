@@ -144,11 +144,11 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 		case "deploy_user":
 			deployUser = b.Value
 		case "pivotal_project":
-			pivotalProject = filepath.Base(b.Value)
+			pivotalProject = b.Value
 		case "token":
-			token = filepath.Base(b.Value)
+			token = b.Value
 		case "notify":
-			notify = filepath.Base(b.Value)
+			notify = b.Value
 		}
 	}
 
