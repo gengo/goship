@@ -40,6 +40,7 @@ type config struct {
 	knifePath  string
 	pemKey     string
 	deployUser string
+        etcdServer string
 }
 
 func checkMissingConf(s, v, f string) {
@@ -57,12 +58,16 @@ func parseConfig() (c config) {
 	checkMissingConf(c.chefRepo, "chef_repo", *configFile)
 	c.chefPath, err = config.Get("chef_path")
 	checkMissingConf(c.chefPath, "chef_path", *configFile)
-	c.knifePath, _ = config.Get("knife_path")
+	c.knifePath, err = config.Get("knife_path")
 	checkMissingConf(c.knifePath, "knife_path", *configFile)
 	c.pemKey, err = config.Get("pem_key")
 	checkMissingConf(c.pemKey, "pem_key", *configFile)
 	c.deployUser, err = config.Get("deploy_user")
 	checkMissingConf(c.deployUser, "deploy_user", *configFile)
+        c.etcdServer, err = config.Get("etcd_server")
+        if len(c.etcdServer) < 1 {
+                c.etcdServer = "http://127.0.0.1:4001"
+        }
 	return c
 }
 
@@ -146,7 +151,7 @@ func main() {
 		updateChefRepo(conf)
 	}
 	if *pullOnly == false {
-		c, err := goship.ParseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
+		c, err := goship.ParseETCD(etcd.NewClient([]string{conf.etcdServer}))
 		if err != nil {
 			log.Fatalf("Error parsing ETCD: %s", err)
 		}
