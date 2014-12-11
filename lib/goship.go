@@ -130,7 +130,7 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 	}
 	deployUser := ""
 	pivotalProject := ""
-	pivitolToken := ""
+	pivotalToken := ""
 	notify := ""
 	for _, b := range baseInfo.Node.Nodes {
 		switch filepath.Base(b.Key) {
