@@ -162,7 +162,7 @@ func (*MockEtcdClient) Get(s string, t bool, x bool) (*etcd.Response, error) {
 		Key: "projects", Value: "",
 		Nodes: etcd.Nodes{
 			{Key: "deploy_user", Value: "test_user", Dir: false},
-			{Key: "token", Value: "XXXXXX", Dir: false},
+			{Key: "pivotal_token", Value: "XXXXXX", Dir: false},
 			{Key: "pivotal_project", Value: "111111", Dir: false},
 		}, Dir: true,
 	}, EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
