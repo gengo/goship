@@ -578,6 +578,8 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		err := postToPivotal(c.Pivotal, env, owner, name, toRevision, fromRevision)
 		if err != nil {
 			log.Println("ERROR: ", err)
+		} else {
+			log.Printf("Pivotal Info: %s %s", c.Pivotal.Token, c.Pivotal.Project)
 		}
 	}
 
@@ -590,6 +592,7 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func postToPivotal(piv *goship.PivotalConfiguration, env, owner, name, latest, current string) error {
+	log.Printf("Debug: Preparing Pivotal Post %s %s %s", piv, latest, current)
 	gt := os.Getenv(gitHubAPITokenEnvVar)
 	t := &oauth.Transport{
 		Token: &oauth.Token{AccessToken: gt},
@@ -650,6 +653,8 @@ func PostPivotalComment(id string, m string, piv *goship.PivotalConfiguration) (
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		log.Println("ERROR: non-200 Response from Pivotal API: ", resp.Status)
+	} else {
+		log.Printf("DEBUG: Sent message to pivotal %s", resp.Body)
 	}
 	return nil
 }
@@ -756,7 +761,7 @@ func extractOutputHandler(fn func(http.ResponseWriter, *http.Request, string, st
 }
 
 func main() {
-	log.Printf("Starting Goship")
+	log.Printf("Starting Goship...")
 	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
 		log.Fatal("could not create data dir: ", err)
 	}
