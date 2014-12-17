@@ -592,7 +592,6 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func postToPivotal(piv *goship.PivotalConfiguration, env, owner, name, latest, current string) error {
-	log.Printf("Debug: Preparing Pivotal Post %s %s %s", piv, latest, current)
 	gt := os.Getenv(gitHubAPITokenEnvVar)
 	t := &oauth.Transport{
 		Token: &oauth.Token{AccessToken: gt},
@@ -654,9 +653,7 @@ func PostPivotalComment(id string, m string, piv *goship.PivotalConfiguration) (
 	body, _ := ioutil.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		log.Println("ERROR: non-200 Response from Pivotal API: ", resp.Status)
-	} else {
-		log.Printf("DEBUG: Sent message to pivotal %s", body)
-	}
+	} 
 	return nil
 }
 
