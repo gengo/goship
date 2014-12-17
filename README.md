@@ -8,7 +8,7 @@ A simple tool for deploying code to servers.
 
 ### What it does:
 
-GoShip SSHes into the machines that you list in your `config.yml` file and gets the latest revision from the specified git repository. It then compares that to the latest revision on GitHub and, if they differ, shows a link to the diff as well as a Deploy button. You can then deploy by clicking the button, and will show you the output of the deployment command, as well as save the output, diff, and whether the command succeeded.
+GoShip SSHes into the machines that you list in ETCD and gets the latest revision from the specified git repository. It then compares that to the latest revision on GitHub and, if they differ, shows a link to the diff as well as a Deploy button. You can then deploy by clicking the button, and will show you the output of the deployment command, as well as save the output, diff, and whether the command succeeded.
 
 ![GoShip Index Page Screenshot](http://tryimg.com/4/goshi.png)
 
@@ -18,32 +18,39 @@ Export your GitHub API token:
 
     export GITHUB_API_TOKEN="your-organization-github-token-here"
 
-Create a config.yml file:
+Create an ETCD server / follow the instructions in the etcd README:
 
-```yaml
-# The user that will SSH into the servers to get the latest git revisions
-deploy_user: deployer
-projects:
-    - my_project:
-        project_name: My Project
-        repo_owner: github-user
-        repo_name: my-project
-        environments:
-            - staging:
-                deploy: /path/to/deployscripts/myproj_staging.sh
-                repo_path: /path/to/myproject/.git
-                hosts:
-                    - staging.myproject.com
-                branch: code_freeze
-            - production:
-                deploy: /path/to/deployscripts/myproj_live.sh
-                repo_path: /path/to/myproject/.git
-                hosts:
-                    - prod-01.myproject.com
-                    - prod-02.myproject.com
-                branch: master
+    https://github.com/coreos/etcd
+
+
+There are various tools to update your ETCD server including the etcctl client or curl, you can also use a variety of clients and JSON formatting:
+There is also a convert.go in tools that can be used to 'bootstrap' etcd.
+
+
+   #example setup using etcd
+   https://github.com/coreos/etcdctl/
+
+```
+   etcdctl set /deploy_user 'deployer'
+   etcdctl mkdir 'projects'
+   etcdctl mkdir 'projects/my-project'
+   etcdctl set /projects/project_name 'My Project'
+   etcdctl set /projects/repo_owner 'github-user'
+   etcdctl set /projects/project_name 'My Project'
 ```
 
+   #curl example
+
+```
+   curl -L http://127.0.0.1:4001/projects/my-project/environments/staging/deploy -XPUT -d value="/path/to/deployscripts/myproj_staging.sh"
+```
+
+   #convert.go example in the tools folder of goship. ( config.yml and etcd settings are configurable - run with -h for options)
+
+```
+   go run convert.go -c /mnt/srv/http/gengo/goship/shared/config.yml 
+```
+   
 Then run the server manually
 
 ```shell
@@ -54,9 +61,9 @@ Available command line flags for the `go run goship.go` command are:
 
 ```
  -b [bind address]  Address to bind (default localhost:8000)
- -c [config file]   Config file (default ./config.yml)
  -k [id_rsa key]    Path to private SSH key for connecting to Github (default id_rsa)
  -d [data path]     Path to data directory (default ./data/)
+ -e [etcd location] Full URL to ETCD Server. Defaults to localhost 
 ```
 
 ### Chat Notifications
@@ -68,6 +75,13 @@ notify: ./notifications/notify.sh
 
 [Sevabot](http://sevabot-skype-bot.readthedocs.org/en/latest/) is a good choice for Skype.
 
+
+### Tools 
+
+There are some tools added in the /tools directory that can be used interface with Goship
+1) convert.go: takes a config.yml  file and converts it to ETCD. Used for bootstrapping ETCD from the original
+conf file. 
+2) deploy.go:  Can be used as a script by the "deploy" to create a knife solo command which reads in the appropriate servers from ETCD and runs knife solo. 
 GoShip was inspired by [Rackspace's Dreadnot](https://github.com/racker/dreadnot) ([UI image](http://c179631.r31.cf0.rackcdn.com/dreadnot-overview.png)) and [Etsy's Deployinator](https://github.com/etsy/deployinator/) ([UI image](http://farm5.staticflickr.com/4065/4620552264_9e0fdf634d_b.jpg)).
 
 The GoShip logo is an adaptation of the [Go gopher](http://blog.golang.org/gopher) created by Renee French under the [Creative Commons Attribution 3.0 license](https://creativecommons.org/licenses/by/3.0/).

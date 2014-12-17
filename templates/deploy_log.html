@@ -1,6 +1,30 @@
 {{define "body"}}
   <div class="container contents">
+  {{$full_name := .Env}}
+  {{$environment := .Environment}}
+  <h2>Environment Info</h2>
+  <table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Branch</th>
+      <td>Repo Path</td>
+      <th>Deploy Script</th>
+    </tr>
+  </thead>
+  <tbody>
+     <tr>
+     <td>{{$environment.Name}}</td>
+     <td>{{$environment.Branch}}</td>
+     <td>{{$environment.RepoPath}}</td>
+     <td>{{$environment.Deploy}}</td>
+     </tr>
+  </tbody>
+</table>
+
   <h2>Deployment Log</h2>
+  {{$project := .Project}}
+  {{$project.Name}}
   <table class="table table-striped">
   <thead>
     <tr>
@@ -12,7 +36,6 @@
     </tr>
   </thead>
   <tbody>
-   {{$env := .Env}}
    {{range $deployment := .Deployments}}
      <tr>
      <td>{{.FormattedTime}}</td>
@@ -23,9 +46,8 @@
      {{else}}
      <td><span class="label label-danger">Failure</span></td>
      {{end}}
-
      <td>
-       <a href="/output/{{$env}}/{{.Time}}">Output</a>
+       <a href="/output/{{$full_name}}/{{.Time}}">Output</a>
      </td>
      </tr>
   {{end}}

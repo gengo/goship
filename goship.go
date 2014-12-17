@@ -25,16 +25,17 @@ import (
 	"code.google.com/p/go.crypto/ssh"
 	"code.google.com/p/go.net/websocket"
 	"code.google.com/p/goauth2/oauth"
+	"github.com/coreos/go-etcd/etcd"
+	"github.com/gengo/goship/lib"
 	"github.com/google/go-github/github"
-	"github.com/kylelemons/go-gypsy/yaml"
 )
 
 var (
 	bindAddress = flag.String("b", "localhost:8000", "Address to bind (default localhost:8000)")
 	sshPort     = "22"
-	configFile  = flag.String("c", "config.yml", "Config file (default ./config.yml)")
 	keyPath     = flag.String("k", "id_rsa", "Path to private SSH key (default id_rsa)")
 	dataPath    = flag.String("d", "data/", "Path to data directory (default ./data/)")
+	ETCDServer  = flag.String("e", "http://127.0.0.1:4001", "Etcd Server (default http://127.0.0.1:4001")
 )
 
 // gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
@@ -44,76 +45,8 @@ const (
 	gitHubAPITokenEnvVar  = "GITHUB_API_TOKEN"
 )
 
-// Host stores information on a host, such as URI and the latest commit revision.
-type Host struct {
-	URI             string
-	LatestCommit    string
-	GitHubCommitURL string
-	GitHubDiffURL   string
-	ShortCommitHash string
-}
-
-// Environment stores information about an individual environment, such as its name and whether it is deployable.
-type Environment struct {
-	Name               string
-	Deploy             string
-	RepoPath           string
-	Hosts              []Host
-	Branch             string
-	LatestGitHubCommit string
-	IsDeployable       bool
-}
-
-// Project stores information about a GitHub project, such as its GitHub URL and repo name.
-type Project struct {
-	Name         string
-	GitHubURL    string
-	RepoName     string
-	RepoOwner    string
-	Environments []Environment
-}
-
-type PivotalConfiguration struct {
-	project string
-	token   string
-}
-
-// gitHubCommitURL takes a project and returns the GitHub URL for its latest commit hash.
-func (h *Host) gitHubCommitURL(p Project) string {
-	return fmt.Sprintf("%s/commit/%s", p.GitHubURL, h.LatestCommit)
-}
-
-// gitHubDiffURL takes a project and an environment and returns the GitHub diff URL
-// for the latest commit on the host compared to the latest commit on GitHub.
-func (h *Host) gitHubDiffURL(p Project, e Environment) string {
-	var s string
-	if h.LatestCommit != e.LatestGitHubCommit {
-		s = fmt.Sprintf("%s/compare/%s...%s", p.GitHubURL, h.LatestCommit, e.LatestGitHubCommit)
-	}
-	return s
-}
-
 func diffURL(owner, repoName, fromRevision, toRevision string) string {
 	return fmt.Sprintf("https://github.com/%s/%s/compare/%s...%s", owner, repoName, fromRevision, toRevision)
-}
-
-// Deployable returns true if the latest commit for any of the hosts in an environment
-// differs from the latest commit on GitHub, and false if all of the commits match.
-func (e *Environment) Deployable() bool {
-	for _, h := range e.Hosts {
-		if e.LatestGitHubCommit != h.LatestCommit {
-			return true
-		}
-	}
-	return false
-}
-
-// ShortCommitHash returns a shortened version of the latest commit hash on a host.
-func (h *Host) shortCommitHash() string {
-	if len(h.LatestCommit) == 0 {
-		return ""
-	}
-	return h.LatestCommit[:7]
 }
 
 // remoteCmdOutput runs the given command on a remote server at the given hostname as the given user.
@@ -149,7 +82,7 @@ func remoteCmdOutput(username, hostname, cmd string, privateKey []byte) (b []byt
 }
 
 // latestDeployedCommit gets the latest commit hash on the host.
-func latestDeployedCommit(username, hostname string, e Environment) (b []byte, err error) {
+func latestDeployedCommit(username, hostname string, e goship.Environment) (b []byte, err error) {
 	p, err := ioutil.ReadFile(*keyPath)
 	if err != nil {
 		return b, errors.New("Failed to open private key file: " + err.Error())
@@ -161,81 +94,9 @@ func latestDeployedCommit(username, hostname string, e Environment) (b []byte, e
 	return o, nil
 }
 
-// getYAMLString is a helper function for extracting strings from a yaml.Node.
-func getYAMLString(n yaml.Node, key string) string {
-	s, ok := n.(yaml.Map)[key].(yaml.Scalar)
-	if !ok {
-		return ""
-	}
-	return strings.TrimSpace(s.String())
-}
-
-// parseYAMLEnvironment populates an Environment given a yaml.Node and returns the Environment.
-func parseYAMLEnvironment(m yaml.Node) Environment {
-	e := Environment{}
-	for k, v := range m.(yaml.Map) {
-		e.Name = k
-		e.Branch = getYAMLString(v, "branch")
-		e.RepoPath = getYAMLString(v, "repo_path")
-		e.Deploy = getYAMLString(v, "deploy")
-		for _, host := range v.(yaml.Map)["hosts"].(yaml.List) {
-			h := Host{URI: host.(yaml.Scalar).String()}
-			e.Hosts = append(e.Hosts, h)
-		}
-	}
-	return e
-}
-
-// config contains the information from config.yml.
-type config struct {
-	Projects   []Project
-	DeployUser string
-	Notify     string
-	Pivotal    *PivotalConfiguration
-}
-
-// parseYAML parses the config.yml file and returns the appropriate structs and strings.
-func parseYAML() (c config, err error) {
-	config, err := yaml.ReadFile(*configFile)
-	if err != nil {
-		return c, err
-	}
-	deployUser, err := config.Get("deploy_user")
-	if err != nil {
-		return c, err
-	}
-	configRoot, _ := config.Root.(yaml.Map)
-	projects, _ := configRoot["projects"].(yaml.List)
-	allProjects := []Project{}
-	for _, p := range projects {
-		for _, v := range p.(yaml.Map) {
-			name := getYAMLString(v, "project_name")
-			repoOwner := getYAMLString(v, "repo_owner")
-			repoName := getYAMLString(v, "repo_name")
-			githubUrl := fmt.Sprintf("https://github.com/%s/%s", repoOwner, repoName)
-			proj := Project{Name: name, GitHubURL: githubUrl, RepoName: repoName, RepoOwner: repoOwner}
-			for _, v := range v.(yaml.Map)["environments"].(yaml.List) {
-				proj.Environments = append(proj.Environments, parseYAMLEnvironment(v))
-			}
-			allProjects = append(allProjects, proj)
-		}
-	}
-	piv := new(PivotalConfiguration)
-	piv.project, _ = config.Get("pivotal_project")
-	piv.token, _ = config.Get("pivotal_token")
-
-	notify, _ := config.Get("notify")
-	c.Projects = allProjects
-	c.DeployUser = deployUser
-	c.Notify = notify
-	c.Pivotal = piv
-
-	return c, nil
-}
-
 // getCommit is called in a goroutine and gets the latest deployed commit on a host.
 // It updates the Environment in-place.
-func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, deployUser string, i, j int) {
+func getCommit(wg *sync.WaitGroup, project goship.Project, env goship.Environment, host goship.Host, deployUser string, i, j int) {
 	defer wg.Done()
 	lc, err := latestDeployedCommit(deployUser, host.URI+":"+sshPort, env)
 	if err != nil {
@@ -249,7 +110,7 @@ func getCommit(wg *sync.WaitGroup, project Project, env Environment, host Host, 
 
 // getLatestGitHubCommit is called in a goroutine and retrieves the latest commit
 // from GitHub for a given branch of a project. It updates the Environment in-place.
-func getLatestGitHubCommit(wg *sync.WaitGroup, project Project, environment Environment, c *github.Client, repoOwner, repoName string, i int) {
+func getLatestGitHubCommit(wg *sync.WaitGroup, project goship.Project, environment goship.Environment, c *github.Client, repoOwner, repoName string, i int) {
 	defer wg.Done()
 	opts := &github.CommitsListOptions{SHA: environment.Branch}
 	commits, _, err := c.Repositories.ListCommits(repoOwner, repoName, opts)
@@ -264,7 +125,7 @@ func getLatestGitHubCommit(wg *sync.WaitGroup, project Project, environment Envi
 
 // retrieveCommits fetches the latest deployed commits as well
 // as the latest GitHub commits for a given Project.
-func retrieveCommits(project Project, deployUser string) Project {
+func retrieveCommits(project goship.Project, deployUser string) goship.Project {
 	// define a wait group to wait for all goroutines to finish
 	var wg sync.WaitGroup
 	githubToken := os.Getenv(gitHubAPITokenEnvVar)
@@ -287,9 +148,9 @@ func retrieveCommits(project Project, deployUser string) Project {
 		e.IsDeployable = e.Deployable()
 		project.Environments[i] = e
 		for j, host := range e.Hosts {
-			host.GitHubCommitURL = host.gitHubCommitURL(project)
-			host.GitHubDiffURL = host.gitHubDiffURL(project, e)
-			host.ShortCommitHash = host.shortCommitHash()
+			host.GitHubCommitURL = host.LatestGitHubCommitURL(project)
+			host.GitHubDiffURL = host.LatestGitHubDiffURL(project, e)
+			host.ShortCommitHash = host.LatestShortCommitHash()
 			project.Environments[i].Hosts[j] = host
 		}
 	}
@@ -327,6 +188,7 @@ func readEntries(env string) ([]DeployLogEntry, error) {
 		return d, err
 	}
 	if len(b) == 0 {
+		log.Printf("No deploy logs found for: %s", env)
 		return []DeployLogEntry{}, nil
 	}
 	err = json.Unmarshal(b, &d)
@@ -409,37 +271,10 @@ func appendDeployOutput(env string, output string, timestamp time.Time) {
 	io.WriteString(out, output+"\n")
 }
 
-// getProjectFromName takes a project name as a string and returns
-// a Project by that name if it can find one.
-func getProjectFromName(projects []Project, projectName string) (*Project, error) {
-	for _, project := range projects {
-		if project.Name == projectName {
-			return &project, nil
-		}
-	}
-	return nil, fmt.Errorf("No project found: %s", projectName)
-}
-
-// getEnvironmentFromName takes an environment and project name as a string and returns
-// an Environmnet by the given environment name under a project with the given
-// project name if it can find one.
-func getEnvironmentFromName(projects []Project, projectName, environmentName string) (*Environment, error) {
-	p, err := getProjectFromName(projects, projectName)
-	if err != nil {
-		return nil, err
-	}
-	for _, environment := range p.Environments {
-		if environment.Name == environmentName {
-			return &environment, nil
-		}
-	}
-	return nil, fmt.Errorf("No environment found: %s", environmentName)
-}
-
 // getDeployCommand returns the deployment command for a given
 // environment as a string slice that has been split on spaces.
-func getDeployCommand(projects []Project, projectName, environmentName string) (s []string, err error) {
-	e, err := getEnvironmentFromName(projects, projectName, environmentName)
+func getDeployCommand(projects []goship.Project, projectName, environmentName string) (s []string, err error) {
+	e, err := goship.EnvironmentFromName(projects, projectName, environmentName)
 	if err != nil {
 		return s, err
 	}
@@ -485,8 +320,8 @@ func DeployOutputHandler(w http.ResponseWriter, r *http.Request, env string, for
 	w.Write(b)
 }
 
-func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
-	d, err := readEntries(env)
+func DeployLogHandler(w http.ResponseWriter, r *http.Request, full_env string, environment goship.Environment) {
+	d, err := readEntries(full_env)
 	if err != nil {
 		log.Println("Error: ", err)
 	}
@@ -500,19 +335,19 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, env string) {
 		d[i].FormattedTime = formatTime(d[i].Time)
 	}
 	sort.Sort(ByTime(d))
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d, "Env": env})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d, "Env": full_env, "Environment": environment})
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
-	c, err := parseYAML()
+	c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
 	if err != nil {
-		log.Println("ERROR: ", err)
+		log.Println("ERROR: Parsing etc ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	proj, err := getProjectFromName(c.Projects, projName)
+	proj, err := goship.ProjectFromName(c.Projects, projName)
 	if err != nil {
-		log.Println("ERROR: ", err)
+		log.Println("ERROR:  Getting Project from name", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -521,7 +356,7 @@ func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string)
 
 	j, err := json.Marshal(p)
 	if err != nil {
-		log.Println("ERROR: ", err)
+		log.Println("ERROR: Retrieving Commits ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -674,7 +509,7 @@ func endNotify(n, p, env string, success bool) error {
 }
 
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	c, err := parseYAML()
+	c, err := goship.ParseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -738,10 +573,13 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 			log.Println("Error: ", err.Error())
 		}
 	}
-	if (c.Pivotal.token != "") && (c.Pivotal.project != "") && success {
+
+	if (c.Pivotal.Token != "") && (c.Pivotal.Project != "") && success {
 		err := postToPivotal(c.Pivotal, env, owner, name, toRevision, fromRevision)
 		if err != nil {
 			log.Println("ERROR: ", err)
+		} else {
+			log.Printf("Pivotal Info: %s %s", c.Pivotal.Token, c.Pivotal.Project)
 		}
 	}
 
@@ -753,7 +591,7 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func postToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current string) error {
+func postToPivotal(piv *goship.PivotalConfiguration, env, owner, name, latest, current string) error {
 	gt := os.Getenv(gitHubAPITokenEnvVar)
 	t := &oauth.Transport{
 		Token: &oauth.Token{AccessToken: gt},
@@ -795,17 +633,17 @@ func postToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current 
 	return nil
 }
 
-func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err error) {
+func PostPivotalComment(id string, m string, piv *goship.PivotalConfiguration) (err error) {
 	p := url.Values{}
 	p.Set("text", m)
-	req, err := http.NewRequest("POST", fmt.Sprintf(pivotalCommentURL, piv.project, id), nil)
+	req, err := http.NewRequest("POST", fmt.Sprintf(pivotalCommentURL, piv.Project, id), nil)
 	if err != nil {
 		log.Println("ERROR: could not form put request to Pivotal: ", err)
 		return err
 	}
 	req.URL.RawQuery = p.Encode()
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("X-TrackerToken", piv.token)
+	req.Header.Add("X-TrackerToken", piv.Token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Println("ERROR: could not make put request to Pivotal: ", err)
@@ -814,7 +652,7 @@ func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err err
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		log.Println("ERROR: non-200 Response from Pivotal API: ", resp.Status)
-	}
+	} 
 	return nil
 }
 
@@ -835,8 +673,15 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "BindAddress": bindAddress, "RepoOwner": repo_owner, "RepoName": repo_name, "ToRevision": toRevision, "FromRevision": fromRevision})
 }
 
+// Sort interface for sorting projects
+type ByName []goship.Project
+
+func (slice ByName) Len() int           { return len(slice) }
+func (slice ByName) Less(i, j int) bool { return slice[i].Name < slice[j].Name }
+func (slice ByName) Swap(i, j int)      { slice[i], slice[j] = slice[j], slice[i] }
+
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	c, err := parseYAML()
+	c, err := goship.ParseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -848,12 +693,47 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// TODO: why does this work on some env and not another
+	sort.Sort(ByName(c.Projects))
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "Page": "home"})
 }
 
 var validPathWithEnv = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
 
-func extractHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+func extractDeployLogHandler(fn func(http.ResponseWriter, *http.Request, string, goship.Environment)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		m := validPathWithEnv.FindStringSubmatch(r.URL.Path)
+		if m == nil {
+			http.NotFound(w, r)
+			return
+		}
+		c, err := goship.ParseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
+		if err != nil {
+			log.Println("ERROR: ", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// get project name and env from url
+		a := strings.Split(m[2], "-")
+		l := len(a)
+		environmentName := a[l-1]
+		var projectName string
+		if m[1] == "commits" {
+			projectName = m[2]
+		} else {
+			projectName = strings.Join(a[0:l-1], "-")
+		}
+		e, err := goship.EnvironmentFromName(c.Projects, projectName, environmentName)
+		if err != nil {
+			log.Println("ERROR: Can't get environment from name", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		fn(w, r, m[2], *e)
+	}
+}
+
+func extractCommitHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		m := validPathWithEnv.FindStringSubmatch(r.URL.Path)
 		if m == nil {
@@ -878,6 +758,7 @@ func extractOutputHandler(fn func(http.ResponseWriter, *http.Request, string, st
 }
 
 func main() {
+	log.Printf("Starting Goship...")
 	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
 		log.Fatal("could not create data dir: ", err)
 	}
@@ -889,9 +770,9 @@ func main() {
 	})
 	http.Handle("/web_push", websocket.Handler(websocketHandler))
 	http.HandleFunc("/deploy", DeployPage)
-	http.HandleFunc("/deployLog/", extractHandler(DeployLogHandler))
+	http.HandleFunc("/deployLog/", extractDeployLogHandler(DeployLogHandler))
 	http.HandleFunc("/output/", extractOutputHandler(DeployOutputHandler))
-	http.HandleFunc("/commits/", extractHandler(ProjCommitsHandler))
+	http.HandleFunc("/commits/", extractCommitHandler(ProjCommitsHandler))
 	http.HandleFunc("/deploy_handler", DeployHandler)
 	fmt.Printf("Running on %s\n", *bindAddress)
 	log.Fatal(http.ListenAndServe(*bindAddress, nil))

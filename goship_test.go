@@ -4,6 +4,9 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/coreos/go-etcd/etcd"
+	"github.com/gengo/goship/lib"
 )
 
 func TestStripANSICodes(t *testing.T) {
@@ -26,29 +29,29 @@ func TestStripANSICodes(t *testing.T) {
 }
 
 var githubDiffURLTests = []struct {
-	h    Host
-	p    Project
-	e    Environment
+	h    goship.Host
+	p    goship.Project
+	e    goship.Environment
 	want string
 }{
-	{Host{LatestCommit: "abc123"}, Project{"test project", "https://github.com/test/foo", "foo", "test", []Environment{}}, Environment{LatestGitHubCommit: "abc123"}, ""},
-	{Host{LatestCommit: "abc123"}, Project{"test project", "https://github.com/test/foo", "foo", "test", []Environment{}}, Environment{LatestGitHubCommit: "abc456"}, "https://github.com/test/foo/compare/abc123...abc456"},
+	{goship.Host{LatestCommit: "abc123"}, goship.Project{"test project", "https://github.com/test/foo", "foo", "test", []goship.Environment{}}, goship.Environment{LatestGitHubCommit: "abc123"}, ""},
+	{goship.Host{LatestCommit: "abc123"}, goship.Project{"test project", "https://github.com/test/foo", "foo", "test", []goship.Environment{}}, goship.Environment{LatestGitHubCommit: "abc456"}, "https://github.com/test/foo/compare/abc123...abc456"},
 }
 
 func TestGitHubDiffURL(t *testing.T) {
 	for _, tt := range githubDiffURLTests {
-		if got := tt.h.gitHubDiffURL(tt.p, tt.e); got != tt.want {
+		if got := tt.h.LatestGitHubDiffURL(tt.p, tt.e); got != tt.want {
 			t.Errorf("gitHubDiffURL = %s, want %s", got, tt.want)
 		}
 	}
 }
 
 var deployableTests = []struct {
-	e    Environment
+	e    goship.Environment
 	want bool
 }{
-	{Environment{LatestGitHubCommit: "abc123", Hosts: []Host{{LatestCommit: "abc456"}}}, true},
-	{Environment{LatestGitHubCommit: "abc456", Hosts: []Host{{LatestCommit: "abc456"}}}, false},
+	{goship.Environment{LatestGitHubCommit: "abc123", Hosts: []goship.Host{{LatestCommit: "abc456"}}}, true},
+	{goship.Environment{LatestGitHubCommit: "abc456", Hosts: []goship.Host{{LatestCommit: "abc456"}}}, false},
 }
 
 func TestDeployable(t *testing.T) {
@@ -59,28 +62,37 @@ func TestDeployable(t *testing.T) {
 	}
 }
 
-var wantConfig = config{
-	Projects: []Project{
+var wantConfig = goship.Config{
+	Projects: []goship.Project{
 		{Name: "Test Project One", GitHubURL: "https://github.com/test_owner/test_repo_name", RepoName: "test_repo_name", RepoOwner: "test_owner",
-			Environments: []Environment{{Name: "live", Deploy: "/deploy/test_project_one.sh", RepoPath: "/repos/test_repo_name/.git",
-				Hosts: []Host{{URI: "test-project-one.test.com"}}, Branch: "master", IsDeployable: false}}},
+			Environments: []goship.Environment{{Name: "live", Deploy: "/deploy/test_project_one.sh", RepoPath: "/repos/test_repo_name/.git",
+				Hosts: []goship.Host{{URI: "test-project-one.test.com"}}, Branch: "master", IsDeployable: false}}},
 		{Name: "Test Project Two", GitHubURL: "https://github.com/test_owner/test_repo_name_two", RepoName: "test_repo_name_two", RepoOwner: "test_owner",
-			Environments: []Environment{{Name: "live", Deploy: "/deploy/test_project_two.sh", RepoPath: "/repos/test_repo_name_two/.git",
-				Hosts: []Host{{URI: "test-project-two.test.com"}}, Branch: "master", LatestGitHubCommit: "", IsDeployable: false}}}},
+			Environments: []goship.Environment{{Name: "live", Deploy: "/deploy/test_project_two.sh", RepoPath: "/repos/test_repo_name_two/.git",
+				Hosts: []goship.Host{{URI: "test-project-two.test.com"}}, Branch: "master", LatestGitHubCommit: "", IsDeployable: false}}}},
 	DeployUser: "deploy_user",
 	Notify:     "/notify/notify.sh",
-	Pivotal:    &PivotalConfiguration{project: "111111", token: "test"}}
+	Pivotal:    &goship.PivotalConfiguration{Project: "111111", Token: "test"}}
 
-func TestParseYAML(t *testing.T) {
-	// set the configFile flag for test
-	*configFile = "testdata/test_config.yml"
-	got, err := parseYAML()
+func compareStrings(name, got, want string, t *testing.T) {
+	if got != want {
+		t.Errorf("got %s = %s; want %s", name, got, want)
+	}
+}
+
+func TestCanParseETCD(t *testing.T) {
+
+	got, err := goship.ParseETCD(&MockEtcdClient{})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Can't parse %s %s", t, err)
 	}
-	if !reflect.DeepEqual(got, wantConfig) {
-		t.Errorf("parseYAML = %v\n, want %v", got, wantConfig)
-	}
+	compareStrings("deploy user", got.DeployUser, "test_user", t)
+	compareStrings("token", got.Pivotal.Token, "XXXXXX", t)
+	compareStrings("project", got.Pivotal.Project, "111111", t)
+	compareStrings("project name", got.Projects[0].Name, "pivotal_project", t)
+	compareStrings("repo path", got.Projects[0].Environments[0].RepoPath, "/repos/test_repo_name/.git", t)
+	compareStrings("repo path", got.Projects[0].Environments[0].Branch, "master", t)
+	compareStrings("host name", got.Projects[0].Environments[0].Hosts[0].URI, "test-qa-01.somewhere.com", t)
 }
 
 var now = time.Now()
@@ -106,37 +118,112 @@ func TestFormatTime(t *testing.T) {
 	}
 }
 
-func TestGetProjectFromName(t *testing.T) {
-	var want = Project{Name: "TestProject"}
-	projects := []Project{want}
-	got, err := getProjectFromName(projects, "TestProject")
+func TestProjectFromName(t *testing.T) {
+	var want = goship.Project{Name: "TestProject"}
+	projects := []goship.Project{want}
+	got, err := goship.ProjectFromName(projects, "TestProject")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(got, &want) {
-		t.Errorf("getProjectFromName = %v, want %v", got, want)
+		t.Errorf("goship.GetProjectFromName = %v, want %v", got, want)
 	}
-	got, err = getProjectFromName(projects, "BadProject")
+	got, err = goship.ProjectFromName(projects, "BadProject")
 	if err == nil {
-		t.Errorf("getProjectFromName error case did not error", got, nil)
+		t.Errorf("goship.GetProjectFromName error case did not error", got, nil)
 	}
 }
 
 func TestGetEnvironmentFromName(t *testing.T) {
 	var (
-		want = Environment{Name: "TestEnvironment"}
-		envs = []Environment{want}
+		want = goship.Environment{Name: "TestEnvironment"}
+		envs = []goship.Environment{want}
 	)
-	projects := []Project{Project{Name: "TestProject", Environments: envs}}
-	got, err := getEnvironmentFromName(projects, "TestProject", "TestEnvironment")
+	projects := []goship.Project{goship.Project{Name: "TestProject", Environments: envs}}
+	got, err := goship.EnvironmentFromName(projects, "TestProject", "TestEnvironment")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(got, &want) {
-		t.Errorf("getEnvironmentFromName = %v, want %v", got, want)
+		t.Errorf("goship.EnvironmentFromName = %v, want %v", got, want)
 	}
-	got, err = getEnvironmentFromName(projects, "BadProject", "BadEnvironment")
+	got, err = goship.EnvironmentFromName(projects, "BadProject", "BadEnvironment")
 	if err == nil {
-		t.Errorf("getEnvironmentFromName error case did not error")
+		t.Errorf("goship.EnvironmentFromName error case did not error")
 	}
+}
+
+type MockEtcdClient struct{}
+
+//Mock calls to ETCD here. Each etcd Response should return the structs you need.
+func (*MockEtcdClient) Get(s string, t bool, x bool) (*etcd.Response, error) {
+	m := make(map[string]*etcd.Response)
+	m["/"] = &etcd.Response{Action: "Get", Node: &etcd.Node{
+		Key: "projects", Value: "",
+		Nodes: etcd.Nodes{
+			{Key: "deploy_user", Value: "test_user", Dir: false},
+			{Key: "pivotal_token", Value: "XXXXXX", Dir: false},
+			{Key: "pivotal_project", Value: "111111", Dir: false},
+		}, Dir: true,
+	}, EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
+	}
+	m["/projects"] = &etcd.Response{
+		Action: "Get",
+		Node: &etcd.Node{
+			Key: "projects", Value: "",
+			Nodes: etcd.Nodes{
+				{Key: "/projects/pivotal_project", Dir: true},
+			}, Dir: true,
+		},
+		EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
+	}
+	m["/projects/pivotal_project"] = &etcd.Response{
+		Action: "Get",
+		Node: &etcd.Node{
+			Key: "/projects/pivotal_project", Value: "",
+			Nodes: etcd.Nodes{
+				{
+					Key: "project_name", Value: "/projects/pivotal_project/project_name/TC", Dir: true,
+				},
+			},
+			Dir: true,
+		},
+		EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
+	}
+	m["/projects/pivotal_project/environments"] = &etcd.Response{
+		Action: "Get",
+		Node: &etcd.Node{
+			Key:   "/projects/pivotal_project/environments",
+			Value: "",
+			Nodes: etcd.Nodes{
+				{Key: "qa", Dir: true},
+			},
+			Dir: true,
+		},
+		EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
+	}
+	m["/projects/pivotal_project/environments/qa"] = &etcd.Response{
+		Action: "Get",
+		Node: &etcd.Node{
+			Key:   "qa",
+			Value: "",
+			Nodes: etcd.Nodes{
+				{Key: "repo_path", Value: "/repos/test_repo_name/.git", Dir: false},
+				{Key: "branch", Value: "master", Dir: false},
+			}, Dir: true,
+		}, EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
+	}
+	m["/projects/pivotal_project/environments/qa/hosts"] = &etcd.Response{
+		Action: "Get",
+		Node: &etcd.Node{
+			Key: "/projects/pivotal_project/environments/qa/hosts", Value: "",
+			Nodes: etcd.Nodes{
+				{Key: "test-qa-01.somewhere.com", Dir: true},
+			},
+			Dir: true,
+		},
+		EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
+	}
+	mockResponse := m[s]
+	return mockResponse, nil
 }
