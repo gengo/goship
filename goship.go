@@ -650,7 +650,6 @@ func PostPivotalComment(id string, m string, piv *goship.PivotalConfiguration) (
 		return err
 	}
 	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
 		log.Println("ERROR: non-200 Response from Pivotal API: ", resp.Status)
 	} 
