@@ -227,3 +227,18 @@ func (*MockEtcdClient) Get(s string, t bool, x bool) (*etcd.Response, error) {
 	mockResponse := m[s]
 	return mockResponse, nil
 }
+
+func TestReadEntries(t *testing.T) {
+	var want = []DeployLogEntry{
+		DeployLogEntry{DiffURL: "https://github.com/test/test/compare/firstsha...secondsha", ToRevisionMsg: "add test", User: "PlaceholderUser", Success: true, Time: time.Unix(1404362004, 0)},
+		DeployLogEntry{DiffURL: "https://github.com/test/test/compare/thirdsha...fourthsha", ToRevisionMsg: "add another test", User: "PlaceholderUser", Success: false, Time: time.Unix(1404461492, 0)}}
+
+	*dataPath = "testdata/deploylog"
+	got, err := readEntries("Test-live")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("readEntries = %v, want %v", got, want)
+	}
+}
