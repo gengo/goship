@@ -932,6 +932,7 @@ func main() {
 	githubOmniauthID := os.Getenv("GITHUB_OMNI_AUTH_ID")
 	githubOmniauthKey := os.Getenv("GITHUB_OMNI_AUTH_KEY")
 	githubCallbackURL := os.Getenv("GITHUB_CALLBACK_URL")
+	githubCallbackFullURL := githubCallbackURL + "/auth/github/callback"
 
 	log.Printf("[%s] [%s] [%s] [%s]",
 		githubRandomHashKey,
@@ -951,7 +952,7 @@ func main() {
 	// Random key used by omniauth
 	gomniauth.SetSecurityKey(githubRandomHashKey)
 	gomniauth.WithProviders(
-		githubOauth.New(githubOmniauthID, githubOmniauthKey, githubCallbackURL),
+		githubOauth.New(githubOmniauthID, githubOmniauthKey, githubCallbackFullURL),
 	)
 
 	log.Printf("Starting Goship...")
