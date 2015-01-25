@@ -40,7 +40,7 @@ type config struct {
 	knifePath  string
 	pemKey     string
 	deployUser string
-        etcdServer string
+	etcdServer string
 }
 
 func checkMissingConf(s, v, f string) {
@@ -64,10 +64,10 @@ func parseConfig() (c config) {
 	checkMissingConf(c.pemKey, "pem_key", *configFile)
 	c.deployUser, err = config.Get("deploy_user")
 	checkMissingConf(c.deployUser, "deploy_user", *configFile)
-        c.etcdServer, err = config.Get("etcd_server")
-        if len(c.etcdServer) < 1 {
-                c.etcdServer = "http://127.0.0.1:4001"
-        }
+	c.etcdServer, err = config.Get("etcd_server")
+	if len(c.etcdServer) < 1 {
+		c.etcdServer = "http://127.0.0.1:4001"
+	}
 	return c
 }
 

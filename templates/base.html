@@ -12,9 +12,14 @@
   body, h1, h2, h3 {
     font-family: "Roboto Condensed", "Helvetica Neue", Helvetica, Arial, sans-serif;
   }
+  .avatar {
+    width: 45px;
+    width: 45px;
+    margin-bottom:  5px;
+  }
   .brand {
     font-size: 32px;
-    margin-left: -20px;
+    margin-left: 10px;
     margin-right: 20px;
     color: #fff;
   }
@@ -50,6 +55,7 @@
     <div class="navbar-inner">
       <div class="container">
         <div class="navbar-header">
+          <img class="avatar" src="{{.User.UserAvatar}}" alt="kk" height="42" width="42">
           <a class="brand" href="/">GoShip</a>
         </div>
         <div class="nav-collapse">

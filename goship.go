@@ -28,6 +28,10 @@ import (
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gengo/goship/lib"
 	"github.com/google/go-github/github"
+	"github.com/gorilla/sessions"
+	"github.com/stretchr/gomniauth"
+	githubOauth "github.com/stretchr/gomniauth/providers/github"
+	"github.com/stretchr/objx"
 )
 
 var (
@@ -37,6 +41,13 @@ var (
 	dataPath    = flag.String("d", "data/", "Path to data directory (default ./data/)")
 	ETCDServer  = flag.String("e", "http://127.0.0.1:4001", "Etcd Server (default http://127.0.0.1:4001")
 )
+
+var store = sessions.NewCookieStore([]byte("jhjhjhjhjhjjhjhhj"))
+var session_name = "goship"
+
+type User struct {
+	UserName, UserAvatar string
+}
 
 // gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
 const (
@@ -321,6 +332,7 @@ func DeployOutputHandler(w http.ResponseWriter, r *http.Request, env string, for
 }
 
 func DeployLogHandler(w http.ResponseWriter, r *http.Request, full_env string, environment goship.Environment) {
+	u, _ := getUser(r)
 	d, err := readEntries(full_env)
 	if err != nil {
 		log.Println("Error: ", err)
@@ -335,7 +347,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, full_env string, e
 		d[i].FormattedTime = formatTime(d[i].Time)
 	}
 	sort.Sort(ByTime(d))
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d, "Env": full_env, "Environment": environment})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d, "User": u, "Env": full_env, "Environment": environment})
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
@@ -517,7 +529,11 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
-	user := r.FormValue("user")
+	u, err := getUser(r)
+	if err != nil {
+		log.Fatal("Failed to get a user while deploying!")
+	}
+	user := u.UserName
 	fromRevision := r.FormValue("from_revision")
 	toRevision := r.FormValue("to_revision")
 	owner := r.FormValue("repo_owner")
@@ -652,14 +668,14 @@ func PostPivotalComment(id string, m string, piv *goship.PivotalConfiguration) (
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		log.Println("ERROR: non-200 Response from Pivotal API: ", resp.Status)
-	} 
+	}
 	return nil
 }
 
 func DeployPage(w http.ResponseWriter, r *http.Request) {
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
-	user := r.FormValue("user")
+	user, _ := getUser(r)
 	fromRevision := r.FormValue("from_revision")
 	toRevision := r.FormValue("to_revision")
 	repo_owner := r.FormValue("repo_owner")
@@ -693,9 +709,10 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// TODO: why does this work on some env and not another
+	u, _ := getUser(r)
+	c.Projects = cleanProjects(c.Projects, r, u)
 	sort.Sort(ByName(c.Projects))
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "Page": "home"})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "User": u, "Page": "home"})
 }
 
 var validPathWithEnv = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
@@ -713,6 +730,9 @@ func extractDeployLogHandler(fn func(http.ResponseWriter, *http.Request, string,
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		// auth check for user
+		u, _ := getUser(r)
+		c.Projects = cleanProjects(c.Projects, r, u)
 		// get project name and env from url
 		a := strings.Split(m[2], "-")
 		l := len(a)
@@ -757,23 +777,202 @@ func extractOutputHandler(fn func(http.ResponseWriter, *http.Request, string, st
 	}
 }
 
+func isMember(owner, repo, user string) (bool, error) {
+	gt := os.Getenv(gitHubAPITokenEnvVar)
+	t := &oauth.Transport{
+		Token: &oauth.Token{AccessToken: gt},
+	}
+	github.NewClient(t.Client())
+	c := github.NewClient(t.Client())
+	m := false
+	m, _, err := c.Organizations.IsMember(owner, user)
+	if err != nil {
+		log.Print("Failure getting Membership of User %s %s %s", owner, user, repo)
+	}
+	return m, err
+}
+
+func isCollaborator(owner, repo, user string) (bool, error) {
+	gt := os.Getenv(gitHubAPITokenEnvVar)
+	t := &oauth.Transport{
+		Token: &oauth.Token{AccessToken: gt},
+	}
+	github.NewClient(t.Client())
+	c := github.NewClient(t.Client())
+	m := false
+	m, _, err := c.Repositories.IsCollaborator(owner, repo, user)
+	if err != nil {
+		log.Print("Failure getting Collaboration Status of User %s %s %s", owner, user, repo)
+	}
+	return m, err
+}
+
+func getUser(r *http.Request) (User, error) {
+	u := User{}
+	session, err := store.Get(r, session_name)
+	if err != nil {
+		return u, errors.New("Error Getting User Session")
+	}
+	if _, ok := session.Values["userName"]; !ok {
+		return u, errors.New("No username")
+	}
+	if _, ok := session.Values["avatarURL"]; !ok {
+		return u, errors.New("No avatar")
+	}
+	// Check return of nil
+	u.UserName = session.Values["userName"].(string)
+	u.UserAvatar = session.Values["avatarURL"].(string)
+	return u, nil
+}
+
+func checkAuth(fn http.HandlerFunc) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := getUser(r)
+		if err != nil {
+			log.Printf("error getting a logged in user %s", err)
+			http.Redirect(w, r, "http://127.0.0.1:8000/auth/github/login", 301)
+
+			return
+		}
+		fn.ServeHTTP(w, r)
+	})
+}
+
+type cleanProject []goship.Project
+
+// remove projects where user has no access
+func cleanProjects(n cleanProject, r *http.Request, u User) cleanProject {
+	f_projects := []goship.Project{}
+	for _, p := range n {
+		a, _ := isCollaborator(p.RepoOwner, p.RepoName, u.UserName)
+
+		// If user does not have access to the project remove it.
+		if a == true {
+			log.Printf("Access Granted to %s for repo %s", p.RepoOwner, p.RepoName)
+			f_projects = append(f_projects, p)
+		}
+	}
+	return f_projects
+}
+
+func loginHandler(providerName string) http.HandlerFunc {
+	provider, err := gomniauth.Provider(providerName)
+	if err != nil {
+		panic(err)
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		state := gomniauth.NewState("after", "success")
+
+		authUrl, err := provider.GetBeginAuthURL(state, nil)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// redirect
+		http.Redirect(w, r, authUrl, http.StatusFound)
+
+	}
+}
+
+func callbackHandler(providerName string) http.HandlerFunc {
+	// Handle error
+	provider, err := gomniauth.Provider(providerName)
+	if err != nil {
+		panic(err)
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		omap, err := objx.FromURLQuery(r.URL.RawQuery)
+		if err != nil {
+			log.Printf("error getting resp from callback")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		creds, err := provider.CompleteAuth(omap)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		user, userErr := provider.GetUser(creds)
+		if userErr != nil {
+			log.Printf("Failed to get user from Github %s", user)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		session, err := store.Get(r, session_name)
+		if err != nil {
+			log.Fatal("Can't get a session store")
+		}
+
+		session.Options = &sessions.Options{
+			Path:     "/",
+			MaxAge:   86400 * 7,
+			HttpOnly: true,
+		}
+
+		session.Values["userName"] = user.Nickname()
+		session.Values["avatarURL"] = user.AvatarURL()
+		log.Print("saving session")
+		session.Save(r, w)
+
+		http.Redirect(w, r, "http://127.0.0.1:8000", http.StatusFound)
+
+	}
+}
+
 func main() {
+
+	githubRandomHashKey := os.Getenv("GITHUB_RANDOM_HASH_KEY")
+	githubOmniauthID := os.Getenv("GITHUB_OMNI_AUTH_ID")
+	githubOmniauthKey := os.Getenv("GITHUB_OMNI_AUTH_KEY")
+	githubCallbackURL := os.Getenv("GITHUB_CALLBACK_URL")
+
+	log.Printf("[%s] [%s] [%s] [%s]",
+		githubRandomHashKey,
+		githubOmniauthID,
+		githubOmniauthKey,
+		githubCallbackURL)
+
+	// Let user know if a key is missing.
+	if githubRandomHashKey == "" || githubOmniauthID == "" || githubOmniauthKey == "" || githubCallbackURL == "" {
+		log.Fatalf("Missing a Gomniauth Environment Value: They must all be set [%s] [%s] [%s] [%s]",
+			githubRandomHashKey,
+			githubOmniauthID,
+			githubOmniauthKey,
+			githubCallbackURL)
+	}
+
+	// Random key used by omniauth
+	gomniauth.SetSecurityKey(githubRandomHashKey)
+	gomniauth.WithProviders(
+		githubOauth.New(githubOmniauthID, githubOmniauthKey, githubCallbackURL),
+	)
+
 	log.Printf("Starting Goship...")
 	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
 		log.Fatal("could not create data dir: ", err)
 	}
 	flag.Parse()
 	go h.run()
-	http.HandleFunc("/", HomeHandler)
+	http.HandleFunc("/", checkAuth(HomeHandler))
 	http.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, r.URL.Path[1:])
 	})
 	http.Handle("/web_push", websocket.Handler(websocketHandler))
-	http.HandleFunc("/deploy", DeployPage)
-	http.HandleFunc("/deployLog/", extractDeployLogHandler(DeployLogHandler))
-	http.HandleFunc("/output/", extractOutputHandler(DeployOutputHandler))
-	http.HandleFunc("/commits/", extractCommitHandler(ProjCommitsHandler))
-	http.HandleFunc("/deploy_handler", DeployHandler)
+	http.HandleFunc("/deploy", checkAuth(DeployPage))
+	http.HandleFunc("/deployLog/", checkAuth(extractDeployLogHandler(DeployLogHandler)))
+	http.HandleFunc("/output/", checkAuth(extractOutputHandler(DeployOutputHandler)))
+	http.HandleFunc("/commits/", checkAuth(extractCommitHandler(ProjCommitsHandler)))
+	http.HandleFunc("/deploy_handler", checkAuth(DeployHandler))
+	http.HandleFunc("/auth/github/login", loginHandler("github"))
+	http.HandleFunc("/auth/github/callback", callbackHandler("github"))
 	fmt.Printf("Running on %s\n", *bindAddress)
 	log.Fatal(http.ListenAndServe(*bindAddress, nil))
+	//http.ListenAndServe(*bindAddress, context.ClearHandler(http.DefaultServeMux))
 }
