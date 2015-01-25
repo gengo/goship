@@ -876,7 +876,7 @@ func loginHandler(providerName string) http.HandlerFunc {
 	}
 }
 
-func callbackHandler(providerName string) http.HandlerFunc {
+func callbackHandler(providerName, callbackURL string) http.HandlerFunc {
 	// Handle error
 	provider, err := gomniauth.Provider(providerName)
 	if err != nil {
@@ -921,7 +921,7 @@ func callbackHandler(providerName string) http.HandlerFunc {
 		log.Print("saving session")
 		session.Save(r, w)
 
-		http.Redirect(w, r, "http://127.0.0.1:8000", http.StatusFound)
+		http.Redirect(w, r, "http://"+callbackURL+":8000", http.StatusFound)
 
 	}
 }
@@ -972,7 +972,7 @@ func main() {
 	http.HandleFunc("/commits/", checkAuth(extractCommitHandler(ProjCommitsHandler)))
 	http.HandleFunc("/deploy_handler", checkAuth(DeployHandler))
 	http.HandleFunc("/auth/github/login", loginHandler("github"))
-	http.HandleFunc("/auth/github/callback", callbackHandler("github"))
+	http.HandleFunc("/auth/github/callback", callbackHandler("github", githubCallbackURL))
 	fmt.Printf("Running on %s\n", *bindAddress)
 	log.Fatal(http.ListenAndServe(*bindAddress, nil))
 	//http.ListenAndServe(*bindAddress, context.ClearHandler(http.DefaultServeMux))
