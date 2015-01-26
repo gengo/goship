@@ -521,7 +521,7 @@ func endNotify(n, p, env string, success bool) error {
 }
 
 func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	c, err := goship.ParseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
+	c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -697,7 +697,7 @@ func (slice ByName) Less(i, j int) bool { return slice[i].Name < slice[j].Name }
 func (slice ByName) Swap(i, j int)      { slice[i], slice[j] = slice[j], slice[i] }
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	c, err := goship.ParseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
+	c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -724,7 +724,7 @@ func extractDeployLogHandler(fn func(http.ResponseWriter, *http.Request, string,
 			http.NotFound(w, r)
 			return
 		}
-		c, err := goship.ParseETCD(etcd.NewClient([]string{"http://127.0.0.1:4001"}))
+		c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
 		if err != nil {
 			log.Println("ERROR: ", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -830,7 +830,7 @@ func checkAuth(fn http.HandlerFunc) http.HandlerFunc {
 		_, err := getUser(r)
 		if err != nil {
 			log.Printf("error getting a logged in user %s", err)
-			http.Redirect(w, r, "http://"+callbackURL+"/auth/github/login", 301)
+			http.Redirect(w, r, "http://"+os.Getenv("GITHUB_CALLBACK_URL")+"/auth/github/login", 301)
 
 			return
 		}
@@ -921,7 +921,7 @@ func callbackHandler(providerName, callbackURL string) http.HandlerFunc {
 		log.Print("saving session")
 		session.Save(r, w)
 
-		http.Redirect(w, r, "http://"+callbackURL+":8000", http.StatusFound)
+		http.Redirect(w, r, "http://"+os.Getenv("GITHUB_CALLBACK_URL"), http.StatusFound)
 
 	}
 }
@@ -933,12 +933,6 @@ func main() {
 	githubOmniauthKey := os.Getenv("GITHUB_OMNI_AUTH_KEY")
 	githubCallbackURL := os.Getenv("GITHUB_CALLBACK_URL")
 	githubCallbackFullURL := githubCallbackURL + "/auth/github/callback"
-
-	log.Printf("[%s] [%s] [%s] [%s]",
-		githubRandomHashKey,
-		githubOmniauthID,
-		githubOmniauthKey,
-		githubCallbackURL)
 
 	// Let user know if a key is missing.
 	if githubRandomHashKey == "" || githubOmniauthID == "" || githubOmniauthKey == "" || githubCallbackURL == "" {
