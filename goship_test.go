@@ -9,6 +9,7 @@ import (
 
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gengo/goship/lib"
+	//"github.com/google/go-github/github"
 	"github.com/gorilla/sessions"
 )
 
@@ -158,6 +159,21 @@ func TestCleanProjects(t *testing.T) {
 		t.Errorf("clean projects failed to clean project for unauth user.. [%d]", got)
 	}
 }
+
+func TestGetCollaborator(t *testing.T) {
+	res, _ := isCollaborator("gengo", "admin", "ramhhen74")
+	if res != true {
+		t.Errorf("omg")
+	}
+}
+
+// func TestReturns404IfYouSayNothing(t *testing.T) {
+// 	req, _ := http.NewRequest("GET", "", nil)
+// 	w := httptest.NewRecorder()
+// 	HomeHandler(w, req)
+// 	url := "http://example.com/echo?say=Nothing"
+// 	req, err := http.NewRequest("GET", url, nil)
+// }
 
 func TestGetUser(t *testing.T) {
 	// func getUser(r *http.Request) (User, error) {
