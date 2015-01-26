@@ -876,7 +876,7 @@ func loginHandler(providerName string) http.HandlerFunc {
 	}
 }
 
-func callbackHandler(providerName, callbackURL string) http.HandlerFunc {
+func callbackHandler(providerName string) http.HandlerFunc {
 	// Handle error
 	provider, err := gomniauth.Provider(providerName)
 	if err != nil {
@@ -945,7 +945,7 @@ func main() {
 	// Random key used by omniauth
 	gomniauth.SetSecurityKey(githubRandomHashKey)
 	gomniauth.WithProviders(
-		githubOauth.New(githubOmniauthID, githubOmniauthKey, githubCallbackURL),
+		githubOauth.New(githubOmniauthID, githubOmniauthKey, githubCallbackURL+"/auth/github/callback"),
 	)
 
 	log.Printf("Starting Goship...")
@@ -965,7 +965,7 @@ func main() {
 	http.HandleFunc("/commits/", checkAuth(extractCommitHandler(ProjCommitsHandler)))
 	http.HandleFunc("/deploy_handler", checkAuth(DeployHandler))
 	http.HandleFunc("/auth/github/login", loginHandler("github"))
-	http.HandleFunc("/auth/github/callback", callbackHandler("github", githubCallbackURL))
+	http.HandleFunc("/auth/github/callback", callbackHandler("github"))
 	fmt.Printf("Running on %s\n", *bindAddress)
 	log.Fatal(http.ListenAndServe(*bindAddress, nil))
 	//http.ListenAndServe(*bindAddress, context.ClearHandler(http.DefaultServeMux))
