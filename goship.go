@@ -830,7 +830,7 @@ func checkAuth(fn http.HandlerFunc) http.HandlerFunc {
 		_, err := getUser(r)
 		if err != nil {
 			log.Printf("error getting a logged in user %s", err)
-			http.Redirect(w, r, "http://127.0.0.1:8000/auth/github/login", 301)
+			http.Redirect(w, r, "http://"+callbackURL+"/auth/github/login", 301)
 
 			return
 		}
