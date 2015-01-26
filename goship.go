@@ -777,21 +777,6 @@ func extractOutputHandler(fn func(http.ResponseWriter, *http.Request, string, st
 	}
 }
 
-func isMember(owner, repo, user string) (bool, error) {
-	gt := os.Getenv(gitHubAPITokenEnvVar)
-	t := &oauth.Transport{
-		Token: &oauth.Token{AccessToken: gt},
-	}
-	github.NewClient(t.Client())
-	c := github.NewClient(t.Client())
-	m := false
-	m, _, err := c.Organizations.IsMember(owner, user)
-	if err != nil {
-		log.Print("Failure getting Membership of User %s %s %s", owner, user, repo)
-	}
-	return m, err
-}
-
 func isCollaborator(owner, repo, user string) (bool, error) {
 	gt := os.Getenv(gitHubAPITokenEnvVar)
 	t := &oauth.Transport{
@@ -968,5 +953,4 @@ func main() {
 	http.HandleFunc("/auth/github/callback", callbackHandler("github"))
 	fmt.Printf("Running on %s\n", *bindAddress)
 	log.Fatal(http.ListenAndServe(*bindAddress, nil))
-	//http.ListenAndServe(*bindAddress, context.ClearHandler(http.DefaultServeMux))
 }
