@@ -830,7 +830,7 @@ func checkAuth(fn http.HandlerFunc) http.HandlerFunc {
 		_, err := getUser(r)
 		if err != nil {
 			log.Printf("error getting a logged in user %s", err)
-			http.Redirect(w, r, "http://"+os.Getenv("GITHUB_CALLBACK_URL")+"/auth/github/login", 301)
+			http.Redirect(w, r, os.Getenv("GITHUB_CALLBACK_URL")+"/auth/github/login", 301)
 
 			return
 		}
@@ -921,7 +921,7 @@ func callbackHandler(providerName string) http.HandlerFunc {
 		log.Print("saving session")
 		session.Save(r, w)
 
-		http.Redirect(w, r, "http://"+os.Getenv("GITHUB_CALLBACK_URL"), http.StatusFound)
+		http.Redirect(w, r, os.Getenv("GITHUB_CALLBACK_URL"), http.StatusFound)
 
 	}
 }
