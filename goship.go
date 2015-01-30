@@ -488,7 +488,7 @@ func notify(n, msg string) error {
 }
 
 func startNotify(n, user, p, env string) error {
-	msg := fmt.Sprintf("%s is deploying %s to %s.", user, p, env)
+	msg := fmt.Sprintf("%s is deploying %s to *%s*.", user, p, env)
 	err := notify(n, msg)
 	if err != nil {
 		return err
@@ -497,9 +497,9 @@ func startNotify(n, user, p, env string) error {
 }
 
 func endNotify(n, p, env string, success bool) error {
-	msg := fmt.Sprintf("%s successfully deployed to %s.", p, env)
+	msg := fmt.Sprintf("%s successfully deployed to *%s*.", p, env)
 	if !success {
-		msg = fmt.Sprintf("%s deployment to %s failed.", p, env)
+		msg = fmt.Sprintf("%s deployment to *%s* failed.", p, env)
 	}
 	err := notify(n, msg)
 	if err != nil {
