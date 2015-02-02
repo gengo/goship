@@ -138,6 +138,7 @@ func TestProjectFromName(t *testing.T) {
 }
 
 func TestCleanProjects(t *testing.T) {
+	authentication.authorization = true
 	req, _ := http.NewRequest("GET", "", nil)
 	w := httptest.NewRecorder()
 	HomeHandler(w, req)
@@ -160,7 +161,7 @@ func TestCleanProjects(t *testing.T) {
 }
 
 func TestGetUser(t *testing.T) {
-	// func getUser(r *http.Request) (User, error) {
+	authentication.authorization = true
 	req, _ := http.NewRequest("GET", "", nil)
 	w := httptest.NewRecorder()
 	HomeHandler(w, req)

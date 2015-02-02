@@ -45,9 +45,7 @@ var (
 var store = sessions.NewCookieStore([]byte("jhjhjhjhjhjjhjhhj"))
 var session_name = "goship"
 
-type User struct {
-	UserName, UserAvatar string
-}
+var authentication auth
 
 // gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
 const (
@@ -777,7 +775,7 @@ func extractOutputHandler(fn func(http.ResponseWriter, *http.Request, string, st
 	}
 }
 
-func isCollaborator(owner, repo, user string) (bool, error) {
+func isAuthCollaborator(owner, repo, user string) (bool, error) {
 	gt := os.Getenv(gitHubAPITokenEnvVar)
 	t := &oauth.Transport{
 		Token: &oauth.Token{AccessToken: gt},
@@ -792,6 +790,11 @@ func isCollaborator(owner, repo, user string) (bool, error) {
 	return m, err
 }
 
+type User struct {
+	UserName, UserAvatar string
+	auth                 auth
+}
+
 func getUser(r *http.Request) (User, error) {
 	u := User{}
 	session, err := store.Get(r, session_name)
@@ -799,6 +802,8 @@ func getUser(r *http.Request) (User, error) {
 		return u, errors.New("Error Getting User Session")
 	}
 	if _, ok := session.Values["userName"]; !ok {
+		u.UserName = "genericUSER"
+		u.UserAvatar = "https://camo.githubusercontent.com/33a7d9a138ac73ece82dee977c216eb13dffc984/687474703a2f2f692e696d6775722e636f6d2f524c766b486b612e706e67"
 		return u, errors.New("No username")
 	}
 	if _, ok := session.Values["avatarURL"]; !ok {
@@ -810,10 +815,10 @@ func getUser(r *http.Request) (User, error) {
 	return u, nil
 }
 
-func checkAuth(fn http.HandlerFunc) http.HandlerFunc {
+func checkAuth(fn http.HandlerFunc, a auth) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := getUser(r)
-		if err != nil {
+		if err != nil && a.authorization != false {
 			log.Printf("error getting a logged in user %s", err)
 			http.Redirect(w, r, os.Getenv("GITHUB_CALLBACK_URL")+"/auth/github/login", 301)
 
@@ -829,109 +834,148 @@ type cleanProject []goship.Project
 func cleanProjects(n cleanProject, r *http.Request, u User) cleanProject {
 	f_projects := []goship.Project{}
 	for _, p := range n {
-		a, _ := isCollaborator(p.RepoOwner, p.RepoName, u.UserName)
-
+		a := isCollaborator(p.RepoOwner, p.RepoName, u.UserName)
 		// If user does not have access to the project remove it.
-		if a == true {
-			log.Printf("Access Granted to %s for repo %s", p.RepoOwner, p.RepoName)
+		if a == true || authentication.authorization == false {
 			f_projects = append(f_projects, p)
 		}
 	}
 	return f_projects
 }
 
-func loginHandler(providerName string) http.HandlerFunc {
-	provider, err := gomniauth.Provider(providerName)
-	if err != nil {
-		panic(err)
-	}
-	return func(w http.ResponseWriter, r *http.Request) {
-
-		state := gomniauth.NewState("after", "success")
-
-		authUrl, err := provider.GetBeginAuthURL(state, nil)
+func loginHandler(providerName string, auth bool) http.HandlerFunc {
+	if auth == true {
+		provider, err := gomniauth.Provider(providerName)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			panic(err)
 		}
+		return func(w http.ResponseWriter, r *http.Request) {
 
-		// redirect
-		http.Redirect(w, r, authUrl, http.StatusFound)
+			state := gomniauth.NewState("after", "success")
 
+			authUrl, err := provider.GetBeginAuthURL(state, nil)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			// redirect
+			http.Redirect(w, r, authUrl, http.StatusFound)
+		}
+	} else {
+		return func(w http.ResponseWriter, r *http.Request) {}
 	}
 }
 
-func callbackHandler(providerName string) http.HandlerFunc {
+func callbackHandler(providerName string, auth bool) http.HandlerFunc {
 	// Handle error
-	provider, err := gomniauth.Provider(providerName)
-	if err != nil {
-		panic(err)
+	if auth == true {
+		provider, err := gomniauth.Provider(providerName)
+		if err != nil {
+			panic(err)
+		}
+		return func(w http.ResponseWriter, r *http.Request) {
+
+			omap, err := objx.FromURLQuery(r.URL.RawQuery)
+			if err != nil {
+				log.Printf("error getting resp from callback")
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			creds, err := provider.CompleteAuth(omap)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			user, userErr := provider.GetUser(creds)
+			if userErr != nil {
+				log.Printf("Failed to get user from Github %s", user)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			session, err := store.Get(r, session_name)
+			if err != nil {
+				log.Fatal("Can't get a session store")
+			}
+
+			session.Options = &sessions.Options{
+				Path:     "/",
+				MaxAge:   86400 * 7,
+				HttpOnly: true,
+			}
+
+			session.Values["userName"] = user.Nickname()
+			session.Values["avatarURL"] = user.AvatarURL()
+			log.Print("saving session")
+			session.Save(r, w)
+
+			http.Redirect(w, r, os.Getenv("GITHUB_CALLBACK_URL"), http.StatusFound)
+
+		}
+	} else {
+		return func(w http.ResponseWriter, r *http.Request) {}
 	}
+}
 
-	return func(w http.ResponseWriter, r *http.Request) {
+type auth struct {
+	authorization       bool
+	githubRandomHashKey string
+	githubOmniauthID    string
+	githubOmniauthKey   string
+	githubCallbackURL   string
+}
 
-		omap, err := objx.FromURLQuery(r.URL.RawQuery)
+func getAuth() auth {
+	a := auth{}
+	a.githubRandomHashKey = os.Getenv("GITHUB_RANDOM_HASH_KEY")
+	a.githubOmniauthID = os.Getenv("GITHUB_OMNI_AUTH_ID")
+	a.githubOmniauthKey = os.Getenv("GITHUB_OMNI_AUTH_KEY")
+	a.githubCallbackURL = os.Getenv("GITHUB_CALLBACK_URL")
+	a.authorization = true
+	// Let user know if a key is missing and that auth is disabled.
+	if a.githubRandomHashKey == "" || a.githubOmniauthID == "" || a.githubOmniauthKey == "" || a.githubCallbackURL == "" {
+		log.Printf("Missing one or more Gomniauth Environment Variables: Running with with limited functionality! \n githubRandomHashKey [%s] \n githubOmniauthID [%s] \n githubOmniauthKey[%s] \n githubCallbackURL[%s]",
+			a.githubRandomHashKey,
+			a.githubOmniauthID,
+			a.githubOmniauthKey,
+			a.githubCallbackURL)
+		a.authorization = false
+	} else {
+		gomniauth.SetSecurityKey(a.githubRandomHashKey)
+		gomniauth.WithProviders(
+			githubOauth.New(a.githubOmniauthID, a.githubOmniauthKey, a.githubCallbackURL+"/auth/github/callback"),
+		)
+		a.authorization = true
+	}
+	return a
+}
+
+func isCollaborator(owner, repo, user string) bool {
+	if authentication.authorization == true {
+
+		gt := os.Getenv(gitHubAPITokenEnvVar)
+		t := &oauth.Transport{
+			Token: &oauth.Token{AccessToken: gt},
+		}
+		github.NewClient(t.Client())
+		c := github.NewClient(t.Client())
+		m, _, err := c.Repositories.IsCollaborator(owner, repo, user)
 		if err != nil {
-			log.Printf("error getting resp from callback")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+			log.Print("Failure getting Collaboration Status of User %s %s %s", owner, user, repo)
+			return false
 		}
-
-		creds, err := provider.CompleteAuth(omap)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		user, userErr := provider.GetUser(creds)
-		if userErr != nil {
-			log.Printf("Failed to get user from Github %s", user)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		session, err := store.Get(r, session_name)
-		if err != nil {
-			log.Fatal("Can't get a session store")
-		}
-
-		session.Options = &sessions.Options{
-			Path:     "/",
-			MaxAge:   86400 * 7,
-			HttpOnly: true,
-		}
-
-		session.Values["userName"] = user.Nickname()
-		session.Values["avatarURL"] = user.AvatarURL()
-		log.Print("saving session")
-		session.Save(r, w)
-
-		http.Redirect(w, r, os.Getenv("GITHUB_CALLBACK_URL"), http.StatusFound)
-
+		return m
+	} else {
+		return true
 	}
 }
 
 func main() {
-
-	githubRandomHashKey := os.Getenv("GITHUB_RANDOM_HASH_KEY")
-	githubOmniauthID := os.Getenv("GITHUB_OMNI_AUTH_ID")
-	githubOmniauthKey := os.Getenv("GITHUB_OMNI_AUTH_KEY")
-	githubCallbackURL := os.Getenv("GITHUB_CALLBACK_URL")
-
-	// Let user know if a key is missing.
-	if githubRandomHashKey == "" || githubOmniauthID == "" || githubOmniauthKey == "" || githubCallbackURL == "" {
-		log.Fatalf("Missing a Gomniauth Environment Value: They must all be set [%s] [%s] [%s] [%s]",
-			githubRandomHashKey,
-			githubOmniauthID,
-			githubOmniauthKey,
-			githubCallbackURL)
-	}
-
-	// Random key used by omniauth
-	gomniauth.SetSecurityKey(githubRandomHashKey)
-	gomniauth.WithProviders(
-		githubOauth.New(githubOmniauthID, githubOmniauthKey, githubCallbackURL+"/auth/github/callback"),
-	)
+	authentication = getAuth()
+	log.Print("Authorization is On? %s", authentication.authorization)
 
 	log.Printf("Starting Goship...")
 	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
@@ -939,18 +983,18 @@ func main() {
 	}
 	flag.Parse()
 	go h.run()
-	http.HandleFunc("/", checkAuth(HomeHandler))
+	http.HandleFunc("/", checkAuth(HomeHandler, authentication))
 	http.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, r.URL.Path[1:])
 	})
 	http.Handle("/web_push", websocket.Handler(websocketHandler))
-	http.HandleFunc("/deploy", checkAuth(DeployPage))
-	http.HandleFunc("/deployLog/", checkAuth(extractDeployLogHandler(DeployLogHandler)))
-	http.HandleFunc("/output/", checkAuth(extractOutputHandler(DeployOutputHandler)))
-	http.HandleFunc("/commits/", checkAuth(extractCommitHandler(ProjCommitsHandler)))
-	http.HandleFunc("/deploy_handler", checkAuth(DeployHandler))
-	http.HandleFunc("/auth/github/login", loginHandler("github"))
-	http.HandleFunc("/auth/github/callback", callbackHandler("github"))
+	http.HandleFunc("/deploy", checkAuth(DeployPage, authentication))
+	http.HandleFunc("/deployLog/", checkAuth(extractDeployLogHandler(DeployLogHandler), authentication))
+	http.HandleFunc("/output/", checkAuth(extractOutputHandler(DeployOutputHandler), authentication))
+	http.HandleFunc("/commits/", checkAuth(extractCommitHandler(ProjCommitsHandler), authentication))
+	http.HandleFunc("/deploy_handler", checkAuth(DeployHandler, authentication))
+	http.HandleFunc("/auth/github/login", loginHandler("github", authentication.authorization))
+	http.HandleFunc("/auth/github/callback", callbackHandler("github", authentication.authorization))
 	fmt.Printf("Running on %s\n", *bindAddress)
 	log.Fatal(http.ListenAndServe(*bindAddress, nil))
 }
