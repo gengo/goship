@@ -35,14 +35,15 @@ import (
 )
 
 var (
-	bindAddress = flag.String("b", "localhost:8000", "Address to bind (default localhost:8000)")
-	sshPort     = "22"
-	keyPath     = flag.String("k", "id_rsa", "Path to private SSH key (default id_rsa)")
-	dataPath    = flag.String("d", "data/", "Path to data directory (default ./data/)")
-	ETCDServer  = flag.String("e", "http://127.0.0.1:4001", "Etcd Server (default http://127.0.0.1:4001")
+	bindAddress       = flag.String("b", "localhost:8000", "Address to bind (default localhost:8000)")
+	sshPort           = "22"
+	keyPath           = flag.String("k", "id_rsa", "Path to private SSH key (default id_rsa)")
+	dataPath          = flag.String("d", "data/", "Path to data directory (default ./data/)")
+	ETCDServer        = flag.String("e", "http://127.0.0.1:4001", "Etcd Server (default http://127.0.0.1:4001")
+	cookieSessionHash = flag.String("c", "jhjhjhjhjhjjhjhhj", "Random cookie session key (default jhjhjhjhjhjjhjhhj")
 )
 
-var store = sessions.NewCookieStore([]byte("jhjhjhjhjhjjhjhhj"))
+var store = sessions.NewCookieStore([]byte(*cookieSessionHash))
 var session_name = "goship"
 
 var authentication auth
