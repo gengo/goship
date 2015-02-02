@@ -776,21 +776,6 @@ func extractOutputHandler(fn func(http.ResponseWriter, *http.Request, string, st
 	}
 }
 
-func isAuthCollaborator(owner, repo, user string) (bool, error) {
-	gt := os.Getenv(gitHubAPITokenEnvVar)
-	t := &oauth.Transport{
-		Token: &oauth.Token{AccessToken: gt},
-	}
-	github.NewClient(t.Client())
-	c := github.NewClient(t.Client())
-	m := false
-	m, _, err := c.Repositories.IsCollaborator(owner, repo, user)
-	if err != nil {
-		log.Print("Failure getting Collaboration Status of User %s %s %s", owner, user, repo)
-	}
-	return m, err
-}
-
 type User struct {
 	UserName, UserAvatar string
 	auth                 auth
