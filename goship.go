@@ -975,7 +975,6 @@ func isCollaborator(owner, repo, user string) bool {
 
 func main() {
 	authentication = getAuth()
-	log.Print("Authorization is On? %s", authentication.authorization)
 
 	log.Printf("Starting Goship...")
 	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {

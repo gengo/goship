@@ -21,6 +21,7 @@ Export your GitHub API token:
 ### Github Omniauth Integration:
      
     You must create a developer application to use omniauth.
+    If you do NOT add the appropriate env keys below AUTH will be OFF I.E => Fail unsafe. Please be carefull and check the logs. 
     Please  note the "Authorization callback URL" should match your site i.e. "http://<your-url-and-port>/auth/github/callback"
 
     export GITHUB_RANDOM_HASH_KEY="some-random-hash-here;  
