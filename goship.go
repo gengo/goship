@@ -499,7 +499,7 @@ func notify(n, msg string) error {
 }
 
 func startNotify(n, user, p, env string) error {
-	msg := fmt.Sprintf("%s is deploying %s to %s.", user, p, env)
+	msg := fmt.Sprintf("%s is deploying %s to *%s*.", user, p, env)
 	err := notify(n, msg)
 	if err != nil {
 		return err
@@ -508,9 +508,9 @@ func startNotify(n, user, p, env string) error {
 }
 
 func endNotify(n, p, env string, success bool) error {
-	msg := fmt.Sprintf("%s successfully deployed to %s.", p, env)
+	msg := fmt.Sprintf("%s successfully deployed to *%s*.", p, env)
 	if !success {
-		msg = fmt.Sprintf("%s deployment to %s failed.", p, env)
+		msg = fmt.Sprintf("%s deployment to *%s* failed.", p, env)
 	}
 	err := notify(n, msg)
 	if err != nil {
@@ -665,8 +665,9 @@ func PostPivotalComment(id string, m string, piv *goship.PivotalConfiguration) (
 		return err
 	}
 	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		log.Println("ERROR: non-200 Response from Pivotal API: ", resp.Status)
+		log.Printf("ERROR: non-200 Response from Pivotal API: %s %s ", resp.Status, body)
 	}
 	return nil
 }
