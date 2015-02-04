@@ -165,7 +165,7 @@ func TestGetUser(t *testing.T) {
 	req, _ := http.NewRequest("GET", "", nil)
 	w := httptest.NewRecorder()
 	HomeHandler(w, req)
-	session, err := store.Get(req, session_name)
+	session, err := store.Get(req, sessionName)
 	if err != nil {
 		t.Errorf("Can't get a session store")
 	}

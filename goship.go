@@ -44,7 +44,7 @@ var (
 )
 
 var store = sessions.NewCookieStore([]byte(*cookieSessionHash))
-var session_name = "goship"
+var sessionName = "goship"
 
 var authentication auth
 
@@ -785,7 +785,7 @@ type User struct {
 
 func getUser(r *http.Request) (User, error) {
 	u := User{}
-	session, err := store.Get(r, session_name)
+	session, err := store.Get(r, sessionName)
 	if err != nil {
 		return u, errors.New("Error Getting User Session")
 	}
@@ -808,7 +808,7 @@ func checkAuth(fn http.HandlerFunc, a auth) http.HandlerFunc {
 		_, err := getUser(r)
 		if err != nil && a.authorization != false {
 			log.Printf("error getting a logged in user %s", err)
-			http.Redirect(w, r, os.Getenv("GITHUB_CALLBACK_URL")+"/auth/github/login", 301)
+			http.Redirect(w, r, os.Getenv("GITHUB_CALLBACK_URL")+"/auth/github/login", http.StatusMovedPermanently)
 
 			return
 		}
@@ -820,15 +820,15 @@ type cleanProject []goship.Project
 
 // remove projects where user has no access
 func cleanProjects(n cleanProject, r *http.Request, u User) cleanProject {
-	f_projects := []goship.Project{}
+	cleanProjects := []goship.Project{}
 	for _, p := range n {
 		a := isCollaborator(p.RepoOwner, p.RepoName, u.UserName)
 		// If user does not have access to the project remove it.
 		if a == true || authentication.authorization == false {
-			f_projects = append(f_projects, p)
+			cleanProjects = append(cleanProjects, p)
 		}
 	}
-	return f_projects
+	return cleanProjects
 }
 
 func loginHandler(providerName string, auth bool) http.HandlerFunc {
@@ -847,7 +847,6 @@ func loginHandler(providerName string, auth bool) http.HandlerFunc {
 				return
 			}
 
-			// redirect
 			http.Redirect(w, r, authUrl, http.StatusFound)
 		}
 	} else {
@@ -884,7 +883,7 @@ func callbackHandler(providerName string, auth bool) http.HandlerFunc {
 				return
 			}
 
-			session, err := store.Get(r, session_name)
+			session, err := store.Get(r, sessionName)
 			if err != nil {
 				log.Fatal("Can't get a session store")
 			}
