@@ -529,8 +529,9 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	u, err := getUser(r)
-	if err != nil {
-		log.Fatal("Failed to get a user while deploying!")
+	if err != nil && authentication.authorization == true {
+		log.Println("Failed to get a user while deploying in Auth Mode! ")
+		http.Error(w, err.Error(), http.StatusUnauthorized)
 	}
 	user := u.UserName
 	fromRevision := r.FormValue("from_revision")
