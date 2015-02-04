@@ -40,7 +40,7 @@ var (
 	keyPath           = flag.String("k", "id_rsa", "Path to private SSH key (default id_rsa)")
 	dataPath          = flag.String("d", "data/", "Path to data directory (default ./data/)")
 	ETCDServer        = flag.String("e", "http://127.0.0.1:4001", "Etcd Server (default http://127.0.0.1:4001)")
-	cookieSessionHash = flag.String("c", "jhjhjhjhjhjjhjhhj", "Random cookie session key (default jhjhjhjhjhjjhjhhj)")
+	cookieSessionHash = flag.String("c", "COOKIE-SESSION-HASH", "Random cookie session key (default jhjhjhjhjhjjhjhhj)")
 )
 
 var store = sessions.NewCookieStore([]byte(*cookieSessionHash))
