@@ -333,7 +333,11 @@ func DeployOutputHandler(w http.ResponseWriter, r *http.Request, env string, for
 }
 
 func DeployLogHandler(w http.ResponseWriter, r *http.Request, full_env string, environment goship.Environment) {
-	u, _ := getUser(r)
+	u, err := getUser(r)
+	if err != nil {
+		log.Println("Failed to get User! ")
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+	}
 	d, err := readEntries(full_env)
 	if err != nil {
 		log.Println("Error: ", err)
@@ -528,14 +532,14 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	p := r.FormValue("project")
-	env := r.FormValue("environment")
 	u, err := getUser(r)
-	if err != nil && authentication.authorization == true {
-		log.Println("Failed to get a user while deploying in Auth Mode! ")
+	if err != nil {
+		log.Println("Failed to get a User! ")
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 	}
 	user := u.UserName
+	p := r.FormValue("project")
+	env := r.FormValue("environment")
 	fromRevision := r.FormValue("from_revision")
 	toRevision := r.FormValue("to_revision")
 	owner := r.FormValue("repo_owner")
@@ -676,9 +680,13 @@ func PostPivotalComment(id string, m string, piv *goship.PivotalConfiguration) (
 }
 
 func DeployPage(w http.ResponseWriter, r *http.Request) {
+	user, err := getUser(r)
+	if err != nil {
+		log.Println("Failed to Get User")
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+	}
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
-	user, _ := getUser(r)
 	fromRevision := r.FormValue("from_revision")
 	toRevision := r.FormValue("to_revision")
 	repo_owner := r.FormValue("repo_owner")
@@ -701,10 +709,10 @@ func (slice ByName) Swap(i, j int)      { slice[i], slice[j] = slice[j], slice[i
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
+	u, err := getUser(r)
 	if err != nil {
-		log.Println("ERROR: ", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		log.Println("Failed to get User! ")
+		http.Error(w, err.Error(), http.StatusUnauthorized)
 	}
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
@@ -712,7 +720,6 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	u, _ := getUser(r)
 	c.Projects = cleanProjects(c.Projects, r, u)
 	sort.Sort(ByName(c.Projects))
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "User": u, "Page": "home"})
@@ -722,6 +729,11 @@ var validPathWithEnv = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
 
 func extractDeployLogHandler(fn func(http.ResponseWriter, *http.Request, string, goship.Environment)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		u, err := getUser(r)
+		if err != nil {
+			log.Println("Failed to get a user while deploying in Auth Mode! ")
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+		}
 		m := validPathWithEnv.FindStringSubmatch(r.URL.Path)
 		if m == nil {
 			http.NotFound(w, r)
@@ -734,7 +746,6 @@ func extractDeployLogHandler(fn func(http.ResponseWriter, *http.Request, string,
 			return
 		}
 		// auth check for user
-		u, _ := getUser(r)
 		c.Projects = cleanProjects(c.Projects, r, u)
 		// get project name and env from url
 		a := strings.Split(m[2], "-")
@@ -787,13 +798,16 @@ type User struct {
 
 func getUser(r *http.Request) (User, error) {
 	u := User{}
+	if authentication.authorization != true {
+		u.UserName = *defaultUser
+		u.UserAvatar = *defaultAvatar
+		return u, nil
+	}
 	session, err := store.Get(r, sessionName)
 	if err != nil {
 		return u, errors.New("Error Getting User Session")
 	}
 	if _, ok := session.Values["userName"]; !ok {
-		u.UserName = *defaultUser
-		u.UserAvatar = *defaultAvatar
 		return u, errors.New("No username")
 	}
 	if _, ok := session.Values["avatarURL"]; !ok {
@@ -805,11 +819,12 @@ func getUser(r *http.Request) (User, error) {
 	return u, nil
 }
 
+//Used to wrap a view and check for auth
 func checkAuth(fn http.HandlerFunc, a auth) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := getUser(r)
-		if err != nil && a.authorization != false {
-			log.Printf("error getting a logged in user %s", err)
+		if err != nil {
+			log.Printf("error getting a User %s", err)
 			http.Redirect(w, r, os.Getenv("GITHUB_CALLBACK_URL")+"/auth/github/login", http.StatusMovedPermanently)
 
 			return
@@ -820,11 +835,14 @@ func checkAuth(fn http.HandlerFunc, a auth) http.HandlerFunc {
 
 // remove projects where user has no access
 func cleanProjects(cp []goship.Project, r *http.Request, u User) []goship.Project {
+	if authentication.authorization != true {
+		return cp
+	}
 	cleanProjects := []goship.Project{}
 	for _, p := range cp {
 		a := isCollaborator(p.RepoOwner, p.RepoName, u.UserName)
 		// If user does not have access to the project remove it.
-		if a == true || authentication.authorization == false {
+		if a == true {
 			cleanProjects = append(cleanProjects, p)
 		}
 	}
