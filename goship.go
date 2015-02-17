@@ -902,6 +902,8 @@ func callbackHandler(providerName string, auth bool) http.HandlerFunc {
 		session.Values["userName"] = user.Nickname()
 		session.Values["avatarURL"] = user.AvatarURL()
 		session.Save(r, w)
+
+		http.Redirect(w, r, os.Getenv("GITHUB_CALLBACK_URL"), http.StatusFound)
 	}
 }
 
