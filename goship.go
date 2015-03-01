@@ -709,6 +709,10 @@ func (slice ByName) Swap(i, j int)      { slice[i], slice[j] = slice[j], slice[i
 
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
+	if err != nil {
+		log.Printf("Failed to Parse to ETCD data %s", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 	u, err := getUser(r)
 	if err != nil {
 		log.Println("Failed to get User! ")
@@ -718,7 +722,6 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
 	}
 	c.Projects = cleanProjects(c.Projects, r, u)
 	sort.Sort(ByName(c.Projects))
@@ -857,7 +860,8 @@ func loginHandler(providerName string, auth bool) http.HandlerFunc {
 
 	provider, err := gomniauth.Provider(providerName)
 	if err != nil {
-		panic(err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -881,7 +885,8 @@ func callbackHandler(providerName string, auth bool) http.HandlerFunc {
 
 	provider, err := gomniauth.Provider(providerName)
 	if err != nil {
-		panic(err)
+		log.Printf("error getting gomniauth provider")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -942,6 +947,7 @@ func getAuth() auth {
 	a.githubOmniauthKey = os.Getenv("GITHUB_OMNI_AUTH_KEY")
 	a.githubCallbackURL = os.Getenv("GITHUB_CALLBACK_URL")
 	// Let user know if a key is missing and that auth is disabled.
+
 	if a.githubRandomHashKey == "" || a.githubOmniauthID == "" || a.githubOmniauthKey == "" || a.githubCallbackURL == "" {
 		log.Printf("Missing one or more Gomniauth Environment Variables: Running with with limited functionality! \n githubRandomHashKey [%s] \n githubOmniauthID [%s] \n githubOmniauthKey[%s] \n githubCallbackURL[%s]",
 			a.githubRandomHashKey,
@@ -949,13 +955,14 @@ func getAuth() auth {
 			a.githubOmniauthKey,
 			a.githubCallbackURL)
 		a.authorization = false
-	} else {
-		gomniauth.SetSecurityKey(a.githubRandomHashKey)
-		gomniauth.WithProviders(
-			githubOauth.New(a.githubOmniauthID, a.githubOmniauthKey, a.githubCallbackURL+"/auth/github/callback"),
-		)
-		a.authorization = true
+		return a
 	}
+
+	gomniauth.SetSecurityKey(a.githubRandomHashKey)
+	gomniauth.WithProviders(
+		githubOauth.New(a.githubOmniauthID, a.githubOmniauthKey, a.githubCallbackURL+"/auth/github/callback"),
+	)
+	a.authorization = true
 	return a
 }
 
