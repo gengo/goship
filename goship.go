@@ -858,12 +858,21 @@ func loginHandler(providerName string, auth bool) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {}
 	}
 
-	provider, err := gomniauth.Provider(providerName)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	// provider, err := gomniauth.Provider(providerName)
+	// if err != nil {
+	// 	log.Printf("error getting gomniauth provider")
+	// 	//http.Error(w, err.Error(), http.StatusInternalServerError)
+	// 	//return
+	// }
+
 	return func(w http.ResponseWriter, r *http.Request) {
+
+		provider, err := gomniauth.Provider(providerName)
+		if err != nil {
+			log.Printf("error getting gomniauth provider")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 		state := gomniauth.NewState("after", "success")
 
@@ -883,13 +892,14 @@ func callbackHandler(providerName string, auth bool) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {}
 	}
 
-	provider, err := gomniauth.Provider(providerName)
-	if err != nil {
-		log.Printf("error getting gomniauth provider")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-
 	return func(w http.ResponseWriter, r *http.Request) {
+
+		provider, err := gomniauth.Provider(providerName)
+		if err != nil {
+			log.Printf("error getting gomniauth provider")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 		omap, err := objx.FromURLQuery(r.URL.RawQuery)
 		if err != nil {
@@ -913,7 +923,9 @@ func callbackHandler(providerName string, auth bool) http.HandlerFunc {
 
 		session, err := store.Get(r, sessionName)
 		if err != nil {
-			log.Fatal("Can't get a session store")
+			log.Printf("Failed to get Session %s", user)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		session.Options = &sessions.Options{
@@ -941,7 +953,6 @@ type auth struct {
 //  Authenticate with Github. If env data is missing turn Auth off.
 func getAuth() auth {
 	a := auth{}
-	a.authorization = true
 	a.githubRandomHashKey = os.Getenv("GITHUB_RANDOM_HASH_KEY")
 	a.githubOmniauthID = os.Getenv("GITHUB_OMNI_AUTH_ID")
 	a.githubOmniauthKey = os.Getenv("GITHUB_OMNI_AUTH_KEY")
