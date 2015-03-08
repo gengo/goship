@@ -1,12 +1,15 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gengo/goship/lib"
+	"github.com/gorilla/sessions"
 )
 
 func TestStripANSICodes(t *testing.T) {
@@ -131,6 +134,60 @@ func TestProjectFromName(t *testing.T) {
 	got, err = goship.ProjectFromName(projects, "BadProject")
 	if err == nil {
 		t.Errorf("goship.GetProjectFromName error case did not error", got, nil)
+	}
+}
+
+func TestCleanProjects(t *testing.T) {
+	authentication.authorization = true
+	req, _ := http.NewRequest("GET", "", nil)
+	w := httptest.NewRecorder()
+	HomeHandler(w, req)
+
+	p, err := goship.ParseETCD(&MockEtcdClient{})
+	if err != nil {
+		t.Fatalf("Can't parse %s %s", t, err)
+	}
+	u := User{}
+	u.UserName = "bob"
+
+	got := len(p.Projects)
+	if got < 1 {
+		t.Errorf("clean projects test expects projects to have at least one project [%d]", got)
+	}
+	got = len(cleanProjects(p.Projects, req, u))
+	if got != 0 {
+		t.Errorf("clean projects failed to clean project for unauth user.. [%d]", got)
+	}
+}
+
+func TestGetUser(t *testing.T) {
+	authentication.authorization = true
+	req, _ := http.NewRequest("GET", "", nil)
+	w := httptest.NewRecorder()
+	HomeHandler(w, req)
+	session, err := store.Get(req, sessionName)
+	if err != nil {
+		t.Errorf("Can't get a session store")
+	}
+	session.Options = &sessions.Options{
+		Path:     "/",
+		MaxAge:   86400 * 7,
+		HttpOnly: true,
+	}
+
+	session.Values["userName"] = "T-800"
+	session.Values["avatarURL"] = "http://fake.com/1234"
+	session.Save(req, w)
+	user, err := getUser(req)
+	if err != nil {
+		t.Errorf("Failed to get User from GetUser [%s]", err)
+	}
+	if user.UserName != "T-800" {
+		t.Errorf("Failed to get User Name, expected T-800 got [%s]", user.UserName)
+	}
+	if user.UserAvatar != "http://fake.com/1234" {
+		t.Errorf("Failed to get User Avatar, expected http://fake.com/1234 got [%s]", user.UserAvatar)
+
 	}
 }
 

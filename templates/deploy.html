@@ -21,7 +21,7 @@
       var ws = new WebSocket("ws://{{.BindAddress}}/web_push");
       var project = {{.Project}};
       var environment = {{.Env}};
-      var user = {{.User}};
+      var user = {{.User.UserName}};
       var repo_owner = {{.RepoOwner}};
       var repo_name = {{.RepoName}};
       var from_revision = {{.FromRevision}};

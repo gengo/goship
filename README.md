@@ -18,6 +18,18 @@ Export your GitHub API token:
 
     export GITHUB_API_TOKEN="your-organization-github-token-here"
 
+### Github Omniauth Integration:
+
+    You must create a developer application to use omniauth.
+    If you do NOT add the appropriate env keys below AUTH will be OFF I.E. Please be careful and check the logs.
+    Please  note the "Authorization callback URL" should match your site i.e. "http://<your-url-and-port>/auth/github/callback"
+
+    export GITHUB_RANDOM_HASH_KEY="some-random-hash-here";
+    export GITHUB_OMNI_AUTH_ID="github-application-id";
+    export GITHUB_OMNI_AUTH_KEY="github-application-key";
+    export GITHUB_CALLBACK_URL="http://<your-url-and-port>";  // must match that given to Github! Would be 127.0.0.1:port for testing
+
+
 Create an ETCD server / follow the instructions in the etcd README:
 
     https://github.com/coreos/etcd
