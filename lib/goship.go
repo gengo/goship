@@ -3,6 +3,7 @@ package goship
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 
 	"github.com/coreos/go-etcd/etcd"
 )
@@ -32,6 +33,9 @@ type Environment struct {
 	Branch             string
 	Revision           string
 	LatestGitHubCommit string
+	Comment            string
+	pivotalCommentURL  string
+	IsLocked           bool
 	IsDeployable       bool
 }
 
@@ -93,6 +97,7 @@ type PivotalConfiguration struct {
 
 type ETCDInterface interface {
 	Get(string, bool, bool) (*etcd.Response, error)
+	// Set(string, string, bool) (*etcd.Response, error)
 }
 
 // ProjectFromName takes a project name as a string and returns
@@ -121,6 +126,11 @@ func EnvironmentFromName(projects []Project, projectName, environmentName string
 	}
 	return nil, fmt.Errorf("No environment found: %s", environmentName)
 }
+
+// func SetComment(client ETCDInterface, projectName, projectEnv, comment string) (err error) {
+// 	commentString := fmt.Sprintf("/projects/%s/%s/comment", projectName, projectEnv)
+// 	baseInfo, err := client.Set(commentString, comment, 0)
+// }
 
 // connects to ETCD and returns the appropriate structs and strings.
 func ParseETCD(client ETCDInterface) (c Config, err error) {
@@ -185,6 +195,8 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 			branch := "master"
 			deploy := ""
 			repoPath := ""
+			isLocked := false
+			comment := ""
 			for _, n := range envSettings.Node.Nodes {
 				switch filepath.Base(n.Key) {
 				case "revision":
@@ -195,6 +207,15 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 					deploy = n.Value
 				case "repo_path":
 					repoPath = n.Value
+				case "locked":
+					nv, err := strconv.ParseBool(n.Value)
+					if err != nil {
+						fmt.Printf("Error parsing isLocked %s - Setting to unlocked", err)
+						isLocked = false
+					}
+					isLocked = nv
+				case "comment":
+					comment = n.Value
 				}
 			}
 			//  Get Hosts per Environment.
@@ -207,7 +228,7 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 				host := Host{URI: filepath.Base(h.Key)}
 				allHosts = append(allHosts, host)
 			}
-			env := Environment{Name: envName, Deploy: deploy, RepoPath: repoPath, Branch: branch, Revision: revision}
+			env := Environment{Name: envName, Deploy: deploy, RepoPath: repoPath, Branch: branch, Revision: revision, IsLocked: isLocked, Comment: comment}
 			env.Hosts = allHosts
 			allEnvironments = append(allEnvironments, env)
 		}

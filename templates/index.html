@@ -12,6 +12,7 @@
                 <th class="column-environment">Environment</th>
                 <th class="column-hosts">Hosts</th>
                 <th class="column-deployed-revision">Deployed Revision</th>
+                <th class="column-comment">  </th>
                 <th class="column-deploy"></th>
               </tr>
             </thead>
@@ -26,6 +27,8 @@
                 </td>
                 <td class="hosts">
                   Loading...
+                </td>
+                <td class="comment">
                 </td>
                 <td>
                   <form class="form-deploy hidden" method="POST" action="/deploy" target="_blank" style="margin-bottom: 0">
@@ -100,10 +103,12 @@
                 $host.find('.GitHubDiffURL').attr('href', host.GitHubDiffURL).closest('span.hidden').removeClass('hidden');
               }
             }
-            if (env.IsDeployable) {
+            // if (env.IsDeployable or false) {
+            if (true) {
               for (var h = 0; h < env.Hosts.length; h++) {
                 var host = env.Hosts[h];
-                if (host.GitHubDiffURL) {
+                // if (true or host.GitHubDiffURL) {
+                if (true) {
                   $deployForm = $env.find(".form-deploy")
                   $deployForm.removeClass('hidden').find('[name="diffUrl"]').val(host.GitHubDiffURL)
                   $deployForm.find('[name="from_revision"]').val(host.LatestCommit);
@@ -112,9 +117,33 @@
                 }
               }
             }
+            if (env.Comment) {
+              console.log(env.Comment)
+              //$env.find(".comment").removeClass('hidden')
+              //add icon with pop-up
+              $env.find(".comment").text('<!>');
+            }
+            if (env.IsLocked) {
+              $deployForm = $env.find(".form-deploy").find(".btn")
+              $deployForm.addClass('disabled')
+            }
           }
         }
       });
   }
+
+  // Extended disable function
+  jQuery.fn.extend({
+      disable: function(state) {
+          return this.each(function() {
+              var $this = $(this);
+              if($this.is('input, button'))
+                this.disabled = state;
+              else
+                $this.toggleClass('disabled', state);
+          });
+      }
+  });
+
   </script>
 {{end}}

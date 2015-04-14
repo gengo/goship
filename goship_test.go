@@ -3,14 +3,110 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	//"os"
 	"reflect"
 	"testing"
 	"time"
 
+	// "code.google.com/p/gomock/gomock"
+	// "code.google.com/p/goauth2/oauth"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gengo/goship/lib"
+	"github.com/google/go-github/github"
 	"github.com/gorilla/sessions"
 )
+
+// create a github client interface so we can mock in tests
+//type mockGithubClient interface {
+//	ListTeams(string, string, *github.ListOptions) ([]github.Team, *github.Response, error)
+//	IsTeamMember(int, string) (bool, *github.Response, error)
+//}
+
+type githubClientMock struct {
+}
+
+func (c githubClientMock) ListTeams(owner string, repo string, opt *github.ListOptions) ([]github.Team, *github.Response, error) {
+	a := github.Team{ID: github.Int(1), Name: github.String("team_1"), Permission: github.String("pull")}
+	b := github.Team{ID: github.Int(2), Name: github.String("team_2"), Permission: github.String("push")}
+	if repo == "repo_1" {
+		return []github.Team{a}, nil, nil
+	} else if repo == "repo_2" {
+		return []github.Team{b}, nil, nil
+	} else if repo == "repo_3" {
+		return []github.Team{a, b}, nil, nil
+	}
+	return []github.Team{}, nil, nil
+}
+
+func (c githubClientMock) IsTeamMember(team int, user string) (bool, *github.Response, error) {
+	if user == "read_only_user" && team == 1 {
+		return true, nil, nil
+	} else if user == "push_user" && team == 2 {
+		return true, nil, nil
+	} else if user == "push_and_pull_only_user" && (team == 1 || team == 2) {
+		return true, nil, nil
+	}
+	return false, nil, nil
+}
+
+func newMockGithubClient() githubClientMock {
+	return githubClientMock{}
+}
+
+func TestUserOnNoTeam(t *testing.T) {
+	g := newMockGithubClient()
+	authentication.authorization = true
+	var want = false
+	got, err := userHasDeployPermission(g, "owner_1", "repo_1", "read_only_user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("User is Read Olny = %v, want %v", got, want)
+	}
+}
+
+func TestUserIsReadOnly(t *testing.T) {
+	g := newMockGithubClient()
+	authentication.authorization = true
+	var want = false
+	got, err := userHasDeployPermission(g, "owner_1", "repo_1", "push_user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("User is Read Olny = %v, want %v", got, want)
+	}
+}
+
+func TestUserHasPushPermission(t *testing.T) {
+	g := newMockGithubClient()
+	var want = true
+	got, err := userHasDeployPermission(g, "some_owner", "repo_2", "push_and_pull_only_user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("User has Push Permission = %v, want %v", got, want)
+	}
+}
+
+func TestPushPullUserHasPushPermission(t *testing.T) {
+	g := newMockGithubClient()
+	var want = true
+	got, err := userHasDeployPermission(g, "some_owner", "repo_3", "push_and_pull_only_user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("User has Push Permission = %v, want %v", got, want)
+	}
+}
+
+// func TestUserHasPushAndPullPermission(t *testing.T) {
+// 	var want = true
+// 	got, err := hasDeployPermission("some_owner", "some_repo", "push_and_pull_user")
+// }
 
 func TestStripANSICodes(t *testing.T) {
 	tests := []struct {
@@ -190,6 +286,14 @@ func TestGetUser(t *testing.T) {
 
 	}
 }
+
+// func TestSetComment(t *testing.T) {
+// 	got, err := goship.setComment(&MockEtcdClient{}, 'pivotal_project', 'staging', 'random comment')
+// 	if err != nil {
+// 		t.Fatalf("Can't parse %s %s", t, err)
+// 	}
+// 	compareStrings("deploy user", got.DeployUser, "test_user", t)
+// }
 
 func TestGetEnvironmentFromName(t *testing.T) {
 	var (

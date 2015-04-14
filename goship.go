@@ -332,13 +332,13 @@ func DeployOutputHandler(w http.ResponseWriter, r *http.Request, env string, for
 	w.Write(b)
 }
 
-func DeployLogHandler(w http.ResponseWriter, r *http.Request, full_env string, environment goship.Environment) {
+func DeployLogHandler(w http.ResponseWriter, r *http.Request, fullEnv string, environment goship.Environment) {
 	u, err := getUser(r)
 	if err != nil {
 		log.Println("Failed to get User! ")
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 	}
-	d, err := readEntries(full_env)
+	d, err := readEntries(fullEnv)
 	if err != nil {
 		log.Println("Error: ", err)
 	}
@@ -352,7 +352,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, full_env string, e
 		d[i].FormattedTime = formatTime(d[i].Time)
 	}
 	sort.Sort(ByTime(d))
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d, "User": u, "Env": full_env, "Environment": environment})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d, "User": u, "Env": fullEnv, "Environment": environment})
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
@@ -611,6 +611,31 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func CommentHandler(w http.ResponseWriter, r *http.Request) {
+	c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
+	if err != nil {
+		log.Println("ERROR: ", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	u, err := getUser(r)
+	if err != nil {
+		log.Println("Failed to get a User! ")
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+	}
+	user := u.UserName
+	p := r.FormValue("project")
+	env := r.FormValue("environment")
+	comment := r.FormValue("comment")
+	log.Printf("c %s %s %s %s %s", c, user, env, comment, p)
+	// if c.Comment == "comment" {
+	// 	err := startNotify(c.Notify, user, p, env)
+	// 	if err != nil {
+	// 		log.Println("Error: ", err.Error())
+	// 	}
+	// }
 }
 
 func postToPivotal(piv *goship.PivotalConfiguration, env, owner, name, latest, current string) error {
@@ -977,6 +1002,63 @@ func getAuth() auth {
 	return a
 }
 
+// create a github client interface so we can mock in tests
+type githubClient interface {
+	ListTeams(string, string, *github.ListOptions) ([]github.Team, *github.Response, error)
+	IsTeamMember(int, string) (bool, *github.Response, error)
+}
+
+type githubClientProd struct {
+	org  *github.OrganizationsService
+	repo *github.RepositoriesService
+}
+
+// ListTeams exists in both organizations and repositories so we need to alias both functions
+func (c githubClientProd) ListTeams(owner string, repo string, opt *github.ListOptions) ([]github.Team, *github.Response, error) {
+	return c.repo.ListTeams(owner, repo, opt)
+}
+
+func (c githubClientProd) IsTeamMember(team int, user string) (bool, *github.Response, error) {
+	return c.org.IsTeamMember(team, user)
+}
+
+func newGithubClient() githubClient {
+	gt := os.Getenv(gitHubAPITokenEnvVar)
+	t := &oauth.Transport{
+		Token: &oauth.Token{AccessToken: gt},
+	}
+	github.NewClient(t.Client())
+	c := github.NewClient(t.Client())
+	return githubClientProd{
+		org:  c.Organizations,
+		repo: c.Repositories,
+	}
+}
+
+// Will return true if the user has a team permission non read only
+func userHasDeployPermission(g githubClient, owner, repo, user string) (pull bool, err error) {
+	// List the  all the teams for a repository.
+
+	teams, _, err := g.ListTeams(owner, repo, nil)
+	if err != nil {
+		fmt.Printf("Failure getting Organizations List %s", err)
+	}
+	// Iterate through the teams for a repo, if a user is a member of a non read-only team exit with false.
+	pull = false
+	for _, team := range teams {
+		o, _, err := g.IsTeamMember(*team.ID, user)
+		if err != nil {
+			fmt.Printf("\nFailure getting Is Team Member from Org \n [%s]", err)
+			return false, err
+		}
+		// if user is a member of a non read only team return false
+		if o == true && *team.Permission != "pull" {
+			return true, nil
+		}
+	}
+	return pull, err
+}
+
 // Returns true if the github user is a current  "collaborator" on a project.  Used to allow the user to deploy the project.
 func isCollaborator(owner, repo, user string) bool {
 
@@ -1017,6 +1099,7 @@ func main() {
 	http.HandleFunc("/output/", checkAuth(extractOutputHandler(DeployOutputHandler), authentication))
 	http.HandleFunc("/commits/", checkAuth(extractCommitHandler(ProjCommitsHandler), authentication))
 	http.HandleFunc("/deploy_handler", checkAuth(DeployHandler, authentication))
+	http.HandleFunc("/comment_handler", checkAuth(CommentHandler, authentication))
 	http.HandleFunc("/auth/github/login", loginHandler("github", authentication.authorization))
 	http.HandleFunc("/auth/github/callback", callbackHandler("github", authentication.authorization))
 	fmt.Printf("Running on %s\n", *bindAddress)
