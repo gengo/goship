@@ -90,14 +90,16 @@ type Config struct {
 	Pivotal    *PivotalConfiguration
 }
 
+// PivotalConfiguration  keeps the Pivitol information
 type PivotalConfiguration struct {
 	Project string
 	Token   string
 }
 
+// ETCDInterface emulates ETCD to allow testing
 type ETCDInterface interface {
 	Get(string, bool, bool) (*etcd.Response, error)
-	// Set(string, string, bool) (*etcd.Response, error)
+	Set(string, string, uint64) (*etcd.Response, error)
 }
 
 // ProjectFromName takes a project name as a string and returns
@@ -127,12 +129,21 @@ func EnvironmentFromName(projects []Project, projectName, environmentName string
 	return nil, fmt.Errorf("No environment found: %s", environmentName)
 }
 
-// func SetComment(client ETCDInterface, projectName, projectEnv, comment string) (err error) {
-// 	commentString := fmt.Sprintf("/projects/%s/%s/comment", projectName, projectEnv)
-// 	baseInfo, err := client.Set(commentString, comment, 0)
-// }
+// SetComment will set the  comment field on an environment
+func SetComment(client ETCDInterface, projectName, projectEnv, comment string) (err error) {
+	projectString := fmt.Sprintf("/projects/%s/%s/comment", projectName, projectEnv)
+	_, err = client.Set(projectString, comment, 0)
+	return err
+}
 
-// connects to ETCD and returns the appropriate structs and strings.
+// LockEnvironment Locks or unlock an environment for deploy
+func LockEnvironment(client ETCDInterface, projectName, projectEnv, lock string) (err error) {
+	projectString := fmt.Sprintf("/projects/%s/%s/lock", projectName, projectEnv)
+	_, err = client.Set(projectString, lock, 0)
+	return err
+}
+
+// ParseETCD connects to ETCD and returns the appropriate structs and strings.
 func ParseETCD(client ETCDInterface) (c Config, err error) {
 	baseInfo, err := client.Get("/", false, false)
 	if err != nil {

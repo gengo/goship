@@ -629,22 +629,23 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func CommentHandler(w http.ResponseWriter, r *http.Request) {
-	c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
-	if err != nil {
-		log.Println("ERROR: ", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	u, err := getUser(r)
-	if err != nil {
-		log.Println("Failed to get a User! ")
-		http.Error(w, err.Error(), http.StatusUnauthorized)
-	}
-	user := u.UserName
-	p := r.FormValue("project")
-	env := r.FormValue("environment")
-	comment := r.FormValue("comment")
-	log.Printf("c %s %s %s %s %s", c, user, env, comment, p)
+	// c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
+	// if err != nil {
+	// 	log.Println("ERROR: ", err)
+	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
+	// 	return
+	// }
+	// u, err := getUser(r)
+	// if err != nil {
+	// 	log.Println("Failed to get a User! ")
+	// 	http.Error(w, err.Error(), http.StatusUnauthorized)
+	// }
+	// user := u.UserName
+	// p := r.FormValue("project")
+	// env := r.FormValue("environment")
+	// comment := r.FormValue("comment")
+
+	// log.Printf("c %s %s %s %s %s", c, user, env, comment, p)
 	// if c.Comment == "comment" {
 	// 	err := startNotify(c.Notify, user, p, env)
 	// 	if err != nil {
@@ -1097,9 +1098,8 @@ func newGithubClient() githubClient {
 
 // Will return true if the user has a team permission non read only
 func userHasDeployPermission(g githubClient, owner, repo, user string) (pull bool, err error) {
-	// List the  all the teams for a repository.
-	//fmt.Printf("\nGetting Deploy Permission [%s] [%s] \n", user, repo)
 
+	// List the  all the teams for a repository.
 	teams, _, err := g.ListTeams(owner, repo, nil)
 	if err != nil {
 		fmt.Printf("Failure getting Organizations List %s", err)
@@ -1114,11 +1114,8 @@ func userHasDeployPermission(g githubClient, owner, repo, user string) (pull boo
 		}
 		// if user is a member of a non read only team return false
 		if o == true && *team.Permission != "pull" {
-			//fmt.Printf("\nDeploy Permission [%s] [%s] \n", user, repo)
-			//fmt.Printf("\nDP [%t] [%s] [%s] [%s] [%s] [%s] \n", o, user, *team.Name, *team.Permission, owner, repo)
 			return true, nil
 		}
-		//fmt.Printf("\nDP [%t] [%s] [%s] [%s] [%s] [%s] \n", o, user, *team.Name, *team.Permission, owner, repo)
 
 	}
 	return pull, err
@@ -1137,15 +1134,6 @@ func isCollaborator(owner, repo, user string) bool {
 		log.Printf("Failure getting Collaboration Status of User: %s %s %s", owner, user, repo)
 		return false
 	}
-	// log.Printf("Collaboration Status of User %s %s %s %t", owner, user, repo, m)
-	// p, err := userHasDeployPermission(g, owner, repo, user)
-	// if err != nil {
-	// 	log.Printf("Failure getting Deploy Status of User: %s %s %s", owner, user, repo)
-	// 	return false
-	// }
-	// if m || p {
-	// 	return true
-	// }
 	return m
 }
 

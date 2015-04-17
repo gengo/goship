@@ -174,6 +174,27 @@ var wantConfig = goship.Config{
 	Notify:     "/notify/notify.sh",
 	Pivotal:    &goship.PivotalConfiguration{Project: "111111", Token: "test"}}
 
+func TestSetComment(t *testing.T) {
+	err := goship.SetComment(&MockEtcdClient{}, "test_project", "test_environment", "A comment")
+	if err != nil {
+		t.Fatalf("Can't set Comment %s", err)
+	}
+}
+
+func TestLockingEnvironment(t *testing.T) {
+	err := goship.LockEnvironment(&MockEtcdClient{}, "test_project", "test_environment", "true")
+	if err != nil {
+		t.Fatalf("Can't lock %s", err)
+	}
+}
+
+func TestUnlockingEnvironment(t *testing.T) {
+	err := goship.LockEnvironment(&MockEtcdClient{}, "test_project", "test_environment", "false")
+	if err != nil {
+		t.Fatalf("Can't unlock %s", err)
+	}
+}
+
 func compareStrings(name, got, want string, t *testing.T) {
 	if got != want {
 		t.Errorf("got %s = %s; want %s", name, got, want)
@@ -316,6 +337,28 @@ func TestGetEnvironmentFromName(t *testing.T) {
 }
 
 type MockEtcdClient struct{}
+
+func (*MockEtcdClient) Set(s, c string, x uint64) (*etcd.Response, error) {
+	m := make(map[string]*etcd.Response)
+	// {"action":"set",
+	//           "node":
+	//                  {"key":"/projects/admin/environments/staging/comment"
+	//                  ,"value":"XXXXX","modifiedIndex":209,"createdIndex":209},
+	//            "prevNode":
+	//                   {"key":"/projects/admin/environments/staging/comment",
+	//                    "value":"some comment","modifiedIndex":208,"createdIndex":208}}
+	m["/projects/test_project/environments/test_environment/comment"] = &etcd.Response{
+		Action: "Set",
+		Node: &etcd.Node{
+			Key: "/projects/test_project/environments/test_environment/", Value: "XXXX",
+		},
+		PrevNode: &etcd.Node{
+			Key: "/projects/test_project/environments/test_environment/", Value: "YYYY",
+		},
+	}
+	mockResponse := m[s]
+	return mockResponse, nil
+}
 
 //Mock calls to ETCD here. Each etcd Response should return the structs you need.
 func (*MockEtcdClient) Get(s string, t bool, x bool) (*etcd.Response, error) {
