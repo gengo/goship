@@ -137,7 +137,8 @@ func getLatestGitHubCommit(wg *sync.WaitGroup, project goship.Project, environme
 
 // retrieveCommits fetches the latest deployed commits as well
 // as the latest GitHub commits for a given Project.
-func retrieveCommits(project goship.Project, deployUser string) goship.Project {
+// it will also check if the user has permission to pull.
+func retrieveCommits(r *http.Request, project goship.Project, deployUser string) goship.Project {
 	// define a wait group to wait for all goroutines to finish
 	var wg sync.WaitGroup
 	githubToken := os.Getenv(gitHubAPITokenEnvVar)
@@ -158,6 +159,7 @@ func retrieveCommits(project goship.Project, deployUser string) goship.Project {
 	wg.Wait()
 	for i, e := range project.Environments {
 		e.IsDeployable = e.Deployable()
+
 		project.Environments[i] = e
 		for j, host := range e.Hosts {
 			host.GitHubCommitURL = host.LatestGitHubCommitURL(project)
@@ -166,7 +168,14 @@ func retrieveCommits(project goship.Project, deployUser string) goship.Project {
 			project.Environments[i].Hosts[j] = host
 		}
 	}
-	return project
+	u, err := getUser(r)
+	if err != nil {
+		log.Printf("Failed to get user %s", err)
+	}
+	log.Printf("Filtering project for USER %s", u.UserName)
+	proj := filterProject(project, r, u)
+	log.Printf("prog %+v", proj)
+	return proj
 }
 
 type DeployLogEntry struct {
@@ -362,14 +371,20 @@ func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	u, err := getUser(r)
+	if err != nil {
+		log.Println("ERROR:  Getting User", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	proj, err := goship.ProjectFromName(c.Projects, projName)
 	if err != nil {
 		log.Println("ERROR:  Getting Project from name", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	p := retrieveCommits(*proj, c.DeployUser)
+	fp := removeUnauthorizedProjects([]goship.Project{*proj}, r, u)
+	p := retrieveCommits(r, fp[0], c.DeployUser)
 
 	j, err := json.Marshal(p)
 	if err != nil {
@@ -714,24 +729,25 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 	env := r.FormValue("environment")
 	fromRevision := r.FormValue("from_revision")
 	toRevision := r.FormValue("to_revision")
-	repo_owner := r.FormValue("repo_owner")
-	repo_name := r.FormValue("repo_name")
+	repoOwner := r.FormValue("repo_owner")
+	repoName := r.FormValue("repo_name")
 	t, err := template.New("deploy.html").ParseFiles("templates/deploy.html", "templates/base.html")
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "BindAddress": bindAddress, "RepoOwner": repo_owner, "RepoName": repo_name, "ToRevision": toRevision, "FromRevision": fromRevision})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "BindAddress": bindAddress, "RepoOwner": repoOwner, "RepoName": repoName, "ToRevision": toRevision, "FromRevision": fromRevision})
 }
 
-// Sort interface for sorting projects
+// ByName is the interface for sorting projects
 type ByName []goship.Project
 
 func (slice ByName) Len() int           { return len(slice) }
 func (slice ByName) Less(i, j int) bool { return slice[i].Name < slice[j].Name }
 func (slice ByName) Swap(i, j int)      { slice[i], slice[j] = slice[j], slice[i] }
 
+// HomeHandler is the produces the main home screen
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
 	if err != nil {
@@ -748,8 +764,16 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-	c.Projects = cleanProjects(c.Projects, r, u)
+	c.Projects = removeUnauthorizedProjects(c.Projects, r, u)
+	for _, g := range c.Projects {
+		// log.Printf("%+v", g.Environments)
+		for _, m := range g.Environments {
+			log.Printf("%+v", m)
+		}
+	}
+
 	sort.Sort(ByName(c.Projects))
+
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "User": u, "Page": "home"})
 }
 
@@ -757,11 +781,6 @@ var validPathWithEnv = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
 
 func extractDeployLogHandler(fn func(http.ResponseWriter, *http.Request, string, goship.Environment)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		u, err := getUser(r)
-		if err != nil {
-			log.Println("Failed to get a user while deploying in Auth Mode! ")
-			http.Error(w, err.Error(), http.StatusUnauthorized)
-		}
 		m := validPathWithEnv.FindStringSubmatch(r.URL.Path)
 		if m == nil {
 			http.NotFound(w, r)
@@ -774,7 +793,12 @@ func extractDeployLogHandler(fn func(http.ResponseWriter, *http.Request, string,
 			return
 		}
 		// auth check for user
-		c.Projects = cleanProjects(c.Projects, r, u)
+		u, err := getUser(r)
+		if err != nil {
+			log.Println("Failed to get a user while deploying in Auth Mode! ")
+			http.Error(w, err.Error(), http.StatusUnauthorized)
+		}
+		c.Projects = removeUnauthorizedProjects(c.Projects, r, u)
 		// get project name and env from url
 		a := strings.Split(m[2], "-")
 		l := len(a)
@@ -819,6 +843,7 @@ func extractOutputHandler(fn func(http.ResponseWriter, *http.Request, string, st
 	}
 }
 
+// User allows access to whether the user is authed and where his avatar is.
 type User struct {
 	UserName, UserAvatar string
 	auth                 auth
@@ -861,20 +886,57 @@ func checkAuth(fn http.HandlerFunc, a auth) http.HandlerFunc {
 	})
 }
 
-// remove projects where user has no access
-func cleanProjects(cp []goship.Project, r *http.Request, u User) []goship.Project {
+// remove projects where user is not a collaborator
+func removeUnauthorizedProjects(cp []goship.Project, r *http.Request, u User) (fp []goship.Project) {
 	if authentication.authorization != true {
 		return cp
 	}
-	cleanProjects := []goship.Project{}
+
 	for _, p := range cp {
 		a := isCollaborator(p.RepoOwner, p.RepoName, u.UserName)
-		// If user does not have access to the project remove it.
 		if a == true {
-			cleanProjects = append(cleanProjects, p)
+			fp = append(fp, p)
 		}
 	}
-	return cleanProjects
+	return fp
+}
+
+//  set projects to lock where user is only in a pull only repo and append a comment
+func filterProject(p goship.Project, r *http.Request, u User) goship.Project {
+	if authentication.authorization != true {
+		return p
+	}
+
+	// If user does not have access to the project remove it.
+	for i, e := range p.Environments {
+		// If the repo isn't already locked.. lock it if the user doesnt have permission
+		// and add to the comments
+		log.Print("filter loop")
+		if e.IsLocked != true {
+			//log.Printf("Error getting Lock Permission: Locking anyway for safety %s", err)
+
+			// log.Printf("locking repo %t %t %s", authentication.authorization, e.IsLocked, p.RepoName)
+			g := newGithubClient()
+			lock, err := userHasDeployPermission(g, p.RepoOwner, p.RepoName, u.UserName)
+			if err != nil {
+				log.Printf("Error getting Lock Permission: Locking anyway for safety %s", err)
+			}
+			p.Environments[i].IsLocked = !lock
+			// Add a line break if there is already a comment
+			if p.Environments[i].Comment != "" {
+				p.Environments[i].Comment = p.Environments[i].Comment + " | "
+			}
+			if !lock {
+				p.Environments[i].Comment = p.Environments[i].Comment + "you do not have permission to deploy "
+			}
+		} else {
+			if p.Environments[i].Comment != "" {
+				p.Environments[i].Comment = p.Environments[i].Comment + " | "
+			}
+			p.Environments[i].Comment = p.Environments[i].Comment + "repo is locked."
+		}
+	}
+	return p
 }
 
 func loginHandler(providerName string, auth bool) http.HandlerFunc {
@@ -882,13 +944,6 @@ func loginHandler(providerName string, auth bool) http.HandlerFunc {
 	if auth != true {
 		return func(w http.ResponseWriter, r *http.Request) {}
 	}
-
-	// provider, err := gomniauth.Provider(providerName)
-	// if err != nil {
-	// 	log.Printf("error getting gomniauth provider")
-	// 	//http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 	//return
-	// }
 
 	return func(w http.ResponseWriter, r *http.Request) {
 
@@ -901,13 +956,13 @@ func loginHandler(providerName string, auth bool) http.HandlerFunc {
 
 		state := gomniauth.NewState("after", "success")
 
-		authUrl, err := provider.GetBeginAuthURL(state, nil)
+		authURL, err := provider.GetBeginAuthURL(state, nil)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		http.Redirect(w, r, authUrl, http.StatusFound)
+		http.Redirect(w, r, authURL, http.StatusFound)
 	}
 }
 
@@ -1006,6 +1061,7 @@ func getAuth() auth {
 type githubClient interface {
 	ListTeams(string, string, *github.ListOptions) ([]github.Team, *github.Response, error)
 	IsTeamMember(int, string) (bool, *github.Response, error)
+	IsCollaborator(string, string, string) (bool, *github.Response, error)
 }
 
 type githubClientProd struct {
@@ -1020,6 +1076,10 @@ func (c githubClientProd) ListTeams(owner string, repo string, opt *github.ListO
 
 func (c githubClientProd) IsTeamMember(team int, user string) (bool, *github.Response, error) {
 	return c.org.IsTeamMember(team, user)
+}
+
+func (c githubClientProd) IsCollaborator(owner, repo, user string) (bool, *github.Response, error) {
+	return c.repo.IsCollaborator(owner, repo, user)
 }
 
 func newGithubClient() githubClient {
@@ -1038,6 +1098,7 @@ func newGithubClient() githubClient {
 // Will return true if the user has a team permission non read only
 func userHasDeployPermission(g githubClient, owner, repo, user string) (pull bool, err error) {
 	// List the  all the teams for a repository.
+	//fmt.Printf("\nGetting Deploy Permission [%s] [%s] \n", user, repo)
 
 	teams, _, err := g.ListTeams(owner, repo, nil)
 	if err != nil {
@@ -1053,8 +1114,12 @@ func userHasDeployPermission(g githubClient, owner, repo, user string) (pull boo
 		}
 		// if user is a member of a non read only team return false
 		if o == true && *team.Permission != "pull" {
+			//fmt.Printf("\nDeploy Permission [%s] [%s] \n", user, repo)
+			//fmt.Printf("\nDP [%t] [%s] [%s] [%s] [%s] [%s] \n", o, user, *team.Name, *team.Permission, owner, repo)
 			return true, nil
 		}
+		//fmt.Printf("\nDP [%t] [%s] [%s] [%s] [%s] [%s] \n", o, user, *team.Name, *team.Permission, owner, repo)
+
 	}
 	return pull, err
 }
@@ -1066,17 +1131,21 @@ func isCollaborator(owner, repo, user string) bool {
 		return true
 	}
 
-	gt := os.Getenv(gitHubAPITokenEnvVar)
-	t := &oauth.Transport{
-		Token: &oauth.Token{AccessToken: gt},
-	}
-	github.NewClient(t.Client())
-	c := github.NewClient(t.Client())
-	m, _, err := c.Repositories.IsCollaborator(owner, repo, user)
+	g := newGithubClient()
+	m, _, err := g.IsCollaborator(owner, repo, user)
 	if err != nil {
-		log.Print("Failure getting Collaboration Status of User %s %s %s", owner, user, repo)
+		log.Printf("Failure getting Collaboration Status of User: %s %s %s", owner, user, repo)
 		return false
 	}
+	// log.Printf("Collaboration Status of User %s %s %s %t", owner, user, repo, m)
+	// p, err := userHasDeployPermission(g, owner, repo, user)
+	// if err != nil {
+	// 	log.Printf("Failure getting Deploy Status of User: %s %s %s", owner, user, repo)
+	// 	return false
+	// }
+	// if m || p {
+	// 	return true
+	// }
 	return m
 }
 

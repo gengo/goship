@@ -3,13 +3,10 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
-	//"os"
 	"reflect"
 	"testing"
 	"time"
 
-	// "code.google.com/p/gomock/gomock"
-	// "code.google.com/p/goauth2/oauth"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gengo/goship/lib"
 	"github.com/google/go-github/github"
@@ -47,6 +44,10 @@ func (c githubClientMock) IsTeamMember(team int, user string) (bool, *github.Res
 		return true, nil, nil
 	}
 	return false, nil, nil
+}
+
+func (c githubClientMock) IsCollaborator(owner, repo, user string) (bool, *github.Response, error) {
+	return true, nil, nil
 }
 
 func newMockGithubClient() githubClientMock {
@@ -250,7 +251,7 @@ func TestCleanProjects(t *testing.T) {
 	if got < 1 {
 		t.Errorf("clean projects test expects projects to have at least one project [%d]", got)
 	}
-	got = len(cleanProjects(p.Projects, req, u))
+	got = len(removeUnauthorizedProjects(p.Projects, req, u))
 	if got != 0 {
 		t.Errorf("clean projects failed to clean project for unauth user.. [%d]", got)
 	}

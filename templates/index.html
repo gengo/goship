@@ -12,8 +12,8 @@
                 <th class="column-environment">Environment</th>
                 <th class="column-hosts">Hosts</th>
                 <th class="column-deployed-revision">Deployed Revision</th>
-                <th class="column-comment">  </th>
                 <th class="column-deploy"></th>
+                <th class="column-comment">  </th>
               </tr>
             </thead>
             <tbody>
@@ -28,8 +28,6 @@
                 <td class="hosts">
                   Loading...
                 </td>
-                <td class="comment">
-                </td>
                 <td>
                   <form class="form-deploy hidden" method="POST" action="/deploy" target="_blank" style="margin-bottom: 0">
                     <input type="hidden" name="environment" value="{{$environment.Name}}"/>
@@ -41,6 +39,9 @@
                     <input type="hidden" name="user" value="PlaceholderUser"/>
                     <input type="submit" class="btn btn-success" value="Deploy" />
                   </form>
+                </td>
+                <td class="comment">
+                  <span title="" class="hidden glyphicon glyphicon-flag"></span>
                 </td>
               </tr>
             {{end}}
@@ -58,6 +59,11 @@
   <div class="hidden" id="host-skeleton"><a class="GitHubCommitURL" href=""></a> <span class="hidden"> (<a class="GitHubDiffURL" href="">diff</a>)</span></div>
 
   <script type="text/javascript">
+
+  // initialize bootstrap tooltip 
+  $(function () {
+    $('[data-toggle="tooltip"]').tooltip()
+  })
 
   $(function(){
     // make ajax queries for each project
@@ -104,10 +110,12 @@
               }
             }
             // if (env.IsDeployable or false) {
+              ///////////////////////////
             if (true) {
               for (var h = 0; h < env.Hosts.length; h++) {
                 var host = env.Hosts[h];
                 // if (true or host.GitHubDiffURL) {
+                  //////////////////////////////////
                 if (true) {
                   $deployForm = $env.find(".form-deploy")
                   $deployForm.removeClass('hidden').find('[name="diffUrl"]').val(host.GitHubDiffURL)
@@ -117,12 +125,15 @@
                 }
               }
             }
-            if (env.Comment) {
-              console.log(env.Comment)
-              //$env.find(".comment").removeClass('hidden')
-              //add icon with pop-up
-              $env.find(".comment").text('<!>');
+            $comment = $env.find(".comment")
+            if (env.Comment || env.IsLocked) {
+              $env.find(".glyphicon-flag").removeClass('hidden').popover({
+                trigger: 'hover focus',
+                content: env.Comment,
+                placement: 'left'
+              });
             }
+            $comment = $env.find(".comment")
             if (env.IsLocked) {
               $deployForm = $env.find(".form-deploy").find(".btn")
               $deployForm.addClass('disabled')
