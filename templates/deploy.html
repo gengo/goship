@@ -18,7 +18,7 @@
   </div>
   <script>
     $(function() {
-      var ws = new WebSocket("ws://{{.BindAddress}}/web_push");
+      var ws = new WebSocket('ws://{{.BindAddress}}/web_push');
       var project = {{.Project}};
       var environment = {{.Env}};
       var user = {{.User.UserName}};
@@ -26,7 +26,7 @@
       var repo_name = {{.RepoName}};
       var from_revision = {{.FromRevision}};
       var to_revision = {{.ToRevision}};
-      var $main = $(".main");
+      var $main = $('.main');
       var $scrollToggleBtn = $('#scroll-toggle-btn');
       var scrollBtnStartText = 'Start auto scroll';
       var scrollBtnStopText = 'Stop auto scroll';
@@ -37,8 +37,8 @@
       ws.onmessage = function(e) {
         var obj = jQuery.parseJSON(e.data);
 
-        if(obj.Project == project && obj.Environment == environment) {
-          $main.append($("<div>").text(obj.StdoutLine));
+        if(obj.Project === project && obj.Environment === environment) {
+          $main.append($('<div>').text(obj.StdoutLine));
         }
       };
 
