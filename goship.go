@@ -44,6 +44,7 @@ var (
 	defaultUser       = flag.String("u", "genericUser", "Default User if non auth (default genericUser)")
 	defaultAvatar     = flag.String("a", "https://camo.githubusercontent.com/33a7d9a138ac73ece82dee977c216eb13dffc984/687474703a2f2f692e696d6775722e636f6d2f524c766b486b612e706e67", "Default Avatar (default goship gopher image)")
 	cssFile           = flag.String("f", "", "Override style (default empty string)")
+	jsFile            = flag.String("j", "", "Add Javascript File (default empty string)")
 )
 
 var store = sessions.NewCookieStore([]byte(*cookieSessionHash))
@@ -794,7 +795,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 
 	sort.Sort(ByName(c.Projects))
 
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "User": u, "Page": "home", "CSSFile": *cssFile})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "User": u, "Page": "home", "CSSFile": *cssFile, "JSFile": *jsFile})
 }
 
 var validPathWithEnv = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
