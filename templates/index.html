@@ -67,6 +67,12 @@
     refreshProject($(this).closest('.project'));
     e.preventDefault();
   })
+  {{ if .ConfirmDeployFlag }}
+  $('form.form-deploy').submit(function(e){
+      var env = $(this).parents("tr.environment").data("id");
+      return confirm("Are you sure you wish to deploy to " + env + "?");
+  });
+  {{ end }}
 
   function refreshProject(project) {
       var $hostSkeleton = $("#host-skeleton");
