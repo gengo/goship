@@ -182,7 +182,7 @@ func TestGetUser(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to get User from GetUser [%s]", err)
 	}
-	if user.UserName != "T-800" {
+	if user.UserName != session.Values["userName"] {
 		t.Errorf("Failed to get User Name, expected %s got [%s]", session.Values["userName"], user.UserName)
 	}
 	if user.UserAvatar != session.Values["avatarURL"] {
