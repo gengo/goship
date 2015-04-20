@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/gengo/goship/lib"
+	goship "github.com/gengo/goship/lib"
 	"github.com/gorilla/sessions"
 )
 
@@ -94,7 +94,7 @@ func TestCanParseETCD(t *testing.T) {
 	compareStrings("project", got.Pivotal.Project, "111111", t)
 	compareStrings("project name", got.Projects[0].Name, "pivotal_project", t)
 	compareStrings("repo path", got.Projects[0].Environments[0].RepoPath, "/repos/test_repo_name/.git", t)
-	compareStrings("repo path", got.Projects[0].Environments[0].Branch, "master", t)
+	compareStrings("repo branch", got.Projects[0].Environments[0].Branch, "master", t)
 	compareStrings("host name", got.Projects[0].Environments[0].Hosts[0].URI, "test-qa-01.somewhere.com", t)
 }
 
@@ -133,7 +133,7 @@ func TestProjectFromName(t *testing.T) {
 	}
 	got, err = goship.ProjectFromName(projects, "BadProject")
 	if err == nil {
-		t.Errorf("goship.GetProjectFromName error case did not error", got, nil)
+		t.Errorf("goship.GetProjectFromName error case did not error")
 	}
 }
 
@@ -183,10 +183,10 @@ func TestGetUser(t *testing.T) {
 		t.Errorf("Failed to get User from GetUser [%s]", err)
 	}
 	if user.UserName != "T-800" {
-		t.Errorf("Failed to get User Name, expected T-800 got [%s]", user.UserName)
+		t.Errorf("Failed to get User Name, expected %s got [%s]", session.Values["userName"], user.UserName)
 	}
-	if user.UserAvatar != "http://fake.com/1234" {
-		t.Errorf("Failed to get User Avatar, expected http://fake.com/1234 got [%s]", user.UserAvatar)
+	if user.UserAvatar != session.Values["avatarURL"] {
+		t.Errorf("Failed to get User Avatar, expected %s got [%s]", session.Values["avatarURL"], user.UserAvatar)
 
 	}
 }

@@ -26,7 +26,7 @@ import (
 	"code.google.com/p/go.net/websocket"
 	"code.google.com/p/goauth2/oauth"
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/gengo/goship/lib"
+	goship "github.com/gengo/goship/lib"
 	"github.com/google/go-github/github"
 	"github.com/gorilla/sessions"
 	"github.com/stretchr/gomniauth"
