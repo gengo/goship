@@ -104,11 +104,6 @@ func TestPushPullUserHasPushPermission(t *testing.T) {
 	}
 }
 
-// func TestUserHasPushAndPullPermission(t *testing.T) {
-// 	var want = true
-// 	got, err := hasDeployPermission("some_owner", "some_repo", "push_and_pull_user")
-// }
-
 func TestStripANSICodes(t *testing.T) {
 	tests := []struct {
 		give string
@@ -308,14 +303,6 @@ func TestGetUser(t *testing.T) {
 
 	}
 }
-
-// func TestSetComment(t *testing.T) {
-// 	got, err := goship.setComment(&MockEtcdClient{}, 'pivotal_project', 'staging', 'random comment')
-// 	if err != nil {
-// 		t.Fatalf("Can't parse %s %s", t, err)
-// 	}
-// 	compareStrings("deploy user", got.DeployUser, "test_user", t)
-// }
 
 func TestGetEnvironmentFromName(t *testing.T) {
 	var (

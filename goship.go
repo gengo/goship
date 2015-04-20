@@ -43,6 +43,7 @@ var (
 	cookieSessionHash = flag.String("c", "COOKIE-SESSION-HASH", "Random cookie session key (default jhjhjhjhjhjjhjhhj)")
 	defaultUser       = flag.String("u", "genericUser", "Default User if non auth (default genericUser)")
 	defaultAvatar     = flag.String("a", "https://camo.githubusercontent.com/33a7d9a138ac73ece82dee977c216eb13dffc984/687474703a2f2f692e696d6775722e636f6d2f524c766b486b612e706e67", "Default Avatar (default goship gopher image)")
+	cssFile           = flag.String("f", "", "Override style (default empty string)")
 )
 
 var store = sessions.NewCookieStore([]byte(*cookieSessionHash))
@@ -172,9 +173,7 @@ func retrieveCommits(r *http.Request, project goship.Project, deployUser string)
 	if err != nil {
 		log.Printf("Failed to get user %s", err)
 	}
-	log.Printf("Filtering project for USER %s", u.UserName)
 	proj := filterProject(project, r, u)
-	log.Printf("prog %+v", proj)
 	return proj
 }
 
@@ -341,7 +340,8 @@ func DeployOutputHandler(w http.ResponseWriter, r *http.Request, env string, for
 	w.Write(b)
 }
 
-func DeployLogHandler(w http.ResponseWriter, r *http.Request, fullEnv string, environment goship.Environment) {
+// DeployLogHandler shows data abut the environment inclusing the deploy log.
+func DeployLogHandler(w http.ResponseWriter, r *http.Request, fullEnv string, environment goship.Environment, projectName string) {
 	u, err := getUser(r)
 	if err != nil {
 		log.Println("Failed to get User! ")
@@ -361,7 +361,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, fullEnv string, en
 		d[i].FormattedTime = formatTime(d[i].Time)
 	}
 	sort.Sort(ByTime(d))
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d, "User": u, "Env": fullEnv, "Environment": environment})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d, "User": u, "Env": fullEnv, "Environment": environment, "ProjectName": projectName, "CSSFile": *cssFile})
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
@@ -628,30 +628,55 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// CommentHandler allows you to update a comment on on environment
+// i.e. http://127.0.0.1:8000/comment?environment=staging&project=admin&comment=yodawg
 func CommentHandler(w http.ResponseWriter, r *http.Request) {
-	// c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
-	// if err != nil {
-	// 	log.Println("ERROR: ", err)
-	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 	return
-	// }
-	// u, err := getUser(r)
-	// if err != nil {
-	// 	log.Println("Failed to get a User! ")
-	// 	http.Error(w, err.Error(), http.StatusUnauthorized)
-	// }
-	// user := u.UserName
-	// p := r.FormValue("project")
-	// env := r.FormValue("environment")
-	// comment := r.FormValue("comment")
 
-	// log.Printf("c %s %s %s %s %s", c, user, env, comment, p)
-	// if c.Comment == "comment" {
-	// 	err := startNotify(c.Notify, user, p, env)
-	// 	if err != nil {
-	// 		log.Println("Error: ", err.Error())
-	// 	}
-	// }
+	c := etcd.NewClient([]string{*ETCDServer})
+	p := r.FormValue("project")
+	env := r.FormValue("environment")
+	comment := r.FormValue("comment")
+	err := goship.SetComment(c, p, env, comment)
+	if err != nil {
+		log.Println("ERROR: ", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/", http.StatusFound)
+
+}
+
+// LockHandler allows you to lock on on environment
+// http://127.0.0.1:8000/lock?environment=staging&project=admin
+func LockHandler(w http.ResponseWriter, r *http.Request) {
+
+	c := etcd.NewClient([]string{*ETCDServer})
+	p := r.FormValue("project")
+	env := r.FormValue("environment")
+	log.Printf("lockhandler %s %s", p, env)
+	err := goship.LockEnvironment(c, p, env, "true")
+	if err != nil {
+		log.Println("ERROR: ", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/", http.StatusMovedPermanently)
+}
+
+// UnLockHandler allows you to unlock on on environment
+// http://127.0.0.1:8000/lock?environment=staging&project=admin
+func UnLockHandler(w http.ResponseWriter, r *http.Request) {
+	c := etcd.NewClient([]string{*ETCDServer})
+	p := r.FormValue("project")
+	env := r.FormValue("environment")
+	log.Printf("unlockhandler %s %s", p, env)
+	err := goship.LockEnvironment(c, p, env, "false")
+	if err != nil {
+		log.Println("ERROR: ", err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/", http.StatusMovedPermanently)
 }
 
 func postToPivotal(piv *goship.PivotalConfiguration, env, owner, name, latest, current string) error {
@@ -738,7 +763,7 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "BindAddress": bindAddress, "RepoOwner": repoOwner, "RepoName": repoName, "ToRevision": toRevision, "FromRevision": fromRevision})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "BindAddress": bindAddress, "RepoOwner": repoOwner, "RepoName": repoName, "ToRevision": toRevision, "FromRevision": fromRevision, "CSSFile": *cssFile})
 }
 
 // ByName is the interface for sorting projects
@@ -766,21 +791,15 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 	c.Projects = removeUnauthorizedProjects(c.Projects, r, u)
-	for _, g := range c.Projects {
-		// log.Printf("%+v", g.Environments)
-		for _, m := range g.Environments {
-			log.Printf("%+v", m)
-		}
-	}
 
 	sort.Sort(ByName(c.Projects))
 
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "User": u, "Page": "home"})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "User": u, "Page": "home", "CSSFile": *cssFile})
 }
 
 var validPathWithEnv = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
 
-func extractDeployLogHandler(fn func(http.ResponseWriter, *http.Request, string, goship.Environment)) http.HandlerFunc {
+func extractDeployLogHandler(fn func(http.ResponseWriter, *http.Request, string, goship.Environment, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		m := validPathWithEnv.FindStringSubmatch(r.URL.Path)
 		if m == nil {
@@ -816,7 +835,7 @@ func extractDeployLogHandler(fn func(http.ResponseWriter, *http.Request, string,
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		fn(w, r, m[2], *e)
+		fn(w, r, m[2], *e, projectName)
 	}
 }
 
@@ -912,7 +931,6 @@ func filterProject(p goship.Project, r *http.Request, u User) goship.Project {
 	for i, e := range p.Environments {
 		// If the repo isn't already locked.. lock it if the user doesnt have permission
 		// and add to the comments
-		log.Print("filter loop")
 		if e.IsLocked != true {
 			//log.Printf("Error getting Lock Permission: Locking anyway for safety %s", err)
 
@@ -1156,7 +1174,9 @@ func main() {
 	http.HandleFunc("/output/", checkAuth(extractOutputHandler(DeployOutputHandler), authentication))
 	http.HandleFunc("/commits/", checkAuth(extractCommitHandler(ProjCommitsHandler), authentication))
 	http.HandleFunc("/deploy_handler", checkAuth(DeployHandler, authentication))
-	http.HandleFunc("/comment_handler", checkAuth(CommentHandler, authentication))
+	http.HandleFunc("/lock", checkAuth(LockHandler, authentication))
+	http.HandleFunc("/unlock", checkAuth(UnLockHandler, authentication))
+	http.HandleFunc("/comment", checkAuth(CommentHandler, authentication))
 	http.HandleFunc("/auth/github/login", loginHandler("github", authentication.authorization))
 	http.HandleFunc("/auth/github/callback", callbackHandler("github", authentication.authorization))
 	fmt.Printf("Running on %s\n", *bindAddress)

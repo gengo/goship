@@ -60,14 +60,18 @@
     white-space: pre-line;
   }
   </style>
+
+  {{ if .CSSFile }}
+  <link href='{{.CSSFile}}' rel='stylesheet' type='text/css'>
+  {{end}}
+
 </head>
 <body>
-  <div class="navbar navbar-inverse navbar-fixed-top">
+  <div class="navbar navbar navbar-fixed-top">
     <div class="navbar-inner">
       <div class="container">
         <div class="navbar-header">
           <img class="avatar" src="{{.User.UserAvatar}}" alt="kk" height="42" width="42">
-          {{.User.UserName}}
           <a class="brand" href="/">GoShip</a>
         </div>
         <div class="nav-collapse">
