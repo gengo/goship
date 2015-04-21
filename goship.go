@@ -1142,7 +1142,7 @@ func isCollaborator(owner, repo, user string) bool {
 	g := newGithubClient()
 	m, _, err := g.IsCollaborator(owner, repo, user)
 	if err != nil {
-		log.Printf("Failure getting Collaboration Status of User: %s %s %s", owner, user, repo)
+		log.Printf("Failure getting Collaboration Status of User: %s %s %s err: %s", owner, user, repo, err)
 		return false
 	}
 	return m
