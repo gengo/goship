@@ -382,6 +382,7 @@ func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// Remove projects that the user is not a collaborator on...
 	fp := removeUnauthorizedProjects([]goship.Project{*proj}, r, u)
 	p := retrieveCommits(r, fp[0], c.DeployUser)
 
@@ -627,8 +628,8 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// CommentHandler allows you to update a comment on on environment
-// i.e. http://127.0.0.1:8000/comment?environment=staging&project=admin&comment=yodawg
+// CommentHandler allows you to update a comment on an environment
+// i.e. http://127.0.0.1:8000/comment?environment=staging&project=admin&comment=DONOTDEPLOYPLEASE!
 func CommentHandler(w http.ResponseWriter, r *http.Request) {
 
 	c := etcd.NewClient([]string{*ETCDServer})
@@ -645,14 +646,13 @@ func CommentHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// LockHandler allows you to lock on on environment
+// LockHandler allows you to lock an environment
 // http://127.0.0.1:8000/lock?environment=staging&project=admin
 func LockHandler(w http.ResponseWriter, r *http.Request) {
 
 	c := etcd.NewClient([]string{*ETCDServer})
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
-	log.Printf("lockhandler %s %s", p, env)
 	err := goship.LockEnvironment(c, p, env, "true")
 	if err != nil {
 		log.Println("ERROR: ", err)
@@ -662,13 +662,12 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusMovedPermanently)
 }
 
-// UnLockHandler allows you to unlock on on environment
+// UnLockHandler allows you to unlock an environment
 // http://127.0.0.1:8000/lock?environment=staging&project=admin
 func UnLockHandler(w http.ResponseWriter, r *http.Request) {
 	c := etcd.NewClient([]string{*ETCDServer})
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
-	log.Printf("unlockhandler %s %s", p, env)
 	err := goship.LockEnvironment(c, p, env, "false")
 	if err != nil {
 		log.Println("ERROR: ", err)
@@ -772,7 +771,7 @@ func (slice ByName) Len() int           { return len(slice) }
 func (slice ByName) Less(i, j int) bool { return slice[i].Name < slice[j].Name }
 func (slice ByName) Swap(i, j int)      { slice[i], slice[j] = slice[j], slice[i] }
 
-// HomeHandler is the produces the main home screen
+// HomeHandler is the main home screen
 func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
 	if err != nil {
@@ -862,7 +861,7 @@ func extractOutputHandler(fn func(http.ResponseWriter, *http.Request, string, st
 	}
 }
 
-// User allows access to whether the user is authed and where his avatar is.
+// User struct containes whether the user is authed and where his avatar is.
 type User struct {
 	UserName, UserAvatar string
 	auth                 auth
@@ -926,14 +925,10 @@ func filterProject(p goship.Project, r *http.Request, u User) goship.Project {
 		return p
 	}
 
-	// If user does not have access to the project remove it.
 	for i, e := range p.Environments {
 		// If the repo isn't already locked.. lock it if the user doesnt have permission
 		// and add to the comments
 		if e.IsLocked != true {
-			//log.Printf("Error getting Lock Permission: Locking anyway for safety %s", err)
-
-			// log.Printf("locking repo %t %t %s", authentication.authorization, e.IsLocked, p.RepoName)
 			g := newGithubClient()
 			lock, err := userHasDeployPermission(g, p.RepoOwner, p.RepoName, u.UserName)
 			if err != nil {

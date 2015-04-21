@@ -90,7 +90,7 @@ type Config struct {
 	Pivotal    *PivotalConfiguration
 }
 
-// PivotalConfiguration  keeps the Pivitol information
+// PivotalConfiguration used to store Pivotal interface
 type PivotalConfiguration struct {
 	Project string
 	Token   string
@@ -103,7 +103,7 @@ type ETCDInterface interface {
 }
 
 // ProjectFromName takes a project name as a string and returns
-// a Project by that name if it can find one.
+// a project by that name if it can find one.
 func ProjectFromName(projects []Project, projectName string) (*Project, error) {
 	for _, project := range projects {
 		if project.Name == projectName {
@@ -114,7 +114,7 @@ func ProjectFromName(projects []Project, projectName string) (*Project, error) {
 }
 
 // EnvironmentFromName takes an environment and project name as a string and returns
-// an Environment by the given environment name under a project with the given
+// an environment by the given environment name under a project with the given
 // project name if it can find one.
 func EnvironmentFromName(projects []Project, projectName, environmentName string) (*Environment, error) {
 	p, err := ProjectFromName(projects, projectName)
@@ -132,6 +132,7 @@ func EnvironmentFromName(projects []Project, projectName, environmentName string
 // SetComment will set the  comment field on an environment
 func SetComment(client ETCDInterface, projectName, projectEnv, comment string) (err error) {
 	projectString := fmt.Sprintf("/projects/%s/environments/%s/comment", projectName, projectEnv)
+	// guard against empty values ( simple validation)
 	if projectName == "" || projectEnv == "" {
 		return fmt.Errorf("Missing parameters")
 	}
@@ -142,6 +143,7 @@ func SetComment(client ETCDInterface, projectName, projectEnv, comment string) (
 // LockEnvironment Locks or unlock an environment for deploy
 func LockEnvironment(client ETCDInterface, projectName, projectEnv, lock string) (err error) {
 	projectString := fmt.Sprintf("/projects/%s/environments/%s/locked", projectName, projectEnv)
+	// guard against empty values ( simple validation)
 	if projectName == "" || projectEnv == "" {
 		return fmt.Errorf("Missing parameters")
 	}
