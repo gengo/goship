@@ -8,8 +8,10 @@
     <tr>
       <th>Name</th>
       <th>Branch</th>
-      <td>Repo Path</td>
+      <th>Repo Path</th>
       <th>Deploy Script</th>
+      <th>Lock</th>
+      <th>Comment</th>
     </tr>
   </thead>
   <tbody>
@@ -18,13 +20,35 @@
      <td>{{$environment.Branch}}</td>
      <td>{{$environment.RepoPath}}</td>
      <td>{{$environment.Deploy}}</td>
+     <td>
+        {{ if $environment.IsLocked }}
+        <form class="locked form-deploy" method="POST" action="/unlock" target="_blank" style="margin-bottom: 0">
+        <input type="hidden" name="environment" value="{{$environment.Name}}"/>
+        <input type="hidden" name="project" value="{{.ProjectName}}"/>
+        <input type="submit" class="btn btn-success" value="Unlock" />
+        </form>
+        {{ else }}
+        <form class="unlocked form-deploy" method="POST" action="/lock" target="_blank" style="margin-bottom: 0">
+        <input type="hidden" name="environment" value="{{$environment.Name}}"/>
+        <input type="hidden" name="project" value="{{.ProjectName}}"/>
+        <input type="submit" class="btn btn-success" value="lock" />
+        </form>
+        {{ end }}
+     </td>
+     <td>
+        <form class="comment form-deploy" method="POST" action="/comment" target="_blank" style="margin-bottom: 0">
+        <input type="hidden" name="environment" value="{{$environment.Name}}"/>
+        <input type="hidden" name="project" value="{{.ProjectName}}"/>
+        <input type="text" name="comment" value="{{$environment.Comment}}"/>
+        <input type="submit" class="btn btn-success" value="Comment" />
+        </form>
+     </td>
      </tr>
   </tbody>
-</table>
 
+</table>
   <h2>Deployment Log</h2>
-  {{$project := .Project}}
-  {{$project.Name}}
+  {{.projectName}}
   <table class="table table-striped">
   <thead>
     <tr>
@@ -54,4 +78,6 @@
   </tbody>
   </table>
   </div>
+
 {{end}}
+
