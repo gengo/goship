@@ -644,7 +644,7 @@ func CommentHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusFound)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 // LockHandler allows you to lock an environment
@@ -1109,7 +1109,6 @@ func newGithubClient() githubClient {
 
 // Will return true if the user has a team permission non read only
 func userHasDeployPermission(g githubClient, owner, repo, user string) (pull bool, err error) {
-
 	// List the  all the teams for a repository.
 	teams, _, err := g.ListTeams(owner, repo, nil)
 	if err != nil {
