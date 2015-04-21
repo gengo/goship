@@ -61,7 +61,7 @@ func TestUserOnNoTeam(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got != want {
-		t.Errorf("User is Read Olny = %v, want %v", got, want)
+		t.Errorf("User is Read Only = %v, want %v", got, want)
 	}
 }
 
@@ -74,7 +74,7 @@ func TestUserIsReadOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got != want {
-		t.Errorf("User is Read Olny = %v, want %v", got, want)
+		t.Errorf("User is Read Only = %v, want %v", got, want)
 	}
 }
 
