@@ -73,10 +73,17 @@
     e.preventDefault();
   });
 
+  {{ if .ConfirmDeployFlag }}
+  $('form.form-deploy').submit(function(e){
+      var env = $(this).parents('tr.environment').data('id');
+      return confirm('Are you sure you wish to deploy to ' + env + '?');
+  });
+  {{ end }}
+
   function refreshProject(project) {
       var $hostSkeleton = $('#host-skeleton');
       var $project = $(project),
-      projectId = $project.attr('data-id');
+      projectId = $project.data('id');
       $project.find('.hosts').text('Loading...');
       $project.find('.form-deploy').addClass('hidden');
       $.ajax({

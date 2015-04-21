@@ -72,10 +72,11 @@ go run goship.go -b localhost:8888 -k ~/.ssh/id_rsa
 Available command line flags for the `go run goship.go` command are:
 
 ```
- -b [bind address]  Address to bind (default localhost:8000)
- -k [id_rsa key]    Path to private SSH key for connecting to Github (default id_rsa)
- -d [data path]     Path to data directory (default ./data/)
- -e [etcd location] Full URL to ETCD Server. Defaults to localhost 
+ -b [bind address]             Address to bind (default localhost:8000)
+ -k [id_rsa key]               Path to private SSH key for connecting to Github (default id_rsa)
+ -d [data path]                Path to data directory (default ./data/)
+ -e [etcd location]            Full URL to ETCD Server. Defaults to localhost
+ -f [deploy confirmation flag] Flag to specify if user is prompted with confirmation dialog before deploys. Defaults to True
 ```
 
 ### Chat Notifications
