@@ -21,9 +21,11 @@ func (c githubClientMock) ListTeams(owner string, repo string, opt *github.ListO
 	b := github.Team{ID: github.Int(2), Name: github.String("team_2"), Permission: github.String("push")}
 	if repo == "repo_1" {
 		return []github.Team{a}, nil, nil
-	} else if repo == "repo_2" {
+	}
+	if repo == "repo_2" {
 		return []github.Team{b}, nil, nil
-	} else if repo == "repo_3" {
+	}
+	if repo == "repo_3" {
 		return []github.Team{a, b}, nil, nil
 	}
 	return []github.Team{}, nil, nil
@@ -32,9 +34,11 @@ func (c githubClientMock) ListTeams(owner string, repo string, opt *github.ListO
 func (c githubClientMock) IsTeamMember(team int, user string) (bool, *github.Response, error) {
 	if user == "read_only_user" && team == 1 {
 		return true, nil, nil
-	} else if user == "push_user" && team == 2 {
+	}
+	if user == "push_user" && team == 2 {
 		return true, nil, nil
-	} else if user == "push_and_pull_only_user" && (team == 1 || team == 2) {
+	}
+	if user == "push_and_pull_only_user" && (team == 1 || team == 2) {
 		return true, nil, nil
 	}
 	return false, nil, nil
