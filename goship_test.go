@@ -8,16 +8,10 @@ import (
 	"time"
 
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/gengo/goship/lib"
+	goship "github.com/gengo/goship/lib"
 	"github.com/google/go-github/github"
 	"github.com/gorilla/sessions"
 )
-
-// create a github client interface so we can mock in tests
-//type mockGithubClient interface {
-//	ListTeams(string, string, *github.ListOptions) ([]github.Team, *github.Response, error)
-//	IsTeamMember(int, string) (bool, *github.Response, error)
-//}
 
 type githubClientMock struct {
 }
@@ -207,7 +201,7 @@ func TestCanParseETCD(t *testing.T) {
 	compareStrings("project", got.Pivotal.Project, "111111", t)
 	compareStrings("project name", got.Projects[0].Name, "pivotal_project", t)
 	compareStrings("repo path", got.Projects[0].Environments[0].RepoPath, "/repos/test_repo_name/.git", t)
-	compareStrings("repo path", got.Projects[0].Environments[0].Branch, "master", t)
+	compareStrings("repo branch", got.Projects[0].Environments[0].Branch, "master", t)
 	compareStrings("host name", got.Projects[0].Environments[0].Hosts[0].URI, "test-qa-01.somewhere.com", t)
 }
 
@@ -246,7 +240,7 @@ func TestProjectFromName(t *testing.T) {
 	}
 	got, err = goship.ProjectFromName(projects, "BadProject")
 	if err == nil {
-		t.Errorf("goship.GetProjectFromName error case did not error", got, nil)
+		t.Errorf("goship.GetProjectFromName error case did not error")
 	}
 }
 
@@ -295,11 +289,11 @@ func TestGetUser(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to get User from GetUser [%s]", err)
 	}
-	if user.UserName != "T-800" {
-		t.Errorf("Failed to get User Name, expected T-800 got [%s]", user.UserName)
+	if user.UserName != session.Values["userName"] {
+		t.Errorf("Failed to get User Name, expected %s got [%s]", session.Values["userName"], user.UserName)
 	}
-	if user.UserAvatar != "http://fake.com/1234" {
-		t.Errorf("Failed to get User Avatar, expected http://fake.com/1234 got [%s]", user.UserAvatar)
+	if user.UserAvatar != session.Values["avatarURL"] {
+		t.Errorf("Failed to get User Avatar, expected %s got [%s]", session.Values["avatarURL"], user.UserAvatar)
 
 	}
 }
@@ -327,13 +321,6 @@ type MockEtcdClient struct{}
 
 func (*MockEtcdClient) Set(s, c string, x uint64) (*etcd.Response, error) {
 	m := make(map[string]*etcd.Response)
-	// {"action":"set",
-	//           "node":
-	//                  {"key":"/projects/admin/environments/staging/comment"
-	//                  ,"value":"XXXXX","modifiedIndex":209,"createdIndex":209},
-	//            "prevNode":
-	//                   {"key":"/projects/admin/environments/staging/comment",
-	//                    "value":"some comment","modifiedIndex":208,"createdIndex":208}}
 	m["/projects/test_project/environments/test_environment/comment"] = &etcd.Response{
 		Action: "Set",
 		Node: &etcd.Node{

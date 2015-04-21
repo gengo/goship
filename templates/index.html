@@ -75,10 +75,10 @@
   $('.refresh').click(function(e) {
     refreshProject($(this).closest('.project'));
     e.preventDefault();
-  })
+  });
 
   function refreshProject(project) {
-      var $hostSkeleton = $("#host-skeleton");
+      var $hostSkeleton = $('#host-skeleton');
       var $project = $(project),
       projectId = $project.attr('data-id');
       $project.find('.hosts').text('Loading...');
@@ -90,7 +90,7 @@
         success: function(response) {
           var environments = response.Environments,
             project = response.Name,
-            $project = $("[data-id='" + project +"']");
+            $project = $('[data-id="' + project +'"]');
 
           for (var e = 0; e < environments.length; e++) {
             var env = environments[e];
@@ -114,11 +114,17 @@
             if (true) {
               for (var h = 0; h < env.Hosts.length; h++) {
                 var host = env.Hosts[h];
+<<<<<<< HEAD
                 // if (true or host.GitHubDiffURL) {
                   //////////////////////////////////
                 if (true) {
                   $deployForm = $env.find(".form-deploy")
                   $deployForm.removeClass('hidden').find('[name="diffUrl"]').val(host.GitHubDiffURL)
+=======
+                if (host.GitHubDiffURL) {
+                  $deployForm = $env.find('.form-deploy');
+                  $deployForm.removeClass('hidden').find('[name="diffUrl"]').val(host.GitHubDiffURL);
+>>>>>>> d3feba7e8c67c8486cef2ed38fe1dcf1407ac633
                   $deployForm.find('[name="from_revision"]').val(host.LatestCommit);
                   $deployForm.find('[name="to_revision"]').val(env.LatestGitHubCommit);
                   break;
