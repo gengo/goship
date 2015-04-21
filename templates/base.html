@@ -9,9 +9,6 @@
   <link rel="shortcut icon" href="/static/images/favicon.ico">
    <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
   <script src="//netdna.bootstrapcdn.com/bootstrap/3.0.0/js/bootstrap.min.js"></script>
-  {{ if .JSFile }}
-  <script type="text/javascript" src='{{.JSFile}}'></script>
-  {{end}}
   <style type="text/css">
   body, h1, h2, h3 {
     font-family: "Roboto Condensed", "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -63,10 +60,6 @@
     white-space: pre-line;
   }
   </style>
-
-  {{ if .CSSFile }}
-  <link href='{{.CSSFile}}' rel='stylesheet' type='text/css'>
-  {{end}}
 
 </head>
 <body>
