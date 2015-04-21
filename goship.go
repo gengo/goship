@@ -138,7 +138,7 @@ func getLatestGitHubCommit(wg *sync.WaitGroup, project goship.Project, environme
 // retrieveCommits fetches the latest deployed commits as well
 // as the latest GitHub commits for a given Project.
 // it will also check if the user has permission to pull.
-func retrieveCommits(r *http.Request, project goship.Project, deployUser string) goship.Project {
+func retrieveCommits(r *http.Request, project goship.Project, deployUser string) (goship.Project, error) {
 	// define a wait group to wait for all goroutines to finish
 	var wg sync.WaitGroup
 	githubToken := os.Getenv(gitHubAPITokenEnvVar)
@@ -172,8 +172,7 @@ func retrieveCommits(r *http.Request, project goship.Project, deployUser string)
 	if err != nil {
 		log.Printf("Failed to get user %s", err)
 	}
-	proj := filterProject(project, r, u)
-	return proj
+	return filterProject(project, r, u), err
 }
 
 type DeployLogEntry struct {
@@ -339,7 +338,7 @@ func DeployOutputHandler(w http.ResponseWriter, r *http.Request, env string, for
 	w.Write(b)
 }
 
-// DeployLogHandler shows data abut the environment inclusing the deploy log.
+// DeployLogHandler shows data about the environment including the deploy log.
 func DeployLogHandler(w http.ResponseWriter, r *http.Request, fullEnv string, environment goship.Environment, projectName string) {
 	u, err := getUser(r)
 	if err != nil {
@@ -384,11 +383,15 @@ func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string)
 	}
 	// Remove projects that the user is not a collaborator on...
 	fp := removeUnauthorizedProjects([]goship.Project{*proj}, r, u)
-	p := retrieveCommits(r, fp[0], c.DeployUser)
-
-	j, err := json.Marshal(p)
+	p, err := retrieveCommits(r, fp[0], c.DeployUser)
 	if err != nil {
 		log.Println("ERROR: Retrieving Commits ", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	j, err := json.Marshal(p)
+	if err != nil {
+		log.Println("ERROR: Marshalling Retrieving Commits ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -631,7 +634,6 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 // CommentHandler allows you to update a comment on an environment
 // i.e. http://127.0.0.1:8000/comment?environment=staging&project=admin&comment=DONOTDEPLOYPLEASE!
 func CommentHandler(w http.ResponseWriter, r *http.Request) {
-
 	c := etcd.NewClient([]string{*ETCDServer})
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
@@ -643,13 +645,11 @@ func CommentHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/", http.StatusFound)
-
 }
 
 // LockHandler allows you to lock an environment
 // http://127.0.0.1:8000/lock?environment=staging&project=admin
 func LockHandler(w http.ResponseWriter, r *http.Request) {
-
 	c := etcd.NewClient([]string{*ETCDServer})
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
@@ -659,11 +659,11 @@ func LockHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusMovedPermanently)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 // UnLockHandler allows you to unlock an environment
-// http://127.0.0.1:8000/lock?environment=staging&project=admin
+// http://127.0.0.1:8000/unlock?environment=staging&project=admin
 func UnLockHandler(w http.ResponseWriter, r *http.Request) {
 	c := etcd.NewClient([]string{*ETCDServer})
 	p := r.FormValue("project")
@@ -674,7 +674,7 @@ func UnLockHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	http.Redirect(w, r, "/", http.StatusMovedPermanently)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
 func postToPivotal(piv *goship.PivotalConfiguration, env, owner, name, latest, current string) error {
@@ -925,35 +925,35 @@ func filterProject(p goship.Project, r *http.Request, u User) goship.Project {
 		return p
 	}
 
+	g := newGithubClient()
 	for i, e := range p.Environments {
 		// If the repo isn't already locked.. lock it if the user doesnt have permission
 		// and add to the comments
-		if e.IsLocked != true {
-			g := newGithubClient()
-			lock, err := userHasDeployPermission(g, p.RepoOwner, p.RepoName, u.UserName)
-			if err != nil {
-				log.Printf("Error getting Lock Permission: Locking anyway for safety %s", err)
-			}
-			p.Environments[i].IsLocked = !lock
-			// Add a line break if there is already a comment
-			if p.Environments[i].Comment != "" {
-				p.Environments[i].Comment = p.Environments[i].Comment + " | "
-			}
-			if !lock {
-				p.Environments[i].Comment = p.Environments[i].Comment + "you do not have permission to deploy "
-			}
-		} else {
+		if e.IsLocked {
 			if p.Environments[i].Comment != "" {
 				p.Environments[i].Comment = p.Environments[i].Comment + " | "
 			}
 			p.Environments[i].Comment = p.Environments[i].Comment + "repo is locked."
+			continue
+		}
+
+		lock, err := userHasDeployPermission(g, p.RepoOwner, p.RepoName, u.UserName)
+		if err != nil {
+			log.Printf("Error getting Lock Permission: Locking anyway for safety %s", err)
+		}
+		p.Environments[i].IsLocked = !lock
+		// Add a line break if there is already a comment
+		if p.Environments[i].Comment != "" {
+			p.Environments[i].Comment = p.Environments[i].Comment + " | "
+		}
+		if !lock {
+			p.Environments[i].Comment = p.Environments[i].Comment + "you do not have permission to deploy "
 		}
 	}
 	return p
 }
 
 func loginHandler(providerName string, auth bool) http.HandlerFunc {
-
 	if auth != true {
 		return func(w http.ResponseWriter, r *http.Request) {}
 	}
@@ -980,7 +980,6 @@ func loginHandler(providerName string, auth bool) http.HandlerFunc {
 }
 
 func callbackHandler(providerName string, auth bool) http.HandlerFunc {
-
 	if auth != true {
 		return func(w http.ResponseWriter, r *http.Request) {}
 	}

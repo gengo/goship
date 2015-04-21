@@ -60,12 +60,8 @@
 
   <script type="text/javascript">
 
-  // initialize bootstrap tooltip 
-  $(function () {
-    $('[data-toggle="tooltip"]').tooltip()
-  })
-
   $(function(){
+    $('[data-toggle="tooltip"]').tooltip();
     // make ajax queries for each project
     $('.project').each(function(){
         refreshProject(this);
