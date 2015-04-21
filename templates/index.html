@@ -109,9 +109,7 @@
                 $host.find('.GitHubDiffURL').attr('href', host.GitHubDiffURL).closest('span.hidden').removeClass('hidden');
               }
             }
-            // if (env.IsDeployable or false) {
-              ///////////////////////////
-            if (true) {
+            if (env.IsDeployable or false) {
               for (var h = 0; h < env.Hosts.length; h++) {
                 var host = env.Hosts[h];
                 if host.GitHubDiffURL {
