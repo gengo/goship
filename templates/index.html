@@ -76,7 +76,8 @@
   {{ if .ConfirmDeployFlag }}
   $('form.form-deploy').submit(function(e){
       var env = $(this).parents('tr.environment').data('id');
-      return confirm('Are you sure you wish to deploy to ' + env + '?');
+      var project = $(this).find('input[name="project"]').val();
+      return confirm('Are you sure you wish to deploy ' + project + ' to ' + env + '?');
   });
   {{ end }}
 
