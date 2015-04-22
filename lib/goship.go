@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"path/filepath"
+	"strconv"
 
 	"github.com/coreos/go-etcd/etcd"
 )
@@ -33,6 +34,9 @@ type Environment struct {
 	Branch             string
 	Revision           string
 	LatestGitHubCommit string
+	Comment            string
+	pivotalCommentURL  string
+	IsLocked           bool
 	IsDeployable       bool
 }
 
@@ -101,17 +105,20 @@ type Config struct {
 	Pivotal    *PivotalConfiguration
 }
 
+// PivotalConfiguration used to store Pivotal interface
 type PivotalConfiguration struct {
 	Project string
 	Token   string
 }
 
+// ETCDInterface emulates ETCD to allow testing
 type ETCDInterface interface {
 	Get(string, bool, bool) (*etcd.Response, error)
+	Set(string, string, uint64) (*etcd.Response, error)
 }
 
 // ProjectFromName takes a project name as a string and returns
-// a Project by that name if it can find one.
+// a project by that name if it can find one.
 func ProjectFromName(projects []Project, projectName string) (*Project, error) {
 	for _, project := range projects {
 		if project.Name == projectName {
@@ -122,7 +129,7 @@ func ProjectFromName(projects []Project, projectName string) (*Project, error) {
 }
 
 // EnvironmentFromName takes an environment and project name as a string and returns
-// an Environment by the given environment name under a project with the given
+// an environment by the given environment name under a project with the given
 // project name if it can find one.
 func EnvironmentFromName(projects []Project, projectName, environmentName string) (*Environment, error) {
 	p, err := ProjectFromName(projects, projectName)
@@ -137,7 +144,29 @@ func EnvironmentFromName(projects []Project, projectName, environmentName string
 	return nil, fmt.Errorf("No environment found: %s", environmentName)
 }
 
-// connects to ETCD and returns the appropriate structs and strings.
+// SetComment will set the  comment field on an environment
+func SetComment(client ETCDInterface, projectName, projectEnv, comment string) (err error) {
+	projectString := fmt.Sprintf("/projects/%s/environments/%s/comment", projectName, projectEnv)
+	// guard against empty values ( simple validation)
+	if projectName == "" || projectEnv == "" {
+		return fmt.Errorf("Missing parameters")
+	}
+	_, err = client.Set(projectString, comment, 0)
+	return err
+}
+
+// LockEnvironment Locks or unlock an environment for deploy
+func LockEnvironment(client ETCDInterface, projectName, projectEnv, lock string) (err error) {
+	projectString := fmt.Sprintf("/projects/%s/environments/%s/locked", projectName, projectEnv)
+	// guard against empty values ( simple validation)
+	if projectName == "" || projectEnv == "" {
+		return fmt.Errorf("Missing parameters")
+	}
+	_, err = client.Set(projectString, lock, 0)
+	return err
+}
+
+// ParseETCD connects to ETCD and returns the appropriate structs and strings.
 func ParseETCD(client ETCDInterface) (c Config, err error) {
 	baseInfo, err := client.Get("/", false, false)
 	if err != nil {
@@ -200,6 +229,8 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 			branch := "master"
 			deploy := ""
 			repoPath := ""
+			isLocked := false
+			comment := ""
 			for _, n := range envSettings.Node.Nodes {
 				switch filepath.Base(n.Key) {
 				case "revision":
@@ -210,6 +241,15 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 					deploy = n.Value
 				case "repo_path":
 					repoPath = n.Value
+				case "locked":
+					nv, err := strconv.ParseBool(n.Value)
+					if err != nil {
+						fmt.Printf("Error parsing isLocked %s - Setting to unlocked: Please make sure environment has <locked> field", err)
+						isLocked = false
+					}
+					isLocked = nv
+				case "comment":
+					comment = n.Value
 				}
 			}
 			//  Get Hosts per Environment.
@@ -222,7 +262,7 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 				host := Host{URI: filepath.Base(h.Key)}
 				allHosts = append(allHosts, host)
 			}
-			env := Environment{Name: envName, Deploy: deploy, RepoPath: repoPath, Branch: branch, Revision: revision}
+			env := Environment{Name: envName, Deploy: deploy, RepoPath: repoPath, Branch: branch, Revision: revision, IsLocked: isLocked, Comment: comment}
 			env.Hosts = allHosts
 			allEnvironments = append(allEnvironments, env)
 		}

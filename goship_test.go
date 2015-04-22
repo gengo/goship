@@ -9,8 +9,98 @@ import (
 
 	"github.com/coreos/go-etcd/etcd"
 	goship "github.com/gengo/goship/lib"
+	"github.com/google/go-github/github"
 	"github.com/gorilla/sessions"
 )
+
+type githubClientMock struct {
+}
+
+func (c githubClientMock) ListTeams(owner string, repo string, opt *github.ListOptions) ([]github.Team, *github.Response, error) {
+	a := github.Team{ID: github.Int(1), Name: github.String("team_1"), Permission: github.String("pull")}
+	b := github.Team{ID: github.Int(2), Name: github.String("team_2"), Permission: github.String("push")}
+	if repo == "repo_1" {
+		return []github.Team{a}, nil, nil
+	}
+	if repo == "repo_2" {
+		return []github.Team{b}, nil, nil
+	}
+	if repo == "repo_3" {
+		return []github.Team{a, b}, nil, nil
+	}
+	return []github.Team{}, nil, nil
+}
+
+func (c githubClientMock) IsTeamMember(team int, user string) (bool, *github.Response, error) {
+	if user == "read_only_user" && team == 1 {
+		return true, nil, nil
+	}
+	if user == "push_user" && team == 2 {
+		return true, nil, nil
+	}
+	if user == "push_and_pull_only_user" && (team == 1 || team == 2) {
+		return true, nil, nil
+	}
+	return false, nil, nil
+}
+
+func (c githubClientMock) IsCollaborator(owner, repo, user string) (bool, *github.Response, error) {
+	return true, nil, nil
+}
+
+func newMockGithubClient() githubClientMock {
+	return githubClientMock{}
+}
+
+func TestUserOnNoTeam(t *testing.T) {
+	g := newMockGithubClient()
+	authentication.authorization = true
+	var want = false
+	got, err := userHasDeployPermission(g, "owner_1", "repo_1", "read_only_user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("User is Read Only = %v, want %v", got, want)
+	}
+}
+
+func TestUserIsReadOnly(t *testing.T) {
+	g := newMockGithubClient()
+	authentication.authorization = true
+	var want = false
+	got, err := userHasDeployPermission(g, "owner_1", "repo_1", "push_user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("User is Read Only = %v, want %v", got, want)
+	}
+}
+
+func TestUserHasPushPermission(t *testing.T) {
+	g := newMockGithubClient()
+	var want = true
+	got, err := userHasDeployPermission(g, "some_owner", "repo_2", "push_and_pull_only_user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("User has Push Permission = %v, want %v", got, want)
+	}
+}
+
+func TestPushPullUserHasPushPermission(t *testing.T) {
+	g := newMockGithubClient()
+	var want = true
+	got, err := userHasDeployPermission(g, "some_owner", "repo_3", "push_and_pull_only_user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Errorf("User has Push Permission = %v, want %v", got, want)
+	}
+}
 
 func TestStripANSICodes(t *testing.T) {
 	tests := []struct {
@@ -77,6 +167,27 @@ var wantConfig = goship.Config{
 	Notify:     "/notify/notify.sh",
 	Pivotal:    &goship.PivotalConfiguration{Project: "111111", Token: "test"}}
 
+func TestSetComment(t *testing.T) {
+	err := goship.SetComment(&MockEtcdClient{}, "test_project", "test_environment", "A comment")
+	if err != nil {
+		t.Fatalf("Can't set Comment %s", err)
+	}
+}
+
+func TestLockingEnvironment(t *testing.T) {
+	err := goship.LockEnvironment(&MockEtcdClient{}, "test_project", "test_environment", "true")
+	if err != nil {
+		t.Fatalf("Can't lock %s", err)
+	}
+}
+
+func TestUnlockingEnvironment(t *testing.T) {
+	err := goship.LockEnvironment(&MockEtcdClient{}, "test_project", "test_environment", "false")
+	if err != nil {
+		t.Fatalf("Can't unlock %s", err)
+	}
+}
+
 func compareStrings(name, got, want string, t *testing.T) {
 	if got != want {
 		t.Errorf("got %s = %s; want %s", name, got, want)
@@ -94,7 +205,7 @@ func TestCanParseETCD(t *testing.T) {
 	compareStrings("project", got.Pivotal.Project, "111111", t)
 	compareStrings("project name", got.Projects[0].Name, "pivotal_project", t)
 	compareStrings("repo path", got.Projects[0].Environments[0].RepoPath, "/repos/test_repo_name/.git", t)
-	compareStrings("repo path", got.Projects[0].Environments[0].Branch, "master", t)
+	compareStrings("repo branch", got.Projects[0].Environments[0].Branch, "master", t)
 	compareStrings("host name", got.Projects[0].Environments[0].Hosts[0].URI, "test-qa-01.somewhere.com", t)
 }
 
@@ -133,7 +244,7 @@ func TestProjectFromName(t *testing.T) {
 	}
 	got, err = goship.ProjectFromName(projects, "BadProject")
 	if err == nil {
-		t.Errorf("goship.GetProjectFromName error case did not error", got, nil)
+		t.Errorf("goship.GetProjectFromName error case did not error")
 	}
 }
 
@@ -154,7 +265,7 @@ func TestCleanProjects(t *testing.T) {
 	if got < 1 {
 		t.Errorf("clean projects test expects projects to have at least one project [%d]", got)
 	}
-	got = len(cleanProjects(p.Projects, req, u))
+	got = len(removeUnauthorizedProjects(p.Projects, req, u))
 	if got != 0 {
 		t.Errorf("clean projects failed to clean project for unauth user.. [%d]", got)
 	}
@@ -182,11 +293,11 @@ func TestGetUser(t *testing.T) {
 	if err != nil {
 		t.Errorf("Failed to get User from GetUser [%s]", err)
 	}
-	if user.UserName != "T-800" {
-		t.Errorf("Failed to get User Name, expected T-800 got [%s]", user.UserName)
+	if user.UserName != session.Values["userName"] {
+		t.Errorf("Failed to get User Name, expected %s got [%s]", session.Values["userName"], user.UserName)
 	}
-	if user.UserAvatar != "http://fake.com/1234" {
-		t.Errorf("Failed to get User Avatar, expected http://fake.com/1234 got [%s]", user.UserAvatar)
+	if user.UserAvatar != session.Values["avatarURL"] {
+		t.Errorf("Failed to get User Avatar, expected %s got [%s]", session.Values["avatarURL"], user.UserAvatar)
 
 	}
 }
@@ -211,6 +322,21 @@ func TestGetEnvironmentFromName(t *testing.T) {
 }
 
 type MockEtcdClient struct{}
+
+func (*MockEtcdClient) Set(s, c string, x uint64) (*etcd.Response, error) {
+	m := make(map[string]*etcd.Response)
+	m["/projects/test_project/environments/test_environment/comment"] = &etcd.Response{
+		Action: "Set",
+		Node: &etcd.Node{
+			Key: "/projects/test_project/environments/test_environment/", Value: "XXXX",
+		},
+		PrevNode: &etcd.Node{
+			Key: "/projects/test_project/environments/test_environment/", Value: "YYYY",
+		},
+	}
+	mockResponse := m[s]
+	return mockResponse, nil
+}
 
 //Mock calls to ETCD here. Each etcd Response should return the structs you need.
 func (*MockEtcdClient) Get(s string, t bool, x bool) (*etcd.Response, error) {

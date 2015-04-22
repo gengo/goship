@@ -17,6 +17,7 @@
                   {{.RenderHeader}}
                 {{end}}
                 <th class="column-deploy"></th>
+                <th class="column-comment">  </th>
               </tr>
             </thead>
             <tbody>
@@ -47,6 +48,9 @@
                     <input type="submit" class="btn btn-success" value="Deploy" />
                   </form>
                 </td>
+                <td class="comment">
+                  <span title="" class="hidden glyphicon glyphicon-comment"></span>
+                </td>
               </tr>
             {{end}}
             </tbody>
@@ -65,6 +69,7 @@
   <script type="text/javascript">
 
   $(function(){
+    $('[data-toggle="tooltip"]').tooltip();
     // make ajax queries for each project
     $('.project').each(function(){
         refreshProject(this);
@@ -74,12 +79,20 @@
   $('.refresh').click(function(e) {
     refreshProject($(this).closest('.project'));
     e.preventDefault();
-  })
+  });
+
+  {{ if .ConfirmDeployFlag }}
+  $('form.form-deploy').submit(function(e){
+      var env = $(this).parents('tr.environment').data('id');
+      var project = $(this).find('input[name="project"]').val();
+      return confirm('Are you sure you wish to deploy ' + project + ' to ' + env + '?');
+  });
+  {{ end }}
 
   function refreshProject(project) {
-      var $hostSkeleton = $("#host-skeleton");
+      var $hostSkeleton = $('#host-skeleton');
       var $project = $(project),
-      projectId = $project.attr('data-id');
+      projectId = $project.data('id');
       $project.find('.hosts').text('Loading...');
       $project.find('.form-deploy').addClass('hidden');
       $.ajax({
@@ -89,7 +102,7 @@
         success: function(response) {
           var environments = response.Environments,
             project = response.Name,
-            $project = $("[data-id='" + project +"']");
+            $project = $('[data-id="' + project +'"]');
 
           for (var e = 0; e < environments.length; e++) {
             var env = environments[e];
@@ -112,17 +125,44 @@
               for (var h = 0; h < env.Hosts.length; h++) {
                 var host = env.Hosts[h];
                 if (host.GitHubDiffURL) {
-                  $deployForm = $env.find(".form-deploy")
-                  $deployForm.removeClass('hidden').find('[name="diffUrl"]').val(host.GitHubDiffURL)
+                  $deployForm = $env.find('.form-deploy');
+                  $deployForm.removeClass('hidden').find('[name="diffUrl"]').val(host.GitHubDiffURL);
                   $deployForm.find('[name="from_revision"]').val(host.LatestCommit);
                   $deployForm.find('[name="to_revision"]').val(env.LatestGitHubCommit);
                   break;
                 }
               }
             }
+            $comment = $env.find(".comment")
+            if (env.Comment || env.IsLocked) {
+              $env.find(".glyphicon-comment").removeClass('hidden').popover({
+                trigger: 'hover focus',
+                content: env.Comment,
+                placement: 'left'
+              });
+            }
+            $comment = $env.find(".comment")
+            if (env.IsLocked) {
+              $deployForm = $env.find(".form-deploy").find(".btn")
+              $deployForm.addClass('disabled')
+            }
           }
         }
       });
   }
+
+  // Extended disable function
+  jQuery.fn.extend({
+      disable: function(state) {
+          return this.each(function() {
+              var $this = $(this);
+              if($this.is('input, button'))
+                this.disabled = state;
+              else
+                $this.toggleClass('disabled', state);
+          });
+      }
+  });
+
   </script>
 {{end}}
