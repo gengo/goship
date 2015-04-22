@@ -88,22 +88,18 @@ notify: ./notifications/notify.sh
 
 [Sevabot](http://sevabot-skype-bot.readthedocs.org/en/latest/) is a good choice for Skype.
 
-
 ### Tools 
 
 There are some tools added in the /tools directory that can be used interface with Goship
 1) convert.go: takes a config.yml  file and converts it to ETCD. Used for bootstrapping ETCD from the original
 conf file. 
-2) deploy.go:  Can be used as a script by the "deploy" to create a knife solo command which reads in the appropriate servers from ETCD and runs knife solo. 
+2) deploy.go:  Can be used as a script by the "deploy" to create a knife solo command which reads in the appropriate servers from ETCD and runs knife solo.
 
 ### Plugins
 
 Goship suffices as a basic application to aid your deployments. However, you may wish to extend Goship with some custom UI on its home page with plugins.
 
 To do so, head over to [Plugins](plugins).
-
-
-### Information
 
 GoShip was inspired by [Rackspace's Dreadnot](https://github.com/racker/dreadnot) ([UI image](http://c179631.r31.cf0.rackcdn.com/dreadnot-overview.png)) and [Etsy's Deployinator](https://github.com/etsy/deployinator/) ([UI image](http://farm5.staticflickr.com/4065/4620552264_9e0fdf634d_b.jpg)).
 

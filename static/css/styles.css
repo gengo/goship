@@ -1,0 +1,51 @@
+@import url(http://fonts.googleapis.com/css?family=Roboto+Condensed);
+
+body, h1, h2, h3 {
+  font-family: "Roboto Condensed", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+.avatar {
+  width: 45px;
+  height: 45px;
+  margin-bottom: 5px;
+}
+.brand {
+  font-size: 32px;
+  margin-left: 10px;
+  margin-right: 20px;
+  color: #fff;
+}
+.contents {
+  margin-top: 60px;
+}
+.column-environment {
+  width: 15%;
+}
+.column-hosts {
+  width: 50%;
+}
+.column-deployed-revision {
+  width: 25%;
+}
+.column-comment {
+  width: 3%;
+}
+.comment {
+  margin: 0;
+  padding: 0;
+}
+.column-deploy {
+  width: 7%;
+}
+.meta {
+  color: #ccc;
+  margin-left: 10px;
+}
+.additions {
+  color: #6cc644;
+}
+.deletions {
+  color: #bd2c00;
+}
+.ui-tooltip {
+  white-space: pre-line;
+}

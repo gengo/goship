@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	"code.google.com/p/go.net/websocket"
 	"code.google.com/p/goauth2/oauth"
 	"github.com/coreos/go-etcd/etcd"
+	"github.com/gengo/goship/helpers"
 	goship "github.com/gengo/goship/lib"
 	"github.com/gengo/goship/plugins"
 	"github.com/google/go-github/github"
@@ -40,6 +42,7 @@ var (
 	sshPort           = "22"
 	keyPath           = flag.String("k", "id_rsa", "Path to private SSH key (default id_rsa)")
 	dataPath          = flag.String("d", "data/", "Path to data directory (default ./data/)")
+	staticFilePath    = flag.String("s", "static/", "Path to directory for static files (default ./static/)")
 	ETCDServer        = flag.String("e", "http://127.0.0.1:4001", "Etcd Server (default http://127.0.0.1:4001)")
 	cookieSessionHash = flag.String("c", "COOKIE-SESSION-HASH", "Random cookie session key (default jhjhjhjhjhjjhjhhj)")
 	defaultUser       = flag.String("u", "genericUser", "Default User if non auth (default genericUser)")
@@ -361,7 +364,8 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, fullEnv string, en
 		d[i].FormattedTime = formatTime(d[i].Time)
 	}
 	sort.Sort(ByTime(d))
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Deployments": d, "User": u, "Env": fullEnv, "Environment": environment, "ProjectName": projectName})
+	js, css := getAssetsTemplates()
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Javascript": js, "Stylesheet": css, "Deployments": d, "User": u, "Env": fullEnv, "Environment": environment, "ProjectName": projectName})
 }
 
 func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
@@ -763,7 +767,8 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Project": p, "Env": env, "User": user, "BindAddress": bindAddress, "RepoOwner": repoOwner, "RepoName": repoName, "ToRevision": toRevision, "FromRevision": fromRevision})
+	js, css := getAssetsTemplates()
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Javascript": js, "Stylesheet": css, "Project": p, "Env": env, "User": user, "BindAddress": bindAddress, "RepoOwner": repoOwner, "RepoName": repoName, "ToRevision": toRevision, "FromRevision": fromRevision})
 }
 
 // ByName is the interface for sorting projects
@@ -802,8 +807,20 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	}
+	js, css := getAssetsTemplates()
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Javascript": js, "Stylesheet": css, "Projects": c.Projects, "User": u, "Page": "home", "ConfirmDeployFlag": *confirmDeployFlag})
+}
 
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "User": u, "Page": "home", "ConfirmDeployFlag": *confirmDeployFlag})
+func getAssetsTemplates() (js, css template.HTML) {
+	sfp, err := filepath.Abs(*staticFilePath)
+	if err != nil {
+		var tmpl = template.HTML("")
+		log.Printf("Failed to locate static file path: %s", err)
+		return tmpl, tmpl
+	}
+	js = helpers.MakeJavascriptTemplate(path.Join(sfp, "js"))
+	css = helpers.MakeStylesheetTemplate(path.Join(sfp, "css"))
+	return js, css
 }
 
 var validPathWithEnv = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
