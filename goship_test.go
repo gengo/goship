@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/gengo/goship/lib"
+	goship "github.com/gengo/goship/lib"
 	"github.com/gorilla/sessions"
 )
 
@@ -37,8 +37,8 @@ var githubDiffURLTests = []struct {
 	e    goship.Environment
 	want string
 }{
-	{goship.Host{LatestCommit: "abc123"}, goship.Project{"test project", "https://github.com/test/foo", "foo", "test", []goship.Environment{}}, goship.Environment{LatestGitHubCommit: "abc123"}, ""},
-	{goship.Host{LatestCommit: "abc123"}, goship.Project{"test project", "https://github.com/test/foo", "foo", "test", []goship.Environment{}}, goship.Environment{LatestGitHubCommit: "abc456"}, "https://github.com/test/foo/compare/abc123...abc456"},
+	{goship.Host{LatestCommit: "abc123"}, goship.Project{nil, "test project", "https://github.com/test/foo", "foo", "test", []goship.Environment{}}, goship.Environment{LatestGitHubCommit: "abc123"}, ""},
+	{goship.Host{LatestCommit: "abc123"}, goship.Project{nil, "test project", "https://github.com/test/foo", "foo", "test", []goship.Environment{}}, goship.Environment{LatestGitHubCommit: "abc456"}, "https://github.com/test/foo/compare/abc123...abc456"},
 }
 
 func TestGitHubDiffURL(t *testing.T) {

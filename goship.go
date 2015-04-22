@@ -26,7 +26,9 @@ import (
 	"code.google.com/p/go.net/websocket"
 	"code.google.com/p/goauth2/oauth"
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/gengo/goship/lib"
+	goship "github.com/gengo/goship/lib"
+	"github.com/gengo/goship/plugins"
+	_ "github.com/gengo/goship/plugins/helloworld"
 	"github.com/google/go-github/github"
 	"github.com/gorilla/sessions"
 	"github.com/stretchr/gomniauth"
@@ -720,11 +722,21 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
-		log.Println("ERROR: ", err)
+		log.Printf("Failed to parse template: %s", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 	c.Projects = cleanProjects(c.Projects, r, u)
 	sort.Sort(ByName(c.Projects))
+
+	// apply each plugin
+	for _, plugin := range plugins.Plugins {
+		err := plugin.Apply(c)
+		if err != nil {
+			log.Printf("Failed to apply plugin: %s", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}
+
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Projects": c.Projects, "User": u, "Page": "home"})
 }
 

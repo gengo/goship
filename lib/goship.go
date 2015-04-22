@@ -2,6 +2,7 @@ package goship
 
 import (
 	"fmt"
+	"html/template"
 	"path/filepath"
 
 	"github.com/coreos/go-etcd/etcd"
@@ -35,13 +36,27 @@ type Environment struct {
 	IsDeployable       bool
 }
 
-// Project stores information about a GitHub project, such as its GitHub URL and repo name.
+// Column is an interface that demands a RenderHeader and RenderDetails method to be able to generate a table column (with header and body)
+// See templates/index.html to see how the Header and Render methods are used
+type Column interface {
+	// RenderHeader() returns a HTML template that should render a <th> element
+	RenderHeader() (template.HTML, error)
+	// RenderDetail() returns a HTML template that should render a <td> element
+	RenderDetail() (template.HTML, error)
+}
+
+// Project stores information about a GitHub project, such as its GitHub URL and repo name, and a list of extra columns (PluginColumns)
 type Project struct {
-	Name         string
-	GitHubURL    string
-	RepoName     string
-	RepoOwner    string
-	Environments []Environment
+	PluginColumns []Column
+	Name          string
+	GitHubURL     string
+	RepoName      string
+	RepoOwner     string
+	Environments  []Environment
+}
+
+func (p *Project) AddPluginColumn(c Column) {
+	p.PluginColumns = append(p.PluginColumns, c)
 }
 
 // gitHubCommitURL takes a project and returns the GitHub URL for its latest commit hash.
