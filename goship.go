@@ -28,7 +28,6 @@ import (
 	"github.com/coreos/go-etcd/etcd"
 	goship "github.com/gengo/goship/lib"
 	"github.com/gengo/goship/plugins"
-	_ "github.com/gengo/goship/plugins/helloworld"
 	"github.com/google/go-github/github"
 	"github.com/gorilla/sessions"
 	"github.com/stretchr/gomniauth"

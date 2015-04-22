@@ -35,7 +35,7 @@ Create an ETCD server / follow the instructions in the etcd README:
     https://github.com/coreos/etcd
 
 
-There are various tools to update your ETCD server including the etcctl client or curl, you can also use a variety of clients and JSON formatting:
+There are various tools to update your ETCD server including the etcdctl client or curl, you can also use a variety of clients and JSON formatting:
 There is also a convert.go in tools that can be used to 'bootstrap' etcd.
 
 
@@ -95,6 +95,16 @@ There are some tools added in the /tools directory that can be used interface wi
 1) convert.go: takes a config.yml  file and converts it to ETCD. Used for bootstrapping ETCD from the original
 conf file. 
 2) deploy.go:  Can be used as a script by the "deploy" to create a knife solo command which reads in the appropriate servers from ETCD and runs knife solo. 
+
+### Plugins
+
+Goship suffices as a basic application to aid your deployments. However, you may wish to extend Goship with some custom UI on its home page with plugins.
+
+To do so, head over to [Plugins](plugins).
+
+
+### Information
+
 GoShip was inspired by [Rackspace's Dreadnot](https://github.com/racker/dreadnot) ([UI image](http://c179631.r31.cf0.rackcdn.com/dreadnot-overview.png)) and [Etsy's Deployinator](https://github.com/etsy/deployinator/) ([UI image](http://farm5.staticflickr.com/4065/4620552264_9e0fdf634d_b.jpg)).
 
 The GoShip logo is an adaptation of the [Go gopher](http://blog.golang.org/gopher) created by Renee French under the [Creative Commons Attribution 3.0 license](https://creativecommons.org/licenses/by/3.0/).
