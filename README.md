@@ -20,6 +20,7 @@ Export your GitHub API token:
 
 ### Github Omniauth Integration:
 
+    Users who are collaborator on a repo can 'see' that repo in Goship.
     You must create a developer application to use omniauth.
     If you do NOT add the appropriate env keys below AUTH will be OFF I.E. Please be careful and check the logs.
     Please  note the "Authorization callback URL" should match your site i.e. "http://<your-url-and-port>/auth/github/callback"
@@ -29,6 +30,7 @@ Export your GitHub API token:
     export GITHUB_OMNI_AUTH_KEY="github-application-key";
     export GITHUB_CALLBACK_URL="http://<your-url-and-port>";  // must match that given to Github! Would be 127.0.0.1:port for testing
 
+    If authentication is 'turned on', organization 'team' members who are collaborators and exclusively on a 'pull' only team will be able to see a repo, however the deploy button will be diasbled for them.
 
 Create an ETCD server / follow the instructions in the etcd README:
 
