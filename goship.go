@@ -29,7 +29,8 @@ import (
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gengo/goship/helpers"
 	goship "github.com/gengo/goship/lib"
-	"github.com/gengo/goship/plugins"
+	_ "github.com/gengo/goship/plugins"
+	"github.com/gengo/goship/plugins/plugin"
 	"github.com/google/go-github/github"
 	"github.com/gorilla/sessions"
 	"github.com/stretchr/gomniauth"
@@ -800,8 +801,8 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 	sort.Sort(ByName(c.Projects))
 
 	// apply each plugin
-	for _, plugin := range plugins.Plugins {
-		err := plugin.Apply(c)
+	for _, pl := range plugin.Plugins {
+		err := pl.Apply(c)
 		if err != nil {
 			log.Printf("Failed to apply plugin: %s", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -4,7 +4,7 @@ import (
 	"html/template"
 
 	goship "github.com/gengo/goship/lib"
-	"github.com/gengo/goship/plugins"
+	"github.com/gengo/goship/plugins/plugin"
 )
 
 type HelloWorldPlugin struct {
@@ -13,7 +13,7 @@ type HelloWorldPlugin struct {
 
 func init() {
 	p := &HelloWorldPlugin{HelloWorldColumn{}}
-	plugins.RegisterPlugin(p)
+	plugin.RegisterPlugin(p)
 }
 
 type HelloWorldColumn struct{}
