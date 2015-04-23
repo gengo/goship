@@ -20,7 +20,7 @@ func getFilePaths(root string, extension string) ([]string, error) {
 	var filepaths []string
 	var getFile = func(fp string, _ os.FileInfo, _ error) error {
 		if path.Ext(fp) == extension {
-			filepaths = append(filepaths, path.Base(fp))
+			filepaths = append(filepaths, path.Base(fp)) // we only want the base file paths
 		}
 		return nil
 	}
