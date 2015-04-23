@@ -103,6 +103,7 @@ type Config struct {
 	DeployUser string
 	Notify     string
 	Pivotal    *PivotalConfiguration
+	ETCDClient ETCDInterface
 }
 
 // PivotalConfiguration used to store Pivotal interface
@@ -280,6 +281,6 @@ func ParseETCD(client ETCDInterface) (c Config, err error) {
 	c.DeployUser = deployUser
 	c.Notify = notify
 	c.Pivotal = piv
-
+	c.ETCDClient = client
 	return c, err
 }
