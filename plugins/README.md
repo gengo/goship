@@ -13,7 +13,7 @@ An example of a Travis status badge plugin can be found in the [travis folder](t
 
 ## Adding Plugins to Goship
 
-To ensure that plugins are implemented onto the Goship application, simply import the plugin in the main [`plugins/plugins.go` file](plugins/plugins.go) as shown.
+To ensure that plugins are implemented onto the Goship application, simply import the plugin in the main `plugins/plugins.go` file as shown.
 
 Example:
 
