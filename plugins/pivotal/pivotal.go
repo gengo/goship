@@ -65,20 +65,6 @@ func getPivotalID(msg string) (string, error) {
 	return strs[1], nil // first match
 }
 
-func (c StoryColumn) GetPivotalIDsFromGithubCommits() []string {
-	// mocking list of commit messages for now. need to make calls to Github for actual commit messages
-	var msgs = []string{"[#91474854] get ids", "[#93073292] skdajskfjsakjfks"}
-	var ids []string
-	for _, msg := range msgs {
-		id, err := getPivotalID(msg)
-		if err != nil {
-			continue
-		}
-		ids = appendUnique(ids, id) // we only want unique pivotal IDs
-	}
-	return ids
-}
-
 // partial representation of the full json response from Pivotal
 type PivotalStoryResponse struct {
 	Status string `json:"current_state"`
@@ -112,12 +98,26 @@ func (c StoryColumn) RenderDetail() (template.HTML, error) {
 	var ptag = "<p>%s</p>"
 	var content = ""
 	var infoTmpl = "<a href=\"%s/%s\" target=\"_blank\">%s</a> %s<br/>"
-	pivotalIDs := c.GetPivotalIDsFromGithubCommits()
-	for _, ticket := range pivotalIDs {
-		status := c.GetPivotalStoryStatus(ticket)
+	var appendPivotalInfo = func(id string) {
+		status := c.GetPivotalStoryStatus(id)
 		label := fmt.Sprintf(bootstrapLabel["_base"], bootstrapLabel[status], status)
-		info := fmt.Sprintf(infoTmpl, pivotalStoryURL, ticket, ticket, label)
+		info := fmt.Sprintf(infoTmpl, pivotalStoryURL, id, id, label)
 		content += info
+	}
+	var owner = c.Project.RepoOwner
+	var repo = c.Project.RepoName
+	var latestCommit = ""
+	var currentCommit = ""
+	for _, env := range c.Project.Environments {
+		for _, host := range env.Hosts {
+			if host.GitHubDiffURL != "" {
+				latestCommit = env.LatestGitHubCommit
+				currentCommit = host.LatestCommit
+				break
+			}
+		}
+		goship.MapPivotalIDFromCommits(appendPivotalInfo, owner, repo, latestCommit, currentCommit)
+		//goship.MapPivotalIDFromCommits(appendPivotalInfo , owner, repo, "095168b87e702173ba7265e4287f4f8f96f1bb18", "4833a8a4e41b39099c5c7e08f78046bd842de5e7")
 	}
 	ptag = fmt.Sprintf(ptag, content)
 	return template.HTML(fmt.Sprintf("<td>%s</td>", ptag)), nil

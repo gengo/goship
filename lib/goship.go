@@ -88,20 +88,6 @@ func (h *Host) LatestGitHubDiffURL(p Project, e Environment) string {
 }
 
 func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current string) error {
-	gt := os.Getenv(gitHubAPITokenEnvVar)
-	t := &oauth.Transport{
-		Token: &oauth.Token{AccessToken: gt},
-	}
-	c := github.NewClient(t.Client())
-	comp, _, err := c.Repositories.CompareCommits(owner, name, current, latest)
-	if err != nil {
-		return err
-	}
-	pivRE, err := regexp.Compile("\\[.*#(\\d+)\\].*")
-	if err != nil {
-		return err
-	}
-	s := map[string]bool{}
 	layout := "2006-01-02 15:04:05"
 	timestamp := time.Now()
 	loc, err := time.LoadLocation("Asia/Tokyo")
@@ -112,6 +98,34 @@ func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current 
 		layout += " (JST)"
 		timestamp = timestamp.In(loc)
 	}
+	var postComment = func(id string) {
+		m := fmt.Sprintf("Deployed to %s: %s", env, timestamp.Format(layout))
+		go PostPivotalComment(id, m, piv)
+	}
+
+	return MapPivotalIDFromCommits(postComment, owner, name, latest, current)
+}
+
+type MapPivotalIDFunc func(id string)
+
+func MapPivotalIDFromCommits(fn MapPivotalIDFunc, owner, repoName, latest, current string) error {
+	// gets a list of commit messages from repository based on latest and current commit
+	// grabs the pivotal ID from messages, if any
+	// apply the MapPivotalIDFunc function onto individual id
+	gt := os.Getenv(gitHubAPITokenEnvVar)
+	t := &oauth.Transport{
+		Token: &oauth.Token{AccessToken: gt},
+	}
+	c := github.NewClient(t.Client())
+	comp, _, err := c.Repositories.CompareCommits(owner, repoName, current, latest)
+	if err != nil {
+		return err
+	}
+	pivRE, err := regexp.Compile("\\[.*#(\\d+)\\].*")
+	if err != nil {
+		return err
+	}
+	s := map[string]bool{}
 	for _, commit := range comp.Commits {
 		cmi := *commit.Commit
 		cm := *cmi.Message
@@ -121,8 +135,7 @@ func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current 
 			_, exists := s[id]
 			if !exists {
 				s[id] = true
-				m := fmt.Sprintf("Deployed to %s: %s", env, timestamp.Format(layout))
-				go PostPivotalComment(id, m, piv)
+				fn(id)
 			}
 		}
 	}
