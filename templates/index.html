@@ -11,11 +11,11 @@
               <tr>
                 <th class="column-environment">Environment</th>
                 <th class="column-hosts">Hosts</th>
-                <th class="column-deployed-revision">Deployed Revision</th>
                 {{/* add and display the header of all plugins' columns */}}
                 {{range $project.PluginColumns}}
                   {{.RenderHeader}}
                 {{end}}
+                <th class="column-deployed-revision">Deployed Revision</th>
                 <th class="column-deploy"></th>
                 <th class="column-comment">  </th>
               </tr>
@@ -29,13 +29,13 @@
                     <div>{{$host.URI}}</div>
                   {{end}}
                 </td>
-                <td class="hosts">
-                  Loading...
-                </td>
                 {{/* add and display the main content (through Render) of all plugins' columns */}}
                 {{range $project.PluginColumns}}
                   {{.RenderDetail}}
                 {{end}}
+                <td class="hosts">
+                  Loading...
+                </td>
                 <td>
                   <form class="form-deploy hidden" method="POST" action="/deploy" target="_blank" style="margin-bottom: 0">
                     <input type="hidden" name="environment" value="{{$environment.Name}}"/>
