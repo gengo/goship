@@ -6,7 +6,6 @@ import (
 	"html/template"
 	"log"
 	"net/http"
-	"regexp"
 
 	goship "github.com/gengo/goship/lib"
 	"github.com/gengo/goship/plugins/plugin"
@@ -23,13 +22,9 @@ var bootstrapLabel = map[string]string{
 }
 
 const (
-	pivotalURL                = "https://www.pivotaltracker.com"
-	pivotalAPIURL             = pivotalURL + "/services/v5"
-	pivotalStoryURL           = pivotalURL + "/story/show"
-	pivotalIDRegexp           = `\[#(\d+)\]`
-	githubAPIURL              = "https://api.github.com"
-	githubAPIToken            = "GITHUB_API_TOKEN"
-	githubCommitCompareAPIURL = githubAPIURL + "/repos/%s/%s/compare/%s...%s?access_token=%s" // owner, repo, hash1, hash2, api token
+	pivotalURL      = "https://www.pivotaltracker.com"
+	pivotalAPIURL   = pivotalURL + "/services/v5"
+	pivotalStoryURL = pivotalURL + "/story/show"
 )
 
 type PivotalPlugin struct {
@@ -45,24 +40,6 @@ func init() {
 type StoryColumn struct {
 	pivotal *goship.PivotalConfiguration
 	Project goship.Project
-}
-
-func appendUnique(lst []string, item string) []string {
-	for _, elem := range lst {
-		if elem == item {
-			return lst
-		}
-	}
-	return append(lst, item)
-}
-
-func getPivotalID(msg string) (string, error) {
-	re := regexp.MustCompile(pivotalIDRegexp)
-	strs := re.FindStringSubmatch(msg)
-	if len(strs) <= 0 {
-		return "", fmt.Errorf("Failed to locate pivotal id from message: %s", msg)
-	}
-	return strs[1], nil // first match
 }
 
 // partial representation of the full json response from Pivotal
@@ -95,15 +72,8 @@ func (c StoryColumn) RenderHeader() (template.HTML, error) {
 }
 
 func (c StoryColumn) RenderDetail() (template.HTML, error) {
-	var ptag = "<p>%s</p>"
 	var content = ""
 	var infoTmpl = "<a href=\"%s/%s\" target=\"_blank\">%s</a> %s<br/>"
-	var appendPivotalInfo = func(id string) {
-		status := c.GetPivotalStoryStatus(id)
-		label := fmt.Sprintf(bootstrapLabel["_base"], bootstrapLabel[status], status)
-		info := fmt.Sprintf(infoTmpl, pivotalStoryURL, id, id, label)
-		content += info
-	}
 	var owner = c.Project.RepoOwner
 	var repo = c.Project.RepoName
 	var latestCommit = ""
@@ -116,11 +86,20 @@ func (c StoryColumn) RenderDetail() (template.HTML, error) {
 				break
 			}
 		}
-		goship.MapPivotalIDFromCommits(appendPivotalInfo, owner, repo, latestCommit, currentCommit)
-		//goship.MapPivotalIDFromCommits(appendPivotalInfo , owner, repo, "095168b87e702173ba7265e4287f4f8f96f1bb18", "4833a8a4e41b39099c5c7e08f78046bd842de5e7")
+		pivotalIDs, err := goship.GetPivotalIDFromCommits(owner, repo, latestCommit, currentCommit)
+		//pivotalIDs, err := goship.GetPivotalIDFromCommits(owner, repo, "095168b87e702173ba7265e4287f4f8f96f1bb18", "4833a8a4e41b39099c5c7e08f78046bd842de5e7")
+		if err != nil {
+			log.Printf("Failed to obtain pivotal IDs from Github commits. err: %s", err)
+			return template.HTML("<td></td>"), nil
+		}
+		for _, id := range pivotalIDs {
+			status := c.GetPivotalStoryStatus(id)
+			label := fmt.Sprintf(bootstrapLabel["_base"], bootstrapLabel[status], status) // make bootstrap label based on status
+			info := fmt.Sprintf(infoTmpl, pivotalStoryURL, id, id, label)
+			content += info // add ticket info into content template
+		}
 	}
-	ptag = fmt.Sprintf(ptag, content)
-	return template.HTML(fmt.Sprintf("<td>%s</td>", ptag)), nil
+	return template.HTML(fmt.Sprintf("<td>%s</td>", content)), nil
 }
 
 func (p *PivotalPlugin) Apply(g goship.Config) error {

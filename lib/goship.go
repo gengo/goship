@@ -98,20 +98,28 @@ func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current 
 		layout += " (JST)"
 		timestamp = timestamp.In(loc)
 	}
-	var postComment = func(id string) {
+	ids, err := GetPivotalIDFromCommits(owner, name, latest, current)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
 		m := fmt.Sprintf("Deployed to %s: %s", env, timestamp.Format(layout))
 		go PostPivotalComment(id, m, piv)
 	}
-
-	return MapPivotalIDFromCommits(postComment, owner, name, latest, current)
+	return nil
 }
 
-type MapPivotalIDFunc func(id string)
+func appendIfUnique(list []string, elem string) []string {
+	for _, item := range list {
+		if item == elem {
+			return list
+		}
+	}
+	return append(list, elem)
+}
 
-func MapPivotalIDFromCommits(fn MapPivotalIDFunc, owner, repoName, latest, current string) error {
-	// gets a list of commit messages from repository based on latest and current commit
-	// grabs the pivotal ID from messages, if any
-	// apply the MapPivotalIDFunc function onto individual id
+func GetPivotalIDFromCommits(owner, repoName, latest, current string) ([]string, error) {
+	// gets a list pivotal IDs from commit messages from repository based on latest and current commit
 	gt := os.Getenv(gitHubAPITokenEnvVar)
 	t := &oauth.Transport{
 		Token: &oauth.Token{AccessToken: gt},
@@ -119,27 +127,23 @@ func MapPivotalIDFromCommits(fn MapPivotalIDFunc, owner, repoName, latest, curre
 	c := github.NewClient(t.Client())
 	comp, _, err := c.Repositories.CompareCommits(owner, repoName, current, latest)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	pivRE, err := regexp.Compile("\\[.*#(\\d+)\\].*")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	s := map[string]bool{}
+	var pivotalIDs []string
 	for _, commit := range comp.Commits {
 		cmi := *commit.Commit
 		cm := *cmi.Message
 		ids := pivRE.FindStringSubmatch(cm)
 		if ids != nil {
 			id := ids[1]
-			_, exists := s[id]
-			if !exists {
-				s[id] = true
-				fn(id)
-			}
+			pivotalIDs = appendIfUnique(pivotalIDs, id)
 		}
 	}
-	return nil
+	return pivotalIDs, nil
 }
 
 func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err error) {
