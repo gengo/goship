@@ -3,10 +3,19 @@ package goship
 import (
 	"fmt"
 	"html/template"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"net/url"
+	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
+	"time"
 
+	"code.google.com/p/goauth2/oauth"
 	"github.com/coreos/go-etcd/etcd"
+	"github.com/google/go-github/github"
 )
 
 // gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
@@ -76,6 +85,72 @@ func (h *Host) LatestGitHubDiffURL(p Project, e Environment) string {
 		s = fmt.Sprintf("%s/compare/%s...%s", p.GitHubURL, h.LatestCommit, e.LatestGitHubCommit)
 	}
 	return s
+}
+
+func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current string) error {
+	gt := os.Getenv(gitHubAPITokenEnvVar)
+	t := &oauth.Transport{
+		Token: &oauth.Token{AccessToken: gt},
+	}
+	c := github.NewClient(t.Client())
+	comp, _, err := c.Repositories.CompareCommits(owner, name, current, latest)
+	if err != nil {
+		return err
+	}
+	pivRE, err := regexp.Compile("\\[.*#(\\d+)\\].*")
+	if err != nil {
+		return err
+	}
+	s := map[string]bool{}
+	layout := "2006-01-02 15:04:05"
+	timestamp := time.Now()
+	loc, err := time.LoadLocation("Asia/Tokyo")
+	if err != nil {
+		layout += " (UTC)"
+		log.Println("error: time zone information for Asia/Tokyo not found")
+	} else {
+		layout += " (JST)"
+		timestamp = timestamp.In(loc)
+	}
+	for _, commit := range comp.Commits {
+		cmi := *commit.Commit
+		cm := *cmi.Message
+		ids := pivRE.FindStringSubmatch(cm)
+		if ids != nil {
+			id := ids[1]
+			_, exists := s[id]
+			if !exists {
+				s[id] = true
+				m := fmt.Sprintf("Deployed to %s: %s", env, timestamp.Format(layout))
+				go PostPivotalComment(id, m, piv)
+			}
+		}
+	}
+	return nil
+}
+
+func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err error) {
+	p := url.Values{}
+	p.Set("text", m)
+	req, err := http.NewRequest("POST", fmt.Sprintf(pivotalCommentURL, piv.Project, id), nil)
+	if err != nil {
+		log.Println("ERROR: could not form put request to Pivotal: ", err)
+		return err
+	}
+	req.URL.RawQuery = p.Encode()
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("X-TrackerToken", piv.Token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Println("ERROR: could not make put request to Pivotal: ", err)
+		return err
+	}
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("ERROR: non-200 Response from Pivotal API: %s %s ", resp.Status, body)
+	}
+	return nil
 }
 
 // Deployable returns true if the latest commit for any of the hosts in an environment

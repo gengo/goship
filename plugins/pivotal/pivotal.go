@@ -74,7 +74,7 @@ func (c StoryColumn) GetPivotalIDsFromGithubCommits() []string {
 		if err != nil {
 			continue
 		}
-		ids = appendUnique(ids, id) // only get unique pivotal IDs
+		ids = appendUnique(ids, id) // we only want unique pivotal IDs
 	}
 	return ids
 }
