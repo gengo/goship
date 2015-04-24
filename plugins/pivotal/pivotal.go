@@ -114,9 +114,9 @@ func (c StoryColumn) RenderDetail() (template.HTML, error) {
 	var infoTmpl = "<a href=\"%s/%s\" target=\"_blank\">%s</a> %s<br/>"
 	pivotalIDs := c.GetPivotalIDsFromGithubCommits()
 	for _, ticket := range pivotalIDs {
-		state := c.GetPivotalStoryStatus(ticket)
-		status := fmt.Sprintf(bootstrapLabel["_base"], bootstrapLabel[state], state)
-		info := fmt.Sprintf(infoTmpl, pivotalStoryURL, ticket, ticket, status)
+		status := c.GetPivotalStoryStatus(ticket)
+		label := fmt.Sprintf(bootstrapLabel["_base"], bootstrapLabel[status], status)
+		info := fmt.Sprintf(infoTmpl, pivotalStoryURL, ticket, ticket, label)
 		content += info
 	}
 	ptag = fmt.Sprintf(ptag, content)
