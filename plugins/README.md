@@ -26,6 +26,6 @@ import _ "github.com/gengo/goship/plugins/travis"
 
 ```
 
-With this, when Goship is run, we should see the `RenderDetail()` and `RenderHeader()` method of our HelloWorld plugin displaying on the home page!
+With this, when Goship is run, we should see the `RenderDetail()` and `RenderHeader()` method of our Travis plugin displaying on the home page!
 
-![helloworld plugin example](http://i.imgur.com/0r0yZGI.png)
+![travis plugin example](travis_plugin.png)
