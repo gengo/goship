@@ -38,7 +38,7 @@ body, h1, h2, h3 {
 .column-deploy {
   width: 7%;
 }
-.environment > td {
+.table .environment > td {
   vertical-align: middle;
 }
 .meta {
