@@ -42,7 +42,7 @@ func (c TravisColumn) RenderDetail() (template.HTML, error) {
 		url = fmt.Sprintf("%s/%s/%s", rootUrls[1], c.Organization, c.Project)
 		svg = fmt.Sprintf("%s/%s/%s.svg?token=%s&branch=master", rootUrls[1], c.Organization, c.Project, c.Token)
 	}
-	return template.HTML(fmt.Sprintf("<td><a target=_blank href=%s><img src=%s></img></a></td>", url, svg)), nil
+	return template.HTML(fmt.Sprintf(`<td><a target=_blank href=%s><img src=%s onerror='this.style.display = "none"'></img></a></td>`, url, svg)), nil
 }
 
 func getToken(c goship.ETCDInterface, p goship.Project) string {
