@@ -84,7 +84,7 @@ func TestRenderDetailPublic(t *testing.T) {
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-	want := template.HTML("<td><a target=_blank href=https://travis-ci.org/test/test_public><img src=https://travis-ci.org/test/test_public.svg?branch=master onerror='this.style.display = \"none\"'></img></a></td>")
+	want := template.HTML(`<td><a target=_blank href=https://travis-ci.org/test/test_public><img src=https://travis-ci.org/test/test_public.svg?branch=master onerror='this.style.display = "none"'></img></a></td>`)
 	if want != got {
 		t.Errorf("Want %#v, got %#v", want, got)
 	}
@@ -100,7 +100,7 @@ func TestRenderDetailPrivate(t *testing.T) {
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-	want := template.HTML("<td><a target=_blank href=https://magnum.travis-ci.com/test/test_private><img src=https://magnum.travis-ci.com/test/test_private.svg?token=test_token&branch=master onerror='this.style.display = \"none\"'></img></a></td>")
+	want := template.HTML(`<td><a target=_blank href=https://magnum.travis-ci.com/test/test_private><img src=https://magnum.travis-ci.com/test/test_private.svg?token=test_token&branch=master onerror='this.style.display = "none"'></img></a></td>`)
 	if want != got {
 		t.Errorf("Want %#v, got %#v", want, got)
 	}
