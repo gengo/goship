@@ -21,8 +21,8 @@ var mockProject = goship.Project{
 
 type MockPivotalClient struct{}
 
-func (pc MockPivotalClient) GetStoryStatus(pivotalID string) (string, error) {
-	return "delivered", nil
+func (pc MockPivotalClient) GetStoryStatus(ch chan<- string, pivotalID string) {
+	ch <- "delivered"
 }
 
 func TestRenderDetail(t *testing.T) {

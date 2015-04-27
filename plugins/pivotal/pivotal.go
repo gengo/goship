@@ -40,30 +40,32 @@ func init() {
 }
 
 type PivotalClientInterface interface {
-	GetStoryStatus(string) (string, error)
+	GetStoryStatus(chan<- string, string)
 }
 
 type PivotalClient struct {
 	Token string
 }
 
-func (pc PivotalClient) GetStoryStatus(pivotalID string) (string, error) {
+func (pc PivotalClient) GetStoryStatus(ch chan<- string, pivotalID string) {
 	pivotalStoryAPIURL := pivotalAPIURL + "/stories/%s"
 	url := fmt.Sprintf(pivotalStoryAPIURL, pivotalID)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return "", err
+		log.Printf("error setting up http request. err: %s", err)
+		ch <- ""
 	}
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("X-TrackerToken", pc.Token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", err
+		log.Printf("error making http request. err: %s", err)
+		ch <- ""
 	}
 	defer resp.Body.Close()
 	var psr = new(PivotalStoryResponse)
 	json.NewDecoder(resp.Body).Decode(&psr)
-	return psr.Status, nil
+	ch <- psr.Status
 }
 
 type StoryColumn struct {
@@ -96,11 +98,9 @@ func (c StoryColumn) RenderDetail() (template.HTML, error) {
 		return template.HTML("<td></td>"), nil
 	}
 	for _, id := range pivotalIDs {
-		// NOTE: could we make use of goroutines and channels to make this more efficient?
-		status, err := c.PivotalClient.GetStoryStatus(id)
-		if err != nil {
-			log.Printf("Failed to obtain story status for Pivotal ticket #%s. err: %s", id, err)
-		}
+		ch := make(chan string)
+		go c.PivotalClient.GetStoryStatus(ch, id)
+		status := <-ch
 		label := fmt.Sprintf(BootstrapLabel["_base"], BootstrapLabel[status], status) // make bootstrap label based on status
 		info := fmt.Sprintf(infoTmpl, pivotalStoryURL, id, id, label)
 		content += info // add ticket info into content template
