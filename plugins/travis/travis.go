@@ -33,7 +33,7 @@ func (c TravisColumn) RenderHeader() (template.HTML, error) {
 	return template.HTML("<th>Build Status</th>"), nil
 }
 
-func (c TravisColumn) RenderDetail() (template.HTML, error) {
+func (c TravisColumn) RenderDetail(e goship.Environment) (template.HTML, error) {
 	var url, svg string
 	if c.Token == "" {
 		url = fmt.Sprintf("%s/%s/%s", rootUrls[0], c.Organization, c.Project)

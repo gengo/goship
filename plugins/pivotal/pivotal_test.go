@@ -36,8 +36,8 @@ func TestRenderDetail(t *testing.T) {
 	GetPivotalIDFromGithubCommits = func(_, _, _, _ string) ([]string, error) {
 		return mockIDs, nil
 	}
-
-	got, err := c.RenderDetail()
+	e := goship.Environment{}
+	got, err := c.RenderDetail(e)
 	if err != nil {
 		t.Errorf(err.Error())
 	}

@@ -80,7 +80,8 @@ func TestRenderDetailPublic(t *testing.T) {
 		Token:        "",
 		Organization: "test",
 	}
-	got, err := c.RenderDetail()
+	e := goship.Environment{}
+	got, err := c.RenderDetail(e)
 	if err != nil {
 		t.Errorf(err.Error())
 	}
@@ -96,7 +97,8 @@ func TestRenderDetailPrivate(t *testing.T) {
 		Token:        "test_token",
 		Organization: "test",
 	}
-	got, err := c.RenderDetail()
+	e := goship.Environment{}
+	got, err := c.RenderDetail(e)
 	if err != nil {
 		t.Errorf(err.Error())
 	}

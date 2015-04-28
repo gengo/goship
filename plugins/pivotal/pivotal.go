@@ -82,17 +82,22 @@ func (c StoryColumn) RenderHeader() (template.HTML, error) {
 	return template.HTML("<th style=\"min-width: 200px;\">Stories</th>"), nil
 }
 
-func (c StoryColumn) RenderDetail() (template.HTML, error) {
+func (c StoryColumn) RenderDetail(e goship.Environment) (template.HTML, error) {
 	var content = ""
 	var infoTmpl = "<a href=\"%s/%s\" target=\"_blank\">%s</a> %s<br/>"
 	var owner = c.Project.RepoOwner
 	var repo = c.Project.RepoName
-	//var latestCommit = ""
-	//var currentCommit = ""
-	// TODO: need to know environment context at every renderDetail level
+	var latestCommit = e.LatestGitHubCommit
+	var currentCommit string
+	for _, host := range e.Hosts {
+		if host.GitHubDiffURL != "" {
+			currentCommit = host.LatestCommit
+			break
+		}
+	}
 
-	//pivotalIDs, err := GetPivotalIDFromGithubCommits(owner, repo, latestCommit, currentCommit)
-	pivotalIDs, err := GetPivotalIDFromGithubCommits(owner, repo, "095168b87e702173ba7265e4287f4f8f96f1bb18", "4833a8a4e41b39099c5c7e08f78046bd842de5e7")
+	pivotalIDs, err := GetPivotalIDFromGithubCommits(owner, repo, latestCommit, currentCommit)
+	//pivotalIDs, err := GetPivotalIDFromGithubCommits(owner, repo, "095168b87e702173ba7265e4287f4f8f96f1bb18", "4833a8a4e41b39099c5c7e08f78046bd842de5e7")
 	if err != nil {
 		log.Printf("Failed to obtain pivotal IDs from Github commits. err: %s", err)
 		return template.HTML("<td></td>"), nil
