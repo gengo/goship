@@ -30,7 +30,7 @@ type TravisColumn struct {
 }
 
 func (c TravisColumn) RenderHeader() (template.HTML, error) {
-	return template.HTML("<th>Build Status</th>"), nil
+	return template.HTML(`<th style="min-width: 100px">Build Status</th>`), nil
 }
 
 func (c TravisColumn) RenderDetail() (template.HTML, error) {

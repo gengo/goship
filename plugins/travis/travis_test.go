@@ -68,7 +68,7 @@ func TestRenderHeader(t *testing.T) {
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-	want := template.HTML("<th>Build Status</th>")
+	want := template.HTML(`<th style="min-width: 100px">Build Status</th>`)
 	if want != got {
 		t.Errorf("Want %#v, got %#v", want, got)
 	}
