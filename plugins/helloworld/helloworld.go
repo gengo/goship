@@ -22,7 +22,7 @@ func (c HelloWorldColumn) RenderHeader() (template.HTML, error) {
 	return template.HTML("<th>Example Column</th>"), nil
 }
 
-func (c HelloWorldColumn) RenderDetail(e goship.Environment) (template.HTML, error) {
+func (c HelloWorldColumn) RenderDetail() (template.HTML, error) {
 	return template.HTML("<td>Hello World!</td>"), nil
 }
 
