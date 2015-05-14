@@ -52,7 +52,6 @@
               projectDiffs[project] = url;
           }
       });
-
       return projectDiffs;
   }
 
@@ -76,7 +75,6 @@
 
   function getGithubPivotalIDs(github_token, repo, sha1, sha2, callback){
     var compare_uri = 'https://api.github.com/repos/gengo/'+ repo + '/compare/' + sha1 + '...' + sha2;
-
     $.ajax({
       url: compare_uri,
       type: 'GET',
@@ -127,9 +125,8 @@
   }
 
   var diffs = getProjectDiffs();
-  setTimeout(function(){ diffs = getProjectDiffs(); }, 1000);
+  setTimeout(function(){ diffs = getProjectDiffs(); }, 1000);  // fetch diffs again after 1 sec
   $(document).ready(function(){
-    // grab all diff URLs onto a map
 
     // add button to story columns
     var button = '<button class="btn btn-default getStories">get stories</button>';
