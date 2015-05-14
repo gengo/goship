@@ -31,7 +31,7 @@
                 </td>
                 {{/* add and display the main content (through Render) of all plugins' columns */}}
                 {{range $project.PluginColumns}}
-                  {{.RenderDetail $environment}}
+                  {{.RenderDetail}}
                 {{end}}
                 <td class="hosts">
                   Loading...
