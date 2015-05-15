@@ -742,7 +742,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	js, css := getAssetsTemplates()
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Javascript": js, "Stylesheet": css, "Projects": c.Projects, "User": u, "Page": "home", "ConfirmDeployFlag": *confirmDeployFlag, "GithubToken": os.Getenv(gitHubAPITokenEnvVar), "PivotalToken": c.Pivotal.Token})
+	t.ExecuteTemplate(w, "base", map[string]interface{}{"Javascript": js, "Stylesheet": css, "Projects": c.Projects, "User": u, "Page": "home", "ConfirmDeployFlag": *confirmDeployFlag})
 }
 
 func getAssetsTemplates() (js, css template.HTML) {
