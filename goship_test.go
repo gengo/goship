@@ -248,29 +248,6 @@ func TestProjectFromName(t *testing.T) {
 	}
 }
 
-func TestCleanProjects(t *testing.T) {
-	authentication.authorization = true
-	req, _ := http.NewRequest("GET", "", nil)
-	w := httptest.NewRecorder()
-	HomeHandler(w, req)
-
-	p, err := goship.ParseETCD(&MockEtcdClient{})
-	if err != nil {
-		t.Fatalf("Can't parse %s %s", t, err)
-	}
-	u := User{}
-	u.UserName = "bob"
-
-	got := len(p.Projects)
-	if got < 1 {
-		t.Errorf("clean projects test expects projects to have at least one project [%d]", got)
-	}
-	got = len(removeUnauthorizedProjects(p.Projects, req, u))
-	if got != 0 {
-		t.Errorf("clean projects failed to clean project for unauth user.. [%d]", got)
-	}
-}
-
 func TestGetUser(t *testing.T) {
 	authentication.authorization = true
 	req, _ := http.NewRequest("GET", "", nil)
