@@ -5,4 +5,5 @@ go:
   - 1.4
 
 script:
+  - go build -a
   - go test ./...
