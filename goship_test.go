@@ -407,6 +407,15 @@ func (*MockEtcdClient) Get(s string, t bool, x bool) (*etcd.Response, error) {
 		},
 		EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
 	}
+	m["/pivotal/token"] = &etcd.Response{
+		Action: "Get",
+		Node: &etcd.Node{
+			Key:   "/pivotal/token",
+			Value: "XXXXXX",
+			Dir:   false,
+		},
+		EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
+	}
 	mockResponse := m[s]
 	return mockResponse, nil
 }
