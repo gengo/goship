@@ -251,8 +251,6 @@ func TestProjectFromName(t *testing.T) {
 func TestCleanProjects(t *testing.T) {
 	authentication.authorization = true
 	req, _ := http.NewRequest("GET", "", nil)
-	w := httptest.NewRecorder()
-	HomeHandler(w, req)
 
 	p, err := goship.ParseETCD(&MockEtcdClient{})
 	if err != nil {
@@ -275,7 +273,7 @@ func TestGetUser(t *testing.T) {
 	authentication.authorization = true
 	req, _ := http.NewRequest("GET", "", nil)
 	w := httptest.NewRecorder()
-	HomeHandler(w, req)
+
 	session, err := store.Get(req, sessionName)
 	if err != nil {
 		t.Errorf("Can't get a session store")
@@ -404,15 +402,6 @@ func (*MockEtcdClient) Get(s string, t bool, x bool) (*etcd.Response, error) {
 				{Key: "test-qa-01.somewhere.com", Dir: true},
 			},
 			Dir: true,
-		},
-		EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
-	}
-	m["/pivotal/token"] = &etcd.Response{
-		Action: "Get",
-		Node: &etcd.Node{
-			Key:   "/pivotal/token",
-			Value: "XXXXXX",
-			Dir:   false,
 		},
 		EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
 	}
