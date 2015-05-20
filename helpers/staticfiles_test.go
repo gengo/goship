@@ -12,7 +12,7 @@ var getFilePathsTests = []struct {
 	expected    []string
 	expectErr   error
 }{
-	{"../static/js", ".js", []string{}, nil},
+	{"../static/js", ".js", []string{"pivotal.js"}, nil},
 	{"../static/js", ".gitkeep", []string{".gitkeep"}, nil},
 	{"../static/css", ".css", []string{"styles.css"}, nil},
 }
@@ -68,7 +68,7 @@ var javascriptTemplateTests = []struct {
 	expected    string
 	expectErr   error
 }{
-	{"../static/js", "", nil},
+	{"../static/js", "<script src='/static/js/pivotal.js'></script>", nil},
 	{"../static/css", "", nil},
 }
 

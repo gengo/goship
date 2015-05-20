@@ -1,69 +1,31 @@
 package pivotal
 
 import (
-	"fmt"
 	"html/template"
 	"testing"
 
 	goship "github.com/gengo/goship/lib"
 )
 
-var mockProject = goship.Project{
-	PluginColumns: nil,
-	Name:          "myapp",
-	GitHubURL:     "http://github.com/mycompany/myapp",
-	RepoName:      "myapp",
-	RepoOwner:     "mycompany",
-	Environments: []goship.Environment{
-		goship.Environment{LatestGitHubCommit: "abc123", Hosts: []goship.Host{{LatestCommit: "abc456"}}},
-	},
-}
-
-type MockPivotalClient struct{}
-
-func (pc MockPivotalClient) GetStoryStatus(ch chan<- string, pivotalID string) {
-	ch <- "delivered"
-}
-
 func TestRenderDetail(t *testing.T) {
-	c := StoryColumn{
-		Project:       mockProject,
-		PivotalClient: MockPivotalClient{},
-	}
-	// patch
-	var mockIDs = []string{"1234", "2345", "3456"}
-	// patching the response from goship.GetPivotalIDFromCommits
-	GetPivotalIDFromGithubCommits = func(_, _, _, _ string) ([]string, error) {
-		return mockIDs, nil
-	}
-	e := goship.Environment{}
-	got, err := c.RenderDetail(e)
+	c := StoryColumn{}
+	got, err := c.RenderDetail()
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-	var content = ""
-	for _, id := range mockIDs {
-		var infoTmpl = "<a href=\"%s/%s\" target=\"_blank\">%s</a> %s<br/>"
-		label := fmt.Sprintf(BootstrapLabel["_base"], BootstrapLabel["delivered"], "delivered")
-		info := fmt.Sprintf(infoTmpl, pivotalStoryURL, id, id, label)
-		content += info
-	}
-	want := template.HTML(fmt.Sprintf("<td>%s</td>", content))
+	want := template.HTML(`<td class="story"></td>`)
 	if want != got {
 		t.Errorf("Want %#v, got %#v", want, got)
 	}
 }
 
 func TestRenderHeader(t *testing.T) {
-	c := StoryColumn{
-		Project:       mockProject,
-		PivotalClient: nil,
-	}
+	c := StoryColumn{}
 	got, err := c.RenderHeader()
 	if err != nil {
 		t.Errorf(err.Error())
 	}
-	want := template.HTML("<th style=\"min-width: 200px;\">Stories</th>")
+	want := template.HTML(`<th style="min-width: 200px;">Stories</th>`)
 	if want != got {
 		t.Errorf("Want %#v, got %#v", want, got)
 	}

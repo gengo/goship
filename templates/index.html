@@ -31,7 +31,7 @@
                 </td>
                 {{/* add and display the main content (through Render) of all plugins' columns */}}
                 {{range $project.PluginColumns}}
-                  {{.RenderDetail $environment}}
+                  {{.RenderDetail}}
                 {{end}}
                 <td class="hosts">
                   Loading...
@@ -67,6 +67,8 @@
   <div class="hidden" id="host-skeleton"><a class="GitHubCommitURL" href=""></a> <span class="hidden"> (<a class="GitHubDiffURL" href="">diff</a>)</span></div>
 
   <script type="text/javascript">
+  GITHUB_TOKEN = "{{.GithubToken}}";
+  PIVOTAL_TOKEN = "{{.PivotalToken}}";
   $(function(){
     $('[data-toggle="tooltip"]').tooltip();
     // make ajax queries for each project

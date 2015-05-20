@@ -55,7 +55,7 @@ type Column interface {
 	// RenderHeader() returns a HTML template that should render a <th> element
 	RenderHeader() (template.HTML, error)
 	// RenderDetail() returns a HTML template that should render a <td> element
-	RenderDetail(Environment) (template.HTML, error)
+	RenderDetail() (template.HTML, error)
 }
 
 // Project stores information about a GitHub project, such as its GitHub URL and repo name, and a list of extra columns (PluginColumns)
