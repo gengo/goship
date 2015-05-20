@@ -136,13 +136,13 @@
 
     // "get stories" button onClick handler
     $('.getStories').click(function(e){
-      var $that = $(this);
+      var $this_button = $(this);
       e.preventDefault();
       diffs = getProjectDiffs();
-      var project = $(this).parents(config.selectors.project).data('id');
+      var project = $this_button.parents(config.selectors.project).data('id');
       if(project in diffs) {
         // great! we found diffs for this project; load the pivotal stories
-        $(this).hide(); // do not show button
+        $this_button.hide(); // do not show button
         (function(project) {
         var url = diffs[project];
         // hashes: currentCommit...latestCommit
@@ -158,7 +158,7 @@
           var pivotal_ids = getCommitIDs(messages); // extract pivotal ticket IDs
           if(!pivotal_ids) {
             alert('No associated Pivotal stories found in commit messages.');
-            $that.show();
+            $this_button.show();
             return
           };
 
