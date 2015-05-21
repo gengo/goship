@@ -9,7 +9,7 @@
     },
     pivotal: {
       label: '<span class="label label-unknown">status</span>',
-      ticket_id_regexp: /\[#(\d+)+\]/g  // we want all matches, not just the first ticket
+      ticket_id_regexp: /\[#(\d+)\]/g  // we want all matches, not just the first ticket
     },
     github: {
       url_compare_regexp: /.*\/(.*)\/compare/
