@@ -12,7 +12,7 @@
       ticket_id_regexp: /\[#(\d+)\]/
     },
     github: {
-      url_compare_reg_exp: /.*\/(.*)\/compare/
+      url_compare_regexp: /.*\/(.*)\/compare/
     },
     urls: {
       pivotal: {
@@ -136,16 +136,18 @@
 
     // "get stories" button onClick handler
     $('.getStories').click(function(e){
+      var $this_button = $(this);
       e.preventDefault();
-      var project = $(this).parents(config.selectors.project).data('id');
+      diffs = getProjectDiffs();
+      var project = $this_button.parents(config.selectors.project).data('id');
       if(project in diffs) {
         // great! we found diffs for this project; load the pivotal stories
-        $(this).hide(); // do not show button
+        $this_button.hide(); // do not show button
         (function(project) {
         var url = diffs[project];
         // hashes: currentCommit...latestCommit
         var hashes = (url.substr(url.lastIndexOf('/') + 1)).split('...');
-        var proj_name = url.match(config.github.url_compare_reg_exp)[1];
+        var proj_name = url.match(config.github.url_compare_regexp)[1];
 
         getGithubPivotalIDs(GITHUB_TOKEN, proj_name, hashes[0], hashes[1], function(commits){
           var messages = [];
@@ -156,7 +158,7 @@
           var pivotal_ids = getCommitIDs(messages); // extract pivotal ticket IDs
           if(!pivotal_ids) {
             alert('No associated Pivotal stories found in commit messages.');
-            $(this).show();
+            $this_button.show();
             return
           };
 
