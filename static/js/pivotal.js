@@ -9,7 +9,7 @@
     },
     pivotal: {
       label: '<span class="label label-unknown">status</span>',
-      ticket_id_regexp: /\[#(\d+)\]/
+      ticket_id_regexp: /\[#(\d+)+\]/g  // we want all matches, not just the first ticket
     },
     github: {
       url_compare_regexp: /.*\/(.*)\/compare/
@@ -90,16 +90,22 @@
     });
   }
 
+  function stripBrackets(ticket_id_str){
+    return parseInt(ticket_id_str.match(/\[#(\d+)\]/)[1], 10); // base 10
+  }
+
   function getCommitIDs(msgs){
     // create an object with no prior properties; therefore, all keys in set are the values we want
     pivotal_ids = Object.create(null);
     for(msg in msgs)
     {
       var message = msgs[msg];
-      var matches = message.match(config.pivotal.ticket_id_regexp)
-      if(!matches) return;
-      var id = matches[1];
-      if(id && !(id in pivotal_ids)) pivotal_ids[id] = true;
+      var matches = message.match(config.pivotal.ticket_id_regexp);
+      if(!matches) continue;
+      matches.forEach(function(ticket, i, arr){
+        var id = stripBrackets(ticket);
+        if(id && !(id in pivotal_ids)) pivotal_ids[id] = true;
+      });
     }
     return Object.keys(pivotal_ids); // returning just the keys gives us all unique pivotal IDs
   }
