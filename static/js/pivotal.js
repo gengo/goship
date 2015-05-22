@@ -44,27 +44,27 @@
 
   function getProjectDiffs(){
 
-      var projectDiffs = [];
+      var project_diffs = [];
 
       $(config.selectors.project).each(function() {
           var project = $(this).attr(config.selectors.project_id);
           var url = $(this).find(config.selectors.github_link).attr('href');
           if (url && url != "undefined"){
-              projectDiffs[project] = url;
+              project_diffs[project] = url;
           }
       });
-      return projectDiffs;
+      return project_diffs;
   }
 
   function getLinkDiv(pt_info) {
     var links = '',
         info,
-        statusLabel;
+        status_label;
     for(f in pt_info)
     {
       info = pt_info[f];
-      statusLabel = config.pivotal.label.replace('unknown' , mapStatusLabelClass(info['status'])).replace('status', info['status']);
-      links += '<a href="' + info['url'] + '" target="_blank">#' + info['id'] + '</a> ' + statusLabel + '<br/>';
+      status_label = config.pivotal.label.replace('unknown' , mapStatusLabelClass(info['status'])).replace('status', info['status']);
+      links += '<a href="' + info['url'] + '" target="_blank">#' + info['id'] + '</a> ' + status_label + '<br/>';
     }
     return links;
   }
