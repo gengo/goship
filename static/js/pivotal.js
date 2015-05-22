@@ -144,9 +144,8 @@
 
     // set up listeners on Refresh Button
     $(config.selectors.refresh_button).click(function(){
-      $(this).parents(config.selectors.project).find(config.selectors.story_column).html();
+      // display button once more
       $(this).parents(config.selectors.project).find(config.selectors.story_column).html(button);
-      }
     });
 
     // "get stories" button onClick handler
