@@ -6,7 +6,6 @@
       environment: '.environment',
       story_column: '.story',
       github_link: '.GitHubDiffURL',
-      host_column: '.hosts',
       refresh_button: '.refresh',
     },
     pivotal: {
@@ -145,7 +144,6 @@
 
     // set up listeners on Refresh Button
     $(config.selectors.refresh_button).click(function(){
-      var diff_load_status = $(this).parents(config.selectors.project).find(config.selectors.host_column).text();
       $(this).parents(config.selectors.project).find(config.selectors.story_column).html();
       $(this).parents(config.selectors.project).find(config.selectors.story_column).html(button);
       }
