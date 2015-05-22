@@ -146,11 +146,14 @@
     $(config.selectors.refresh_button).click(function(){
       // display button once more
       $(this).parents(config.selectors.project).find(config.selectors.story_column).html(button);
+      $(this).parents(config.selectors.project).find('.getStories').click(pivotalButtonOnClickHandler);
     });
 
     // "get stories" button onClick handler
-    $('.getStories').click(function(e){
-      var $this_button = $(this);
+    $('.getStories').click(pivotalButtonOnClickHandler);
+
+    function pivotalButtonOnClickHandler(e) {
+      var $this_button = $(e.currentTarget);
       e.preventDefault();
       diffs = getProjectDiffs();
       var project = $this_button.parents(config.selectors.project).data('id');
@@ -191,6 +194,6 @@
       else {
         $this_button.parents(config.selectors.story_column).text(failure_message);
       }
-    });
+    }
   });
 }(jQuery));
