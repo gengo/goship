@@ -6,6 +6,7 @@
       environment: '.environment',
       story_column: '.story',
       github_link: '.GitHubDiffURL',
+      refresh_button: '.refresh',
     },
     pivotal: {
       label: '<span class="label label-unknown">status</span>',
@@ -43,27 +44,27 @@
 
   function getProjectDiffs(){
 
-      var projectDiffs = [];
+      var project_diffs = [];
 
       $(config.selectors.project).each(function() {
           var project = $(this).attr(config.selectors.project_id);
           var url = $(this).find(config.selectors.github_link).attr('href');
           if (url && url != "undefined"){
-              projectDiffs[project] = url;
+              project_diffs[project] = url;
           }
       });
-      return projectDiffs;
+      return project_diffs;
   }
 
   function getLinkDiv(pt_info) {
     var links = '',
         info,
-        statusLabel;
+        status_label;
     for(f in pt_info)
     {
       info = pt_info[f];
-      statusLabel = config.pivotal.label.replace('unknown' , mapStatusLabelClass(info['status'])).replace('status', info['status']);
-      links += '<a href="' + info['url'] + '" target="_blank">#' + info['id'] + ' ' + statusLabel +'</a><br/>';                 
+      status_label = config.pivotal.label.replace('unknown' , mapStatusLabelClass(info['status'])).replace('status', info['status']);
+      links += '<a href="' + info['url'] + '" target="_blank">#' + info['id'] + '</a> ' + status_label + '<br/>';
     }
     return links;
   }
@@ -135,20 +136,31 @@
   $(document).ready(function(){
 
     // add button to story columns
-    var button = '<button class="btn btn-default getStories">get stories</button>';
+    var button = '<button class="btn btn-default getStories">Get stories</button>';
     $(config.selectors.story_column).each(function(){
       $(this).html(button);
     });
 
+
+    // set up listeners on Refresh Button
+    $(config.selectors.refresh_button).click(function(){
+      // display button once more
+      $(this).parents(config.selectors.project).find(config.selectors.story_column).html(button);
+      $(this).parents(config.selectors.project).find('.getStories').click(pivotalButtonOnClickHandler);
+    });
+
     // "get stories" button onClick handler
-    $('.getStories').click(function(e){
-      var $this_button = $(this);
+    $('.getStories').click(pivotalButtonOnClickHandler);
+
+    function pivotalButtonOnClickHandler(e) {
+      var $this_button = $(e.currentTarget);
       e.preventDefault();
       diffs = getProjectDiffs();
       var project = $this_button.parents(config.selectors.project).data('id');
+      var failure_message = 'No stories found.';
+      $this_button.hide(); // do not show button
       if(project in diffs) {
         // great! we found diffs for this project; load the pivotal stories
-        $this_button.hide(); // do not show button
         (function(project) {
         var url = diffs[project];
         // hashes: currentCommit...latestCommit
@@ -163,8 +175,7 @@
 
           var pivotal_ids = getCommitIDs(messages); // extract pivotal ticket IDs
           if(!pivotal_ids) {
-            alert('No associated Pivotal stories found in commit messages.');
-            $this_button.show();
+            $this_button.parents(config.selectors.story_column).text(failure_message);
             return
           };
 
@@ -181,8 +192,8 @@
       })(project);
       }
       else {
-        alert('There seems to be no diffs for ' + project + '. Goship may still be loading the diff, if any. Please try again later.');
+        $this_button.parents(config.selectors.story_column).text(failure_message);
       }
-    });
+    }
   });
 }(jQuery));
