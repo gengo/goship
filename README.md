@@ -48,9 +48,9 @@ There is also a convert.go in tools that can be used to 'bootstrap' etcd.
    etcdctl set /deploy_user 'deployer'
    etcdctl mkdir 'projects'
    etcdctl mkdir 'projects/my-project'
-   etcdctl set /projects/project_name 'My Project'
-   etcdctl set /projects/repo_owner 'github-user'
-   etcdctl set /projects/project_name 'My Project'
+   etcdctl set /projects/my-project/repo_name 'my-project'
+   etcdctl set /projects/my-project/repo_owner 'github-user'
+   etcdctl set /projects/my-project/project_name 'My Project'
 ```
 
    #curl example
