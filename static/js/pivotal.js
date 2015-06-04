@@ -136,7 +136,7 @@
   $(document).ready(function(){
 
     // add button to story columns
-    var button = '<button class="btn btn-default getStories">Get stories</button>';
+    var button = '<button class="btn btn-default getStories">Get stories</button><span class="loading" style="display:none">Loading...</span>';
     $(config.selectors.story_column).each(function(){
       $(this).html(button);
     });
@@ -161,6 +161,7 @@
       $this_button.hide(); // do not show button
       if(project in diffs) {
         // great! we found diffs for this project; load the pivotal stories
+        $this_button.siblings('.loading').show();
         (function(project) {
         var url = diffs[project];
         // hashes: currentCommit...latestCommit
@@ -178,7 +179,7 @@
             $this_button.parents(config.selectors.story_column).text(failure_message);
             return
           };
-
+          $this_button.siblings('.loading').hide();
           var display_message = [];
           for(pt_id in pivotal_ids)
           {
