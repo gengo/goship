@@ -22,9 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"code.google.com/p/go.crypto/ssh"
-	"code.google.com/p/go.net/websocket"
-	"code.google.com/p/goauth2/oauth"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gengo/goship/helpers"
 	goship "github.com/gengo/goship/lib"
@@ -35,6 +32,9 @@ import (
 	"github.com/stretchr/gomniauth"
 	githubOauth "github.com/stretchr/gomniauth/providers/github"
 	"github.com/stretchr/objx"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/websocket"
+	"golang.org/x/oauth2"
 )
 
 var (
@@ -147,10 +147,8 @@ func retrieveCommits(r *http.Request, project goship.Project, deployUser string)
 	// define a wait group to wait for all goroutines to finish
 	var wg sync.WaitGroup
 	githubToken := os.Getenv(gitHubAPITokenEnvVar)
-	t := &oauth.Transport{
-		Token: &oauth.Token{AccessToken: githubToken},
-	}
-	client := github.NewClient(t.Client())
+	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: githubToken})
+	client := github.NewClient(oauth2.NewClient(oauth2.NoContext, ts))
 	for i, environment := range project.Environments {
 		for j, host := range environment.Hosts {
 			// start a goroutine for SSHing on to the machine
@@ -248,10 +246,8 @@ func insertEntry(env, owner, repoName, fromRevision, toRevision, user string, su
 		return err
 	}
 	gt := os.Getenv(gitHubAPITokenEnvVar)
-	t := &oauth.Transport{
-		Token: &oauth.Token{AccessToken: gt},
-	}
-	c := github.NewClient(t.Client())
+	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: gt})
+	c := github.NewClient(oauth2.NewClient(oauth2.NoContext, ts))
 	com, _, err := c.Git.GetCommit(owner, repoName, toRevision)
 	if err != nil {
 		log.Println("Error getting commit msg: ", err)
@@ -1060,11 +1056,8 @@ func (c githubClientProd) IsCollaborator(owner, repo, user string) (bool, *githu
 
 func newGithubClient() githubClient {
 	gt := os.Getenv(gitHubAPITokenEnvVar)
-	t := &oauth.Transport{
-		Token: &oauth.Token{AccessToken: gt},
-	}
-	github.NewClient(t.Client())
-	c := github.NewClient(t.Client())
+	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: gt})
+	c := github.NewClient(oauth2.NewClient(oauth2.NoContext, ts))
 	return githubClientProd{
 		org:  c.Organizations,
 		repo: c.Repositories,

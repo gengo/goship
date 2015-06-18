@@ -13,9 +13,9 @@ import (
 	"strconv"
 	"time"
 
-	"code.google.com/p/goauth2/oauth"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/google/go-github/github"
+	"golang.org/x/oauth2"
 )
 
 // gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
@@ -120,10 +120,8 @@ func appendIfUnique(list []string, elem string) []string {
 func GetPivotalIDFromCommits(owner, repoName, latest, current string) ([]string, error) {
 	// gets a list pivotal IDs from commit messages from repository based on latest and current commit
 	gt := os.Getenv(gitHubAPITokenEnvVar)
-	t := &oauth.Transport{
-		Token: &oauth.Token{AccessToken: gt},
-	}
-	c := github.NewClient(t.Client())
+	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: gt})
+	c := github.NewClient(oauth2.NewClient(oauth2.NoContext, ts))
 	comp, _, err := c.Repositories.CompareCommits(owner, repoName, current, latest)
 	if err != nil {
 		return nil, err
