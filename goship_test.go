@@ -139,30 +139,14 @@ func TestGitHubDiffURL(t *testing.T) {
 	}
 }
 
-var deployableTests = []struct {
-	e    goship.Environment
-	want bool
-}{
-	{goship.Environment{LatestGitHubCommit: "abc123", Hosts: []goship.Host{{LatestCommit: "abc456"}}}, true},
-	{goship.Environment{LatestGitHubCommit: "abc456", Hosts: []goship.Host{{LatestCommit: "abc456"}}}, false},
-}
-
-func TestDeployable(t *testing.T) {
-	for _, tt := range deployableTests {
-		if got := tt.e.Deployable(); got != tt.want {
-			t.Errorf("Deployable = %t, want %t", got, tt.want)
-		}
-	}
-}
-
 var wantConfig = goship.Config{
 	Projects: []goship.Project{
 		{Name: "Test Project One", GitHubURL: "https://github.com/test_owner/test_repo_name", RepoName: "test_repo_name", RepoOwner: "test_owner",
 			Environments: []goship.Environment{{Name: "live", Deploy: "/deploy/test_project_one.sh", RepoPath: "/repos/test_repo_name/.git",
-				Hosts: []goship.Host{{URI: "test-project-one.test.com"}}, Branch: "master", IsDeployable: false}}},
+				Hosts: []goship.Host{{URI: "test-project-one.test.com"}}, Branch: "master"}}},
 		{Name: "Test Project Two", GitHubURL: "https://github.com/test_owner/test_repo_name_two", RepoName: "test_repo_name_two", RepoOwner: "test_owner",
 			Environments: []goship.Environment{{Name: "live", Deploy: "/deploy/test_project_two.sh", RepoPath: "/repos/test_repo_name_two/.git",
-				Hosts: []goship.Host{{URI: "test-project-two.test.com"}}, Branch: "master", LatestGitHubCommit: "", IsDeployable: false}}}},
+				Hosts: []goship.Host{{URI: "test-project-two.test.com"}}, Branch: "master", LatestGitHubCommit: ""}}}},
 	DeployUser: "deploy_user",
 	Notify:     "/notify/notify.sh",
 	Pivotal:    &goship.PivotalConfiguration{Project: "111111", Token: "test"}}

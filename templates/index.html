@@ -117,16 +117,14 @@
                 $host.find('.GitHubDiffURL').attr('href', host.GitHubDiffURL).closest('span.hidden').removeClass('hidden');
               }
             }
-            if (env.IsDeployable) {
-              for (var h = 0; h < env.Hosts.length; h++) {
-                var host = env.Hosts[h];
-                if (host.GitHubDiffURL) {
-                  $deployForm = $env.find('.form-deploy');
-                  $deployForm.removeClass('hidden').find('[name="diffUrl"]').val(host.GitHubDiffURL);
-                  $deployForm.find('[name="from_revision"]').val(host.LatestCommit);
-                  $deployForm.find('[name="to_revision"]').val(env.LatestGitHubCommit);
-                  break;
-                }
+            for (var h = 0; h < env.Hosts.length; h++) {
+              var host = env.Hosts[h];
+              if (host.GitHubDiffURL) {
+                $deployForm = $env.find('.form-deploy');
+                $deployForm.removeClass('hidden').find('[name="diffUrl"]').val(host.GitHubDiffURL);
+                $deployForm.find('[name="from_revision"]').val(host.LatestCommit);
+                $deployForm.find('[name="to_revision"]').val(env.LatestGitHubCommit);
+                break;
               }
             }
             $comment = $env.find(".comment")

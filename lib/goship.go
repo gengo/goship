@@ -46,7 +46,6 @@ type Environment struct {
 	Comment            string
 	pivotalCommentURL  string
 	IsLocked           bool
-	IsDeployable       bool
 }
 
 // Column is an interface that demands a RenderHeader and RenderDetails method to be able to generate a table column (with header and body)
@@ -168,17 +167,6 @@ func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err err
 		log.Printf("ERROR: non-200 Response from Pivotal API: %s %s ", resp.Status, body)
 	}
 	return nil
-}
-
-// Deployable returns true if the latest commit for any of the hosts in an environment
-// differs from the latest commit on GitHub, and false if all of the commits match.
-func (e *Environment) Deployable() bool {
-	for _, h := range e.Hosts {
-		if e.LatestGitHubCommit != h.LatestCommit {
-			return true
-		}
-	}
-	return false
 }
 
 // ShortCommitHash returns a shortened version of the latest commit hash on a host.
