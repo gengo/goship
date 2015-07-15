@@ -4,13 +4,13 @@
 
 A simple tool for deploying code to servers.
 
-![pirate gopher](http://i.imgur.com/RLvkHka.png)
+![pirate gopher](https://cloud.githubusercontent.com/assets/3772659/8693461/3c5f74a8-2b12-11e5-9a27-ff4421589df6.png)
 
 ### What it does:
 
 GoShip SSHes into the machines that you list in ETCD and gets the latest revision from the specified git repository. It then compares that to the latest revision on GitHub and, if they differ, shows a link to the diff as well as a Deploy button. You can then deploy by clicking the button, and will show you the output of the deployment command, as well as save the output, diff, and whether the command succeeded.
 
-![GoShip Index Page Screenshot](http://tryimg.com/4/goshi.png)
+![GoShip Index Page Screenshot](https://cloud.githubusercontent.com/assets/3772659/8693471/55ec2592-2b12-11e5-965f-8e572309c945.png)
 
 ### Usage
 
