@@ -163,7 +163,6 @@ func retrieveCommits(r *http.Request, project goship.Project, deployUser string)
 	// wait for goroutines to finish
 	wg.Wait()
 	for i, e := range project.Environments {
-		e.IsDeployable = e.Deployable()
 
 		project.Environments[i] = e
 		for j, host := range e.Hosts {
