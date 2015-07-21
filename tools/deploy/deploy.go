@@ -11,20 +11,19 @@ import (
 	"os/exec"
 	"strings"
 
-	"code.google.com/p/goauth2/oauth"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gengo/goship/lib"
-	"github.com/google/go-github/github"
 	"github.com/kylelemons/go-gypsy/yaml"
 )
 
 var (
-	deployProj = flag.String("p", "", "project (required)")
-	deployEnv  = flag.String("e", "", "environment (required)")
-	configFile = flag.String("g", "/tmp/deploy.yaml", "shared config setting ( default /tmp/deploy.yaml)")
-	pullOnly   = flag.Bool("o", false, "chef update only (default false)")
-	skipUpdate = flag.Bool("m", false, "skip the chef update (default false)")
-	bootstrap  = flag.Bool("b", false, "bootstrap a server ( default false)")
+	deployProj       = flag.String("p", "", "project (required)")
+	deployEnv        = flag.String("e", "", "environment (required)")
+	configFile       = flag.String("g", "/tmp/deploy.yaml", "shared config setting ( default /tmp/deploy.yaml)")
+	deployToolBranch = flag.String("d", "master", "deploy tool branch ( default master)")
+	pullOnly         = flag.Bool("o", false, "chef update only (default false)")
+	skipUpdate       = flag.Bool("m", false, "skip the chef update (default false)")
+	bootstrap        = flag.Bool("b", false, "bootstrap a server ( default false)")
 )
 
 // gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
@@ -71,35 +70,23 @@ func parseConfig() (c config) {
 	return c
 }
 
-// updateChefRepo ensures the lates chef cookbooks are pulled before deploying.
-// Checks github first and ignores pull if already up to date.
+// Update ChefRepo to ensure the latest chef cookbooks are pulled before deploying.
+// Current implementation is Gengo specified. Please re-implement this function according to your environment
 func updateChefRepo(conf config) {
-	githubToken := os.Getenv(gitHubAPITokenEnvVar)
-	t := &oauth.Transport{
-		Token: &oauth.Token{AccessToken: githubToken},
-	}
-	client := github.NewClient(t.Client())
-	s := "git --git-dir=" + conf.chefRepo + "/.git rev-parse HEAD"
-	localHash, _ := execCmd(s, conf)
-	commits, _, err := client.Repositories.ListCommits("Gengo", "devops-tools", nil)
+	log.Println("Updating devops-tools")
+	os.Setenv("GIT_SSH", "/tmp/private_code/wrap-ssh4git.sh")
+	gitCheckoutCmd := "/usr/bin/git --git-dir=" + conf.chefRepo + "/.git --work-tree=" + conf.chefRepo + " checkout " + *deployToolBranch
+	// TODO: refactor "execCmd" and run commands at once
+	_, err := execCmd(gitCheckoutCmd, conf)
 	if err != nil {
-		log.Fatal("ERROR:  failed to get commits from GitHub: Please try again later ", err)
+		log.Fatal("ERROR: Failed to checkout: ", err)
 	}
-	remoteHash := *commits[0].SHA
-	if localHash == remoteHash {
-		log.Printf("Local Chef is up to date: Skipping Sync")
-	} else {
-		log.Printf("Chef is not up to date: \n %s does not equal %s", localHash, remoteHash)
-		log.Println("Updating devops-tools")
-		os.Setenv("GIT_SSH", "/tmp/private_code/wrap-ssh4git.sh")
-		gitcmd := "/usr/bin/git --git-dir=" + conf.chefRepo + "/.git --work-tree=" + conf.chefRepo + " pull origin master"
-		s := gitcmd
-		_, err := execCmd(s, conf)
-		if err != nil {
-			log.Fatal("ERROR:  Failed to pull latest devops_tools: ", err)
-		}
-		log.Println("Devops Tools Updated")
+	gitPullCmd := "/usr/bin/git --git-dir=" + conf.chefRepo + "/.git --work-tree=" + conf.chefRepo + " pull origin " + *deployToolBranch
+	_, err = execCmd(gitPullCmd, conf)
+	if err != nil {
+		log.Fatal("ERROR: Failed to pull: ", err)
 	}
+	log.Println("Updated devops-tools to the latest " + *deployToolBranch + " branch")
 }
 
 func execCmd(icmd string, conf config) (output string, err error) {
