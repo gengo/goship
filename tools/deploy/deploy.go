@@ -75,16 +75,16 @@ func parseConfig() (c config) {
 func updateChefRepo(conf config) {
 	log.Println("Updating devops-tools")
 	os.Setenv("GIT_SSH", "/tmp/private_code/wrap-ssh4git.sh")
-	gitCheckoutCmd := "/usr/bin/git --git-dir=" + conf.chefRepo + "/.git --work-tree=" + conf.chefRepo + " checkout " + *deployToolBranch
 	// TODO: refactor "execCmd" and run commands at once
-	_, err := execCmd(gitCheckoutCmd, conf)
-	if err != nil {
-		log.Fatal("ERROR: Failed to checkout: ", err)
-	}
 	gitPullCmd := "/usr/bin/git --git-dir=" + conf.chefRepo + "/.git --work-tree=" + conf.chefRepo + " pull origin " + *deployToolBranch
-	_, err = execCmd(gitPullCmd, conf)
+	_, err := execCmd(gitPullCmd, conf)
 	if err != nil {
 		log.Fatal("ERROR: Failed to pull: ", err)
+	}
+	gitCheckoutCmd := "/usr/bin/git --git-dir=" + conf.chefRepo + "/.git --work-tree=" + conf.chefRepo + " checkout " + *deployToolBranch
+	_, err = execCmd(gitCheckoutCmd, conf)
+	if err != nil {
+		log.Fatal("ERROR: Failed to checkout: ", err)
 	}
 	log.Println("Updated devops-tools to the latest " + *deployToolBranch + " branch")
 }
