@@ -46,11 +46,19 @@ There is also a convert.go in tools that can be used to 'bootstrap' etcd.
 
 ```
    etcdctl set /deploy_user 'deployer'
-   etcdctl mkdir 'projects'
-   etcdctl mkdir 'projects/my-project'
+   finish deployment. e.g. Notify chat room
+   etcdctl mkdir '/projects'
+   etcdctl mkdir '/projects/my-project'
    etcdctl set /projects/my-project/repo_name 'my-project'
    etcdctl set /projects/my-project/repo_owner 'github-user'
    etcdctl set /projects/my-project/project_name 'My Project'
+   etcdctl mkdir /projects/my-project/environments
+   etcdctl mkdir /projects/my-project/environments/staging
+   etcdctl mkdir /projects/my-project/environments/staging/hosts
+   etcdctl mkdir /projects/my-project/environments/staging/hosts/myproject-staging-01.gengo.com
+   etcdctl set /projects/my-project/environments/staging/branch master
+   etcdctl set /projects/my-project/environments/staging/repo_path PATH_TO_REPOSITORY/.git
+   etcdctl set /projects/my-project/environments/staging/deploy "/tmp/deploy -p=my-project -e=staging" # You need to set your deployment command here. This is an example using `tools/deploy/deploy.go`
 ```
 
    #curl example
@@ -62,9 +70,9 @@ There is also a convert.go in tools that can be used to 'bootstrap' etcd.
    #convert.go example in the tools folder of goship. ( config.yml and etcd settings are configurable - run with -h for options)
 
 ```
-   go run convert.go -c /mnt/srv/http/gengo/goship/shared/config.yml 
+   go run convert.go -c /mnt/srv/http/gengo/goship/shared/config.yml
 ```
-   
+
 Then run the server manually
 
 ```shell
@@ -82,19 +90,19 @@ Available command line flags for the `go run goship.go` command are:
 ```
 
 ### Chat Notifications
-To notify a chat room when the Deploy button is pushed, create a script that takes a message as an argument and sends the message to the room, and then add it to the config like so:
+To notify a chat room when the Deploy button is pushed, create a script that takes a message as an argument and sends the message to the room, and then add it to etcd:
 
-```yaml
-notify: ./notifications/notify.sh
+```
+etcdctl set /notify '/home/deployer/notify.sh'
 ```
 
 [Sevabot](http://sevabot-skype-bot.readthedocs.org/en/latest/) is a good choice for Skype.
 
-### Tools 
+### Tools
 
 There are some tools added in the /tools directory that can be used interface with Goship
 1) convert.go: takes a config.yml  file and converts it to ETCD. Used for bootstrapping ETCD from the original
-conf file. 
+conf file.
 2) deploy.go:  Can be used as a script by the "deploy" to create a knife solo command which reads in the appropriate servers from ETCD and runs knife solo.
 
 ### Plugins
