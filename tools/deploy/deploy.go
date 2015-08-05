@@ -75,6 +75,8 @@ func parseConfig() (c config) {
 func updateChefRepo(conf config) {
 	log.Println("Updating devops-tools")
 	os.Setenv("GIT_SSH", "/tmp/private_code/wrap-ssh4git.sh")
+	os.Setenv("EMAIL", "devops@gengo.com")
+	os.Setenv("NAME", "gengodev")
 	// TODO: refactor "execCmd" and run commands at once
 	gitPullCmd := "/usr/bin/git --git-dir=" + conf.chefRepo + "/.git --work-tree=" + conf.chefRepo + " pull origin " + *deployToolBranch
 	_, err := execCmd(gitPullCmd, conf)
