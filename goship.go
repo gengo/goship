@@ -25,6 +25,7 @@ import (
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gengo/goship/helpers"
 	goship "github.com/gengo/goship/lib"
+	githublib "github.com/gengo/goship/lib/github"
 	_ "github.com/gengo/goship/plugins"
 	"github.com/gengo/goship/plugins/plugin"
 	"github.com/google/go-github/github"
@@ -1029,43 +1030,13 @@ func getAuth() auth {
 	return a
 }
 
-// create a github client interface so we can mock in tests
-type githubClient interface {
-	ListTeams(string, string, *github.ListOptions) ([]github.Team, *github.Response, error)
-	IsTeamMember(int, string) (bool, *github.Response, error)
-	IsCollaborator(string, string, string) (bool, *github.Response, error)
-}
-
-type githubClientProd struct {
-	org  *github.OrganizationsService
-	repo *github.RepositoriesService
-}
-
-// ListTeams exists in both organizations and repositories so we need to alias both functions
-func (c githubClientProd) ListTeams(owner string, repo string, opt *github.ListOptions) ([]github.Team, *github.Response, error) {
-	return c.repo.ListTeams(owner, repo, opt)
-}
-
-func (c githubClientProd) IsTeamMember(team int, user string) (bool, *github.Response, error) {
-	return c.org.IsTeamMember(team, user)
-}
-
-func (c githubClientProd) IsCollaborator(owner, repo, user string) (bool, *github.Response, error) {
-	return c.repo.IsCollaborator(owner, repo, user)
-}
-
-func newGithubClient() githubClient {
+func newGithubClient() githublib.Client {
 	gt := os.Getenv(gitHubAPITokenEnvVar)
-	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: gt})
-	c := github.NewClient(oauth2.NewClient(oauth2.NoContext, ts))
-	return githubClientProd{
-		org:  c.Organizations,
-		repo: c.Repositories,
-	}
+	return githublib.NewClient(gt)
 }
 
 // Will return true if the user has a team permission non read only
-func userHasDeployPermission(g githubClient, owner, repo, user string) (pull bool, err error) {
+func userHasDeployPermission(g githublib.Client, owner, repo, user string) (pull bool, err error) {
 	// List the  all the teams for a repository.
 	teams, _, err := g.ListTeams(owner, repo, nil)
 	if err != nil {
