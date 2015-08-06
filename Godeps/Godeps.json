@@ -1,34 +1,92 @@
 {
 	"ImportPath": "github.com/gengo/goship",
-	"GoVersion": "go1.2.1",
+	"GoVersion": "go1.4.2",
+	"Packages": [
+		"github.com/gengo/goship/..."
+	],
 	"Deps": [
 		{
-			"ImportPath": "code.google.com/p/go.crypto/ssh",
-			"Comment": "null-215",
-			"Rev": "2a61df2221b6be21be1c1ded77821b0f71b29584"
-		},
-		{
-			"ImportPath": "code.google.com/p/go.net/websocket",
-			"Comment": "null-119",
-			"Rev": "cdbc77c5e0064a55bdd9a6decd6e0d8f23c779ef"
-		},
-		{
-			"ImportPath": "code.google.com/p/goauth2/oauth",
-			"Comment": "weekly-48",
-			"Rev": "6a3615e294b534a1c24cb5d3d7570fa8bbc30c99"
+			"ImportPath": "github.com/clbanning/x2j",
+			"Rev": "0e45c2228aab9921ef50cc7d0bf7186082cc51a4"
 		},
 		{
 			"ImportPath": "github.com/coreos/go-etcd/etcd",
-			"Comment": "v0.2.0-rc1-120-g23142f6",
-			"Rev": "23142f6773a676cc2cae8dd0cb90b2ea761c853f"
+			"Comment": "v2.0.0",
+			"Rev": "f02171fbd43c7b9b53ce8679b03235a1ef3c7b12"
 		},
 		{
 			"ImportPath": "github.com/google/go-github/github",
-			"Rev": "ce77fc643b6bb907f482cf0948070caf88d5f071"
+			"Rev": "fccd5bb66f985db0a0d150342ca0a9529a23488a"
 		},
 		{
 			"ImportPath": "github.com/google/go-querystring/query",
-			"Rev": "ec0a78e0f4db229b7897be36596a8944230b857a"
+			"Rev": "547ef5ac979778feb2f760cdb5f4eae1a2207b86"
+		},
+		{
+			"ImportPath": "github.com/gorilla/context",
+			"Rev": "215affda49addc4c8ef7e2534915df2c8c35c6cd"
+		},
+		{
+			"ImportPath": "github.com/gorilla/securecookie",
+			"Rev": "68004d2ba3cbc80d3a9949ea431b5c9f22ee8707"
+		},
+		{
+			"ImportPath": "github.com/gorilla/sessions",
+			"Rev": "f61c3ec2cf65d69e7efedfd4d060fe128882c951"
+		},
+		{
+			"ImportPath": "github.com/kylelemons/go-gypsy/yaml",
+			"Comment": "go.weekly.2011-11-02-19-g42fc2c7",
+			"Rev": "42fc2c7ee9b8bd0ff636cd2d7a8c0a49491044c5"
+		},
+		{
+			"ImportPath": "github.com/stretchr/codecs",
+			"Rev": "8e29b38960a541ed1264b001dcb21701283c590d"
+		},
+		{
+			"ImportPath": "github.com/stretchr/gomniauth",
+			"Rev": "64e995fba5a513975f4ef888284d195073fb6762"
+		},
+		{
+			"ImportPath": "github.com/stretchr/objx",
+			"Rev": "cbeaeb16a013161a98496fad62933b1d21786672"
+		},
+		{
+			"ImportPath": "github.com/stretchr/signature",
+			"Rev": "78854fe0e7853ac2d799afb0301e41fa48d7fca1"
+		},
+		{
+			"ImportPath": "github.com/stretchr/stew/strings",
+			"Rev": "80ef0842b48b329a6120607c817a85aff5a2ec71"
+		},
+		{
+			"ImportPath": "github.com/stretchr/tracer",
+			"Rev": "66d3696bba973e1697f7d68413b3f19c6d6e2a7c"
+		},
+		{
+			"ImportPath": "github.com/ugorji/go/codec",
+			"Rev": "821cda7e48749cacf7cad2c6ed01e96457ca7e9d"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/ssh",
+			"Rev": "1e856cbfdf9bc25eefca75f83f25d55e35ae72e0"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "933937213561306ee71d265fb8a2913f20a55123"
+		},
+		{
+			"ImportPath": "golang.org/x/net/websocket",
+			"Rev": "933937213561306ee71d265fb8a2913f20a55123"
+		},
+		{
+			"ImportPath": "golang.org/x/oauth2",
+			"Rev": "b5adcc2dcdf009d0391547edc6ecbaff889f5bb9"
+		},
+		{
+			"ImportPath": "labix.org/v2/mgo/bson",
+			"Comment": "287",
+			"Rev": "gustavo@niemeyer.net-20140501184651-975yyw9ipld92pji"
 		}
 	]
 }
