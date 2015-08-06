@@ -23,8 +23,8 @@ import (
 	"time"
 
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/gengo/goship/helpers"
 	goship "github.com/gengo/goship/lib"
+	helpers "github.com/gengo/goship/lib/view-helpers"
 	_ "github.com/gengo/goship/plugins"
 	"github.com/gengo/goship/plugins/plugin"
 	"github.com/google/go-github/github"
