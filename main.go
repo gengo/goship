@@ -54,12 +54,6 @@ var sessionName = "goship"
 
 var authentication auth
 
-// gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
-const (
-	gitHubPaginationLimit = 30
-	pivotalCommentURL     = "https://www.pivotaltracker.com/services/v5/projects/%s/stories/%s/comments"
-)
-
 func diffURL(owner, repoName, fromRevision, toRevision string) string {
 	return fmt.Sprintf("https://github.com/%s/%s/compare/%s...%s", owner, repoName, fromRevision, toRevision)
 }
