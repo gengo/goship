@@ -58,7 +58,6 @@ var authentication auth
 const (
 	gitHubPaginationLimit = 30
 	pivotalCommentURL     = "https://www.pivotaltracker.com/services/v5/projects/%s/stories/%s/comments"
-	gitHubAPITokenEnvVar  = "GITHUB_API_TOKEN"
 )
 
 func diffURL(owner, repoName, fromRevision, toRevision string) string {

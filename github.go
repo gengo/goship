@@ -17,6 +17,10 @@ import (
 	"golang.org/x/oauth2"
 )
 
+const (
+	gitHubAPITokenEnvVar = "GITHUB_API_TOKEN"
+)
+
 func newGithubClient() githublib.Client {
 	gt := os.Getenv(gitHubAPITokenEnvVar)
 	return githublib.NewClient(gt)
