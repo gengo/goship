@@ -22,6 +22,7 @@ var (
 	configFile       = flag.String("g", "/tmp/deploy.yaml", "shared config setting ( default /tmp/deploy.yaml)")
 	deployToolBranch = flag.String("d", "master", "deploy tool branch ( default master)")
 	pullOnly         = flag.Bool("o", false, "chef update only (default false)")
+	chefRunlist      = flag.String("r", "", "custom run-list for Chef (default none)")
 	skipUpdate       = flag.Bool("m", false, "skip the chef update (default false)")
 	bootstrap        = flag.Bool("b", false, "bootstrap a server ( default false)")
 )
@@ -150,12 +151,15 @@ func main() {
 		}
 		log.Printf("Deploying project name: %s environment Name: %s", *deployEnv, projectEnv.Name)
 		servers := projectEnv.Hosts
-		var d string
+		var d,e string
+		if *chefRunlist != "" {
+			e = " -o \"" + *chefRunlist + "\" "
+		}
 		for _, h := range servers {
 			if *bootstrap == true {
-				d = "knife solo bootstrap -c " + conf.knifePath + " -i " + conf.pemKey + " --no-host-key-verify " + conf.deployUser + "@" + h.URI
+				d = "knife solo bootstrap -c " + conf.knifePath + " -i " + conf.pemKey + " --no-host-key-verify " + e + conf.deployUser + "@" + h.URI
 			} else {
-				d = "knife solo cook -c " + conf.knifePath + " -i " + conf.pemKey + " --no-host-key-verify " + conf.deployUser + "@" + h.URI
+				d = "knife solo cook -c " + conf.knifePath + " -i " + conf.pemKey + " --no-host-key-verify " + e + conf.deployUser + "@" + h.URI
 			}
 			log.Printf("Deploying to server: %s", h.URI)
 			log.Printf("Preparing Knife command: %s", d)
