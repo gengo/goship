@@ -75,8 +75,12 @@ There is also a convert.go in tools that can be used to 'bootstrap' etcd.
 
 Then run the server manually
 
+```convert id_rsa to pem
+openssl rsa -in ~/.ssh/id_rsa -outform pem > id_rsa.pem
+```
+
 ```shell
-go run goship.go -b localhost:8888 -k ~/.ssh/id_rsa
+go run goship.go -b localhost:8888 -k ~/.ssh/id_rsa.pem
 ```
 
 Available command line flags for the `go run goship.go` command are:
