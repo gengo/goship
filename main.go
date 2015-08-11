@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"html/template"
@@ -24,14 +23,11 @@ import (
 
 	"github.com/coreos/go-etcd/etcd"
 	goship "github.com/gengo/goship/lib"
+	auth "github.com/gengo/goship/lib/auth"
 	helpers "github.com/gengo/goship/lib/view-helpers"
 	_ "github.com/gengo/goship/plugins"
 	"github.com/gengo/goship/plugins/plugin"
 	"github.com/google/go-github/github"
-	"github.com/gorilla/sessions"
-	"github.com/stretchr/gomniauth"
-	githubOauth "github.com/stretchr/gomniauth/providers/github"
-	"github.com/stretchr/objx"
 	"golang.org/x/net/websocket"
 	"golang.org/x/oauth2"
 )
@@ -48,11 +44,6 @@ var (
 	defaultAvatar     = flag.String("a", "https://camo.githubusercontent.com/33a7d9a138ac73ece82dee977c216eb13dffc984/687474703a2f2f692e696d6775722e636f6d2f524c766b486b612e706e67", "Default Avatar (default goship gopher image)")
 	confirmDeployFlag = flag.Bool("f", true, "Flag to always ask for confirmation before deploying")
 )
-
-var store = sessions.NewCookieStore([]byte(*cookieSessionHash))
-var sessionName = "goship"
-
-var authentication auth
 
 func diffURL(owner, repoName, fromRevision, toRevision string) string {
 	return fmt.Sprintf("https://github.com/%s/%s/compare/%s...%s", owner, repoName, fromRevision, toRevision)
@@ -221,7 +212,7 @@ func DeployOutputHandler(w http.ResponseWriter, r *http.Request, env string, for
 
 // DeployLogHandler shows data about the environment including the deploy log.
 func DeployLogHandler(w http.ResponseWriter, r *http.Request, fullEnv string, environment goship.Environment, projectName string) {
-	u, err := getUser(r)
+	u, err := auth.CurrentUser(r)
 	if err != nil {
 		log.Println("Failed to get User! ")
 		http.Error(w, err.Error(), http.StatusUnauthorized)
@@ -251,7 +242,7 @@ func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	u, err := getUser(r)
+	u, err := auth.CurrentUser(r)
 	if err != nil {
 		log.Println("ERROR:  Getting User", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -432,12 +423,12 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	u, err := getUser(r)
+	u, err := auth.CurrentUser(r)
 	if err != nil {
 		log.Println("Failed to get a User! ")
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 	}
-	user := u.UserName
+	user := u.Name
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	fromRevision := r.FormValue("from_revision")
@@ -560,7 +551,7 @@ func UnLockHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func DeployPage(w http.ResponseWriter, r *http.Request) {
-	user, err := getUser(r)
+	user, err := auth.CurrentUser(r)
 	if err != nil {
 		log.Println("Failed to Get User")
 		http.Error(w, err.Error(), http.StatusUnauthorized)
@@ -595,7 +586,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Failed to Parse to ETCD data %s", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-	u, err := getUser(r)
+	u, err := auth.CurrentUser(r)
 	if err != nil {
 		log.Println("Failed to get User! ")
 		http.Error(w, err.Error(), http.StatusUnauthorized)
@@ -652,7 +643,7 @@ func extractDeployLogHandler(fn func(http.ResponseWriter, *http.Request, string,
 			return
 		}
 		// auth check for user
-		u, err := getUser(r)
+		u, err := auth.CurrentUser(r)
 		if err != nil {
 			log.Println("Failed to get a user while deploying in Auth Mode! ")
 			http.Error(w, err.Error(), http.StatusUnauthorized)
@@ -702,57 +693,14 @@ func extractOutputHandler(fn func(http.ResponseWriter, *http.Request, string, st
 	}
 }
 
-// User struct containes whether the user is authed and where his avatar is.
-type User struct {
-	UserName, UserAvatar string
-	auth                 auth
-}
-
-func getUser(r *http.Request) (User, error) {
-	u := User{}
-	if authentication.authorization != true {
-		u.UserName = *defaultUser
-		u.UserAvatar = *defaultAvatar
-		return u, nil
-	}
-	session, err := store.Get(r, sessionName)
-	if err != nil {
-		return u, errors.New("Error Getting User Session")
-	}
-	if _, ok := session.Values["userName"]; !ok {
-		return u, errors.New("No username")
-	}
-	if _, ok := session.Values["avatarURL"]; !ok {
-		return u, errors.New("No avatar")
-	}
-	// Check return of nil
-	u.UserName = session.Values["userName"].(string)
-	u.UserAvatar = session.Values["avatarURL"].(string)
-	return u, nil
-}
-
-//Used to wrap a view and check for auth
-func checkAuth(fn http.HandlerFunc, a auth) http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, err := getUser(r)
-		if err != nil {
-			log.Printf("error getting a User %s", err)
-			http.Redirect(w, r, os.Getenv("GITHUB_CALLBACK_URL")+"/auth/github/login", http.StatusMovedPermanently)
-
-			return
-		}
-		fn.ServeHTTP(w, r)
-	})
-}
-
 // remove projects where user is not a collaborator
-func removeUnauthorizedProjects(cp []goship.Project, r *http.Request, u User) (fp []goship.Project) {
-	if authentication.authorization != true {
+func removeUnauthorizedProjects(cp []goship.Project, r *http.Request, u auth.User) (fp []goship.Project) {
+	if !auth.Enabled() {
 		return cp
 	}
 
 	for _, p := range cp {
-		a := isCollaborator(p.RepoOwner, p.RepoName, u.UserName)
+		a := isCollaborator(p.RepoOwner, p.RepoName, u.Name)
 		if a == true {
 			fp = append(fp, p)
 		}
@@ -761,8 +709,8 @@ func removeUnauthorizedProjects(cp []goship.Project, r *http.Request, u User) (f
 }
 
 //  set projects to lock where user is only in a pull only repo and append a comment
-func filterProject(p goship.Project, r *http.Request, u User) goship.Project {
-	if authentication.authorization != true {
+func filterProject(p goship.Project, r *http.Request, u auth.User) goship.Project {
+	if !auth.Enabled() {
 		return p
 	}
 
@@ -778,7 +726,7 @@ func filterProject(p goship.Project, r *http.Request, u User) goship.Project {
 			continue
 		}
 
-		lock, err := userHasDeployPermission(g, p.RepoOwner, p.RepoName, u.UserName)
+		lock, err := userHasDeployPermission(g, p.RepoOwner, p.RepoName, u.Name)
 		if err != nil {
 			log.Printf("Error getting Lock Permission: Locking anyway for safety %s", err)
 		}
@@ -794,146 +742,30 @@ func filterProject(p goship.Project, r *http.Request, u User) goship.Project {
 	return p
 }
 
-func loginHandler(providerName string, auth bool) http.HandlerFunc {
-	if auth != true {
-		return func(w http.ResponseWriter, r *http.Request) {}
-	}
-
-	return func(w http.ResponseWriter, r *http.Request) {
-
-		provider, err := gomniauth.Provider(providerName)
-		if err != nil {
-			log.Printf("error getting gomniauth provider")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		state := gomniauth.NewState("after", "success")
-
-		authURL, err := provider.GetBeginAuthURL(state, nil)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		http.Redirect(w, r, authURL, http.StatusFound)
-	}
-}
-
-func callbackHandler(providerName string, auth bool) http.HandlerFunc {
-	if auth != true {
-		return func(w http.ResponseWriter, r *http.Request) {}
-	}
-
-	return func(w http.ResponseWriter, r *http.Request) {
-
-		provider, err := gomniauth.Provider(providerName)
-		if err != nil {
-			log.Printf("error getting gomniauth provider")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		omap, err := objx.FromURLQuery(r.URL.RawQuery)
-		if err != nil {
-			log.Printf("error getting resp from callback")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		creds, err := provider.CompleteAuth(omap)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		user, userErr := provider.GetUser(creds)
-		if userErr != nil {
-			log.Printf("Failed to get user from Github %s", user)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		session, err := store.Get(r, sessionName)
-		if err != nil {
-			log.Printf("Failed to get Session %s", user)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		session.Options = &sessions.Options{
-			Path:     "/",
-			MaxAge:   86400 * 7,
-			HttpOnly: true,
-		}
-
-		session.Values["userName"] = user.Nickname()
-		session.Values["avatarURL"] = user.AvatarURL()
-		session.Save(r, w)
-
-		http.Redirect(w, r, os.Getenv("GITHUB_CALLBACK_URL"), http.StatusFound)
-	}
-}
-
-type auth struct {
-	authorization       bool
-	githubRandomHashKey string
-	githubOmniauthID    string
-	githubOmniauthKey   string
-	githubCallbackURL   string
-}
-
-//  Authenticate with Github. If env data is missing turn Auth off.
-func getAuth() auth {
-	a := auth{}
-	a.githubRandomHashKey = os.Getenv("GITHUB_RANDOM_HASH_KEY")
-	a.githubOmniauthID = os.Getenv("GITHUB_OMNI_AUTH_ID")
-	a.githubOmniauthKey = os.Getenv("GITHUB_OMNI_AUTH_KEY")
-	a.githubCallbackURL = os.Getenv("GITHUB_CALLBACK_URL")
-	// Let user know if a key is missing and that auth is disabled.
-
-	if a.githubRandomHashKey == "" || a.githubOmniauthID == "" || a.githubOmniauthKey == "" || a.githubCallbackURL == "" {
-		log.Printf("Missing one or more Gomniauth Environment Variables: Running with with limited functionality! \n githubRandomHashKey [%s] \n githubOmniauthID [%s] \n githubOmniauthKey[%s] \n githubCallbackURL[%s]",
-			a.githubRandomHashKey,
-			a.githubOmniauthID,
-			a.githubOmniauthKey,
-			a.githubCallbackURL)
-		a.authorization = false
-		return a
-	}
-
-	gomniauth.SetSecurityKey(a.githubRandomHashKey)
-	gomniauth.WithProviders(
-		githubOauth.New(a.githubOmniauthID, a.githubOmniauthKey, a.githubCallbackURL+"/auth/github/callback"),
-	)
-	a.authorization = true
-	return a
-}
-
 func main() {
-	authentication = getAuth()
+	flag.Parse()
+	auth.Initialize(auth.User{Name: *defaultUser, Avatar: *defaultAvatar}, []byte(*cookieSessionHash))
 
 	log.Printf("Starting Goship...")
 	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
 		log.Fatal("could not create data dir: ", err)
 	}
-	flag.Parse()
 	go h.run()
-	http.HandleFunc("/", checkAuth(HomeHandler, authentication))
+	http.Handle("/", auth.AuthenticateFunc(HomeHandler))
 	http.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, r.URL.Path[1:])
 	})
 	http.Handle("/web_push", websocket.Handler(websocketHandler))
-	http.HandleFunc("/deploy", checkAuth(DeployPage, authentication))
-	http.HandleFunc("/deployLog/", checkAuth(extractDeployLogHandler(DeployLogHandler), authentication))
-	http.HandleFunc("/output/", checkAuth(extractOutputHandler(DeployOutputHandler), authentication))
-	http.HandleFunc("/commits/", checkAuth(extractCommitHandler(ProjCommitsHandler), authentication))
-	http.HandleFunc("/deploy_handler", checkAuth(DeployHandler, authentication))
-	http.HandleFunc("/lock", checkAuth(LockHandler, authentication))
-	http.HandleFunc("/unlock", checkAuth(UnLockHandler, authentication))
-	http.HandleFunc("/comment", checkAuth(CommentHandler, authentication))
-	http.HandleFunc("/auth/github/login", loginHandler("github", authentication.authorization))
-	http.HandleFunc("/auth/github/callback", callbackHandler("github", authentication.authorization))
+	http.Handle("/deploy", auth.AuthenticateFunc(DeployPage))
+	http.Handle("/deployLog/", auth.AuthenticateFunc(extractDeployLogHandler(DeployLogHandler)))
+	http.Handle("/output/", auth.AuthenticateFunc(extractOutputHandler(DeployOutputHandler)))
+	http.Handle("/commits/", auth.AuthenticateFunc(extractCommitHandler(ProjCommitsHandler)))
+	http.Handle("/deploy_handler", auth.AuthenticateFunc(DeployHandler))
+	http.Handle("/lock", auth.AuthenticateFunc(LockHandler))
+	http.Handle("/unlock", auth.AuthenticateFunc(UnLockHandler))
+	http.Handle("/comment", auth.AuthenticateFunc(CommentHandler))
+	http.HandleFunc("/auth/github/login", auth.LoginHandler)
+	http.HandleFunc("/auth/github/callback", auth.CallbackHandler)
 	fmt.Printf("Running on %s\n", *bindAddress)
 	log.Fatal(http.ListenAndServe(*bindAddress, nil))
 }

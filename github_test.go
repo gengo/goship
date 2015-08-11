@@ -8,7 +8,6 @@ import (
 
 func TestUserOnNoTeam(t *testing.T) {
 	g := githubtest.NewStub()
-	authentication.authorization = true
 	var want = false
 	got, err := userHasDeployPermission(g, "owner_1", "repo_1", "read_only_user")
 	if err != nil {
@@ -21,7 +20,6 @@ func TestUserOnNoTeam(t *testing.T) {
 
 func TestUserIsReadOnly(t *testing.T) {
 	g := githubtest.NewStub()
-	authentication.authorization = true
 	var want = false
 	got, err := userHasDeployPermission(g, "owner_1", "repo_1", "push_user")
 	if err != nil {

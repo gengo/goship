@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	goship "github.com/gengo/goship/lib"
+	"github.com/gengo/goship/lib/auth"
 	githublib "github.com/gengo/goship/lib/github"
 	"github.com/google/go-github/github"
 	"golang.org/x/crypto/ssh"
@@ -130,7 +131,7 @@ func retrieveCommits(r *http.Request, project goship.Project, deployUser string)
 			project.Environments[i].Hosts[j] = host
 		}
 	}
-	u, err := getUser(r)
+	u, err := auth.CurrentUser(r)
 	if err != nil {
 		log.Printf("Failed to get user %s", err)
 	}
@@ -163,8 +164,7 @@ func userHasDeployPermission(g githublib.Client, owner, repo, user string) (pull
 
 // Returns true if the github user is a current  "collaborator" on a project.  Used to allow the user to deploy the project.
 func isCollaborator(owner, repo, user string) bool {
-
-	if authentication.authorization != true {
+	if !auth.Enabled() {
 		return true
 	}
 
