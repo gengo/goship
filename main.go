@@ -23,11 +23,13 @@ import (
 
 	"github.com/coreos/go-etcd/etcd"
 	goship "github.com/gengo/goship/lib"
-	auth "github.com/gengo/goship/lib/auth"
+	"github.com/gengo/goship/lib/auth"
+	"github.com/gengo/goship/lib/notification"
 	helpers "github.com/gengo/goship/lib/view-helpers"
 	_ "github.com/gengo/goship/plugins"
 	"github.com/gengo/goship/plugins/plugin"
 	"github.com/google/go-github/github"
+	"golang.org/x/net/context"
 	"golang.org/x/net/websocket"
 	"golang.org/x/oauth2"
 )
@@ -277,88 +279,7 @@ func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string)
 	}
 }
 
-type connection struct {
-	// The websocket connection.
-	ws *websocket.Conn
-
-	// Buffered channel of outbound messages.
-	send chan string
-}
-
-func (c *connection) writer() {
-	for message := range c.send {
-		err := websocket.Message.Send(c.ws, message)
-		if err != nil {
-			break
-		}
-	}
-	c.ws.Close()
-}
-
-type hub struct {
-	// Registered connections.
-	connections map[*connection]bool
-
-	// Inbound messages from the connections.
-	broadcast chan string
-
-	// Register requests from the connections.
-	register chan *connection
-
-	// Unregister requests from connections.
-	unregister chan *connection
-}
-
-func (h *hub) run() {
-	for {
-		select {
-		case c := <-h.register:
-			h.connections[c] = true
-		case c := <-h.unregister:
-			delete(h.connections, c)
-			close(c.send)
-		case m := <-h.broadcast:
-			for c := range h.connections {
-				select {
-				case c.send <- m:
-				default:
-					delete(h.connections, c)
-					close(c.send)
-					go c.ws.Close()
-				}
-			}
-		}
-	}
-}
-
-func (c *connection) reader() {
-	for {
-		var message string
-		err := websocket.Message.Receive(c.ws, &message)
-		if err != nil {
-			break
-		}
-		h.broadcast <- message
-	}
-	c.ws.Close()
-}
-
-var h = hub{
-	broadcast:   make(chan string),
-	register:    make(chan *connection),
-	unregister:  make(chan *connection),
-	connections: make(map[*connection]bool),
-}
-
-func websocketHandler(ws *websocket.Conn) {
-	c := &connection{send: make(chan string, 256), ws: ws}
-	h.register <- c
-	defer func() { h.unregister <- c }()
-	go c.writer()
-	c.reader()
-}
-
-func sendOutput(wg *sync.WaitGroup, scanner *bufio.Scanner, p, e string, deployTime time.Time) {
+func (h DeployHandler) sendOutput(wg *sync.WaitGroup, scanner *bufio.Scanner, p, e string, deployTime time.Time) {
 	defer wg.Done()
 	for scanner.Scan() {
 		t := scanner.Text()
@@ -371,7 +292,7 @@ func sendOutput(wg *sync.WaitGroup, scanner *bufio.Scanner, p, e string, deployT
 		if err != nil {
 			log.Println("ERROR marshalling JSON: ", err.Error())
 		}
-		h.broadcast <- string(cmdOutput)
+		h.hub.Broadcast(string(cmdOutput))
 
 		go appendDeployOutput(fmt.Sprintf("%s-%s", p, e), t, deployTime)
 	}
@@ -416,8 +337,13 @@ func endNotify(n, p, env string, success bool) error {
 	return nil
 }
 
-func DeployHandler(w http.ResponseWriter, r *http.Request) {
-	c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
+type DeployHandler struct {
+	ecl *etcd.Client
+	hub *notification.Hub
+}
+
+func (h DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	c, err := goship.ParseETCD(h.ecl)
 	if err != nil {
 		log.Println("ERROR: ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -471,8 +397,8 @@ func DeployHandler(w http.ResponseWriter, r *http.Request) {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
-	go sendOutput(&wg, bufio.NewScanner(stdout), p, env, deployTime)
-	go sendOutput(&wg, bufio.NewScanner(stderr), p, env, deployTime)
+	go h.sendOutput(&wg, bufio.NewScanner(stdout), p, env, deployTime)
+	go h.sendOutput(&wg, bufio.NewScanner(stderr), p, env, deployTime)
 	wg.Wait()
 
 	err = cmd.Wait()
@@ -744,23 +670,29 @@ func filterProject(p goship.Project, r *http.Request, u auth.User) goship.Projec
 
 func main() {
 	flag.Parse()
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	auth.Initialize(auth.User{Name: *defaultUser, Avatar: *defaultAvatar}, []byte(*cookieSessionHash))
 
 	log.Printf("Starting Goship...")
 	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
 		log.Fatal("could not create data dir: ", err)
 	}
-	go h.run()
+	hub := notification.NewHub(ctx)
+	ecl := etcd.NewClient([]string{*ETCDServer})
+
 	http.Handle("/", auth.AuthenticateFunc(HomeHandler))
 	http.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, r.URL.Path[1:])
 	})
-	http.Handle("/web_push", websocket.Handler(websocketHandler))
+	http.Handle("/web_push", websocket.Handler(hub.AcceptConnection))
 	http.Handle("/deploy", auth.AuthenticateFunc(DeployPage))
 	http.Handle("/deployLog/", auth.AuthenticateFunc(extractDeployLogHandler(DeployLogHandler)))
 	http.Handle("/output/", auth.AuthenticateFunc(extractOutputHandler(DeployOutputHandler)))
 	http.Handle("/commits/", auth.AuthenticateFunc(extractCommitHandler(ProjCommitsHandler)))
-	http.Handle("/deploy_handler", auth.AuthenticateFunc(DeployHandler))
+	http.Handle("/deploy_handler", auth.Authenticate(DeployHandler{ecl: ecl, hub: hub}))
 	http.Handle("/lock", auth.AuthenticateFunc(LockHandler))
 	http.Handle("/unlock", auth.AuthenticateFunc(UnLockHandler))
 	http.Handle("/comment", auth.AuthenticateFunc(CommentHandler))
