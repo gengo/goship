@@ -1,4 +1,4 @@
-package helpers
+package viewhelpers
 
 import (
 	"html/template"
@@ -12,9 +12,9 @@ var getFilePathsTests = []struct {
 	expected    []string
 	expectErr   error
 }{
-	{"../static/js", ".js", []string{"pivotal.js"}, nil},
-	{"../static/js", ".gitkeep", []string{".gitkeep"}, nil},
-	{"../static/css", ".css", []string{"styles.css"}, nil},
+	{"../../static/js", ".js", []string{"pivotal.js"}, nil},
+	{"../../static/js", ".gitkeep", []string{".gitkeep"}, nil},
+	{"../../static/css", ".css", []string{"styles.css"}, nil},
 }
 
 func TestGetFilePaths(t *testing.T) {
@@ -45,8 +45,8 @@ var stylesheetTemplateTests = []struct {
 	expected    string
 	expectErr   error
 }{
-	{"../static/js", "", nil},
-	{"../static/css", "<link href='/static/css/styles.css' rel='stylesheet'>", nil},
+	{"../../static/js", "", nil},
+	{"../../static/css", "<link href='/static/css/styles.css' rel='stylesheet'>", nil},
 }
 
 func TestMakeStylesheetTemplate(t *testing.T) {
@@ -68,8 +68,8 @@ var javascriptTemplateTests = []struct {
 	expected    string
 	expectErr   error
 }{
-	{"../static/js", "<script src='/static/js/pivotal.js'></script>", nil},
-	{"../static/css", "", nil},
+	{"../../static/js", "<script src='/static/js/pivotal.js'></script>", nil},
+	{"../../static/css", "", nil},
 }
 
 func TestMakeJavascriptTemplate(t *testing.T) {

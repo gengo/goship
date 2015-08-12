@@ -1,4 +1,4 @@
-package helpers
+package viewhelpers
 
 import (
 	"fmt"
@@ -31,7 +31,7 @@ func getFilePaths(root string, extension string) ([]string, error) {
 	return filepaths, nil
 }
 
-func GetJavascriptFiles(folderpath string) []string {
+func getJavascriptFiles(folderpath string) []string {
 	fps, err := getFilePaths(folderpath, javascriptExt)
 	if err != nil {
 		log.Printf("Failed to get all javascript file paths: %s", err)
@@ -40,7 +40,7 @@ func GetJavascriptFiles(folderpath string) []string {
 	return fps
 }
 
-func GetStylesheetFiles(folderpath string) []string {
+func getStylesheetFiles(folderpath string) []string {
 	fps, err := getFilePaths(folderpath, stylesheetExt)
 	if err != nil {
 		log.Printf("Failed to get all Stylesheet file paths: %s", err)
@@ -50,7 +50,7 @@ func GetStylesheetFiles(folderpath string) []string {
 }
 
 func MakeJavascriptTemplate(folderpath string) template.HTML {
-	fps := GetJavascriptFiles(folderpath)
+	fps := getJavascriptFiles(folderpath)
 	var str string = ""
 	for _, fp := range fps {
 		str += fmt.Sprintf(javascriptTag, fp)
@@ -59,7 +59,7 @@ func MakeJavascriptTemplate(folderpath string) template.HTML {
 }
 
 func MakeStylesheetTemplate(folderpath string) template.HTML {
-	fps := GetStylesheetFiles(folderpath)
+	fps := getStylesheetFiles(folderpath)
 	var str string = ""
 	for _, fp := range fps {
 		str += fmt.Sprintf(stylesheetTag, fp)
