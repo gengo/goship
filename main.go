@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"github.com/gengo/goship/lib/notification"
 	helpers "github.com/gengo/goship/lib/view-helpers"
 	_ "github.com/gengo/goship/plugins"
+	ghandlers "github.com/gorilla/handlers"
 	"golang.org/x/net/context"
 	"golang.org/x/net/websocket"
 )
@@ -35,6 +37,7 @@ var (
 	defaultUser       = flag.String("u", "genericUser", "Default User if non auth (default genericUser)")
 	defaultAvatar     = flag.String("a", "https://camo.githubusercontent.com/33a7d9a138ac73ece82dee977c216eb13dffc984/687474703a2f2f692e696d6775722e636f6d2f524c766b486b612e706e67", "Default Avatar (default goship gopher image)")
 	confirmDeployFlag = flag.Bool("f", true, "Flag to always ask for confirmation before deploying")
+	requestLog        = flag.String("request-log", "-", "destination of request log. '-' means stdout")
 )
 
 var validPathWithEnv = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
@@ -114,6 +117,58 @@ func newGithubClient() (githublib.Client, error) {
 	return githublib.NewClient(gt), nil
 }
 
+func buildHandler(ctx context.Context) (http.Handler, error) {
+	gcl, err := newGithubClient()
+	if err != nil {
+		log.Printf("Failed to build github client: %v", err)
+		return nil, err
+	}
+
+	ac := acl.Null
+	if auth.Enabled() {
+		ac = acl.NewGithub(gcl)
+	}
+
+	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
+		log.Printf("could not create data dir: ", err)
+		return nil, err
+	}
+
+	hub := notification.NewHub(ctx)
+	ecl := etcd.NewClient([]string{*ETCDServer})
+
+	assets := helpers.New(*staticFilePath)
+
+	mux := http.NewServeMux()
+	mux.Handle("/", auth.Authenticate(HomeHandler{ac: ac, ecl: ecl, assets: assets}))
+	mux.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, r.URL.Path[1:])
+	})
+
+	dph, err := deploypage.New(assets, fmt.Sprintf("ws://%s/web_push", *bindAddress))
+	if err != nil {
+		log.Printf("Failed to build deploy page handler: %v", err)
+		return nil, err
+	}
+	mux.Handle("/deploy", auth.Authenticate(dph))
+	mux.Handle("/web_push", websocket.Handler(hub.AcceptConnection))
+
+	dlh := DeployLogHandler{assets: assets}
+	mux.Handle("/deployLog/", auth.AuthenticateFunc(extractDeployLogHandler(ac, ecl, dlh.ServeHTTP)))
+	mux.Handle("/output/", auth.AuthenticateFunc(extractOutputHandler(DeployOutputHandler)))
+
+	pch := ProjCommitsHandler{ac: ac, gcl: gcl, ecl: ecl}
+	mux.Handle("/commits/", auth.AuthenticateFunc(extractCommitHandler(pch.ServeHTTP)))
+	mux.Handle("/deploy_handler", auth.Authenticate(DeployHandler{ecl: ecl, hub: hub}))
+	mux.Handle("/lock", auth.Authenticate(lock.NewLock(ecl)))
+	mux.Handle("/unlock", auth.Authenticate(lock.NewUnlock(ecl)))
+	mux.Handle("/comment", auth.Authenticate(comment.New(ecl)))
+	mux.HandleFunc("/auth/github/login", auth.LoginHandler)
+	mux.HandleFunc("/auth/github/callback", auth.CallbackHandler)
+
+	return mux, nil
+}
+
 func main() {
 	flag.Parse()
 	log.Printf("Starting Goship...")
@@ -124,49 +179,26 @@ func main() {
 
 	auth.Initialize(auth.User{Name: *defaultUser, Avatar: *defaultAvatar}, []byte(*cookieSessionHash))
 
-	gcl, err := newGithubClient()
-	if err != nil {
-		log.Panicf("Failed to build github client: %v", err)
-	}
-
-	ac := acl.Null
-	if auth.Enabled() {
-		ac = acl.NewGithub(gcl)
-	}
-
-	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
-		log.Fatal("could not create data dir: ", err)
-	}
-
-	hub := notification.NewHub(ctx)
-	ecl := etcd.NewClient([]string{*ETCDServer})
-
-	assets := helpers.New(*staticFilePath)
-
-	http.Handle("/", auth.Authenticate(HomeHandler{ac: ac, ecl: ecl, assets: assets}))
-	http.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, r.URL.Path[1:])
-	})
-
-	dph, err := deploypage.New(assets, fmt.Sprintf("ws://%s/web_push", *bindAddress))
+	h, err := buildHandler(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
-	http.Handle("/deploy", auth.Authenticate(dph))
-	http.Handle("/web_push", websocket.Handler(hub.AcceptConnection))
+	w := io.WriteCloser(os.Stdout)
+	if *requestLog != "-" {
+		w, err = os.OpenFile(*requestLog, os.O_APPEND|os.O_CREATE, 0644)
+		if err != nil {
+			log.Fatalf("Cannot open request log %s: %v", *requestLog, err)
+		}
+		defer w.Close()
+	}
+	h = ghandlers.CombinedLoggingHandler(w, h)
 
-	dlh := DeployLogHandler{assets: assets}
-	http.Handle("/deployLog/", auth.AuthenticateFunc(extractDeployLogHandler(ac, ecl, dlh.ServeHTTP)))
-	http.Handle("/output/", auth.AuthenticateFunc(extractOutputHandler(DeployOutputHandler)))
-
-	pch := ProjCommitsHandler{ac: ac, gcl: gcl, ecl: ecl}
-	http.Handle("/commits/", auth.AuthenticateFunc(extractCommitHandler(pch.ServeHTTP)))
-	http.Handle("/deploy_handler", auth.Authenticate(DeployHandler{ecl: ecl, hub: hub}))
-	http.Handle("/lock", auth.Authenticate(lock.NewLock(ecl)))
-	http.Handle("/unlock", auth.Authenticate(lock.NewUnlock(ecl)))
-	http.Handle("/comment", auth.Authenticate(comment.New(ecl)))
-	http.HandleFunc("/auth/github/login", auth.LoginHandler)
-	http.HandleFunc("/auth/github/callback", auth.CallbackHandler)
 	fmt.Printf("Running on %s\n", *bindAddress)
-	log.Fatal(http.ListenAndServe(*bindAddress, nil))
+	s := &http.Server{
+		Addr:    *bindAddress,
+		Handler: h,
+	}
+	if err := s.ListenAndServe(); err != nil {
+		log.Fatal(err)
+	}
 }

@@ -27,6 +27,10 @@
 			"Rev": "215affda49addc4c8ef7e2534915df2c8c35c6cd"
 		},
 		{
+			"ImportPath": "github.com/gorilla/handlers",
+			"Rev": "ea0dca62d89449eb03c48bd8fdb9b304493f9e3d"
+		},
+		{
 			"ImportPath": "github.com/gorilla/securecookie",
 			"Rev": "68004d2ba3cbc80d3a9949ea431b5c9f22ee8707"
 		},
