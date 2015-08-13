@@ -1,10 +1,14 @@
 package githubtest
 
 import (
+	"fmt"
+
 	githublib "github.com/gengo/goship/lib/github"
 	"github.com/google/go-github/github"
 )
 
+// stub is a stub implementation of githublib.Client
+// TODO(yugui) Accept stub values as struct fields but not hard-code them
 type stub struct{}
 
 func (s stub) ListTeams(owner string, repo string, opt *github.ListOptions) ([]github.Team, *github.Response, error) {
@@ -20,6 +24,10 @@ func (s stub) ListTeams(owner string, repo string, opt *github.ListOptions) ([]g
 		return []github.Team{a, b}, nil, nil
 	}
 	return []github.Team{}, nil, nil
+}
+
+func (s stub) ListCommits(owner, repo string, opts *github.CommitsListOptions) ([]github.RepositoryCommit, *github.Response, error) {
+	return nil, nil, fmt.Errorf("not implemented")
 }
 
 func (s stub) IsTeamMember(team int, user string) (bool, *github.Response, error) {

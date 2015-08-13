@@ -9,6 +9,7 @@ import (
 // It provides access to a subset of github APIs.
 type Client interface {
 	ListTeams(string, string, *github.ListOptions) ([]github.Team, *github.Response, error)
+	ListCommits(owner, repo string, opts *github.CommitsListOptions) ([]github.RepositoryCommit, *github.Response, error)
 	IsTeamMember(int, string) (bool, *github.Response, error)
 	IsCollaborator(string, string, string) (bool, *github.Response, error)
 }
@@ -33,6 +34,10 @@ func NewClient(token string) Client {
 // ListTeams exists in both organizations and repositories so we need to alias both functions
 func (c prodClient) ListTeams(owner string, repo string, opt *github.ListOptions) ([]github.Team, *github.Response, error) {
 	return c.repo.ListTeams(owner, repo, opt)
+}
+
+func (c prodClient) ListCommits(owner, repo string, opt *github.CommitsListOptions) ([]github.RepositoryCommit, *github.Response, error) {
+	return c.repo.ListCommits(owner, repo, opt)
 }
 
 func (c prodClient) IsTeamMember(team int, user string) (bool, *github.Response, error) {

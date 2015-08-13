@@ -24,6 +24,7 @@ import (
 	"github.com/coreos/go-etcd/etcd"
 	goship "github.com/gengo/goship/lib"
 	"github.com/gengo/goship/lib/auth"
+	githublib "github.com/gengo/goship/lib/github"
 	"github.com/gengo/goship/lib/notification"
 	helpers "github.com/gengo/goship/lib/view-helpers"
 	_ "github.com/gengo/goship/plugins"
@@ -237,8 +238,14 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, fullEnv string, en
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Javascript": js, "Stylesheet": css, "Deployments": d, "User": u, "Env": fullEnv, "Environment": environment, "ProjectName": projectName})
 }
 
-func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string) {
-	c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
+type ProjCommitsHandler struct {
+	ac  accessControl
+	gcl githublib.Client
+	ecl *etcd.Client
+}
+
+func (h ProjCommitsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, projName string) {
+	c, err := goship.ParseETCD(h.ecl)
 	if err != nil {
 		log.Println("ERROR: Parsing etc ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -257,8 +264,8 @@ func ProjCommitsHandler(w http.ResponseWriter, r *http.Request, projName string)
 		return
 	}
 	// Remove projects that the user is not a collaborator on...
-	fp := removeUnauthorizedProjects([]goship.Project{*proj}, r, u)
-	p, err := retrieveCommits(r, fp[0], c.DeployUser)
+	fp := readableProjects(h.ac, []goship.Project{*proj}, u)
+	p, err := retrieveCommits(h.gcl, h.ac, r, fp[0], c.DeployUser)
 	if err != nil {
 		log.Println("ERROR: Retrieving Commits ", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -506,8 +513,13 @@ func (slice ByName) Less(i, j int) bool { return slice[i].Name < slice[j].Name }
 func (slice ByName) Swap(i, j int)      { slice[i], slice[j] = slice[j], slice[i] }
 
 // HomeHandler is the main home screen
-func HomeHandler(w http.ResponseWriter, r *http.Request) {
-	c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
+type HomeHandler struct {
+	ac  accessControl
+	ecl *etcd.Client
+}
+
+func (h HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	c, err := goship.ParseETCD(h.ecl)
 	if err != nil {
 		log.Printf("Failed to Parse to ETCD data %s", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -522,7 +534,7 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Failed to parse template: %s", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-	c.Projects = removeUnauthorizedProjects(c.Projects, r, u)
+	c.Projects = readableProjects(h.ac, c.Projects, u)
 
 	sort.Sort(ByName(c.Projects))
 
@@ -555,14 +567,14 @@ func getAssetsTemplates() (js, css template.HTML) {
 
 var validPathWithEnv = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
 
-func extractDeployLogHandler(fn func(http.ResponseWriter, *http.Request, string, goship.Environment, string)) http.HandlerFunc {
+func extractDeployLogHandler(ac accessControl, ecl *etcd.Client, fn func(http.ResponseWriter, *http.Request, string, goship.Environment, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		m := validPathWithEnv.FindStringSubmatch(r.URL.Path)
 		if m == nil {
 			http.NotFound(w, r)
 			return
 		}
-		c, err := goship.ParseETCD(etcd.NewClient([]string{*ETCDServer}))
+		c, err := goship.ParseETCD(ecl)
 		if err != nil {
 			log.Println("ERROR: ", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -574,7 +586,7 @@ func extractDeployLogHandler(fn func(http.ResponseWriter, *http.Request, string,
 			log.Println("Failed to get a user while deploying in Auth Mode! ")
 			http.Error(w, err.Error(), http.StatusUnauthorized)
 		}
-		c.Projects = removeUnauthorizedProjects(c.Projects, r, u)
+		c.Projects = readableProjects(ac, c.Projects, u)
 		// get project name and env from url
 		a := strings.Split(m[2], "-")
 		l := len(a)
@@ -619,79 +631,56 @@ func extractOutputHandler(fn func(http.ResponseWriter, *http.Request, string, st
 	}
 }
 
-// remove projects where user is not a collaborator
-func removeUnauthorizedProjects(cp []goship.Project, r *http.Request, u auth.User) (fp []goship.Project) {
-	if !auth.Enabled() {
-		return cp
-	}
+const (
+	gitHubAPITokenEnvVar = "GITHUB_API_TOKEN"
+)
 
-	for _, p := range cp {
-		a := isCollaborator(p.RepoOwner, p.RepoName, u.Name)
-		if a == true {
-			fp = append(fp, p)
-		}
+func newGithubClient() (githublib.Client, error) {
+	gt := os.Getenv(gitHubAPITokenEnvVar)
+	if gt == "" {
+		return nil, fmt.Errorf("environment variable %s not defined", gitHubAPITokenEnvVar)
 	}
-	return fp
-}
-
-//  set projects to lock where user is only in a pull only repo and append a comment
-func filterProject(p goship.Project, r *http.Request, u auth.User) goship.Project {
-	if !auth.Enabled() {
-		return p
-	}
-
-	g := newGithubClient()
-	for i, e := range p.Environments {
-		// If the repo isn't already locked.. lock it if the user doesnt have permission
-		// and add to the comments
-		if e.IsLocked {
-			if p.Environments[i].Comment != "" {
-				p.Environments[i].Comment = p.Environments[i].Comment + " | "
-			}
-			p.Environments[i].Comment = p.Environments[i].Comment + "repo is locked."
-			continue
-		}
-
-		lock, err := userHasDeployPermission(g, p.RepoOwner, p.RepoName, u.Name)
-		if err != nil {
-			log.Printf("Error getting Lock Permission: Locking anyway for safety %s", err)
-		}
-		p.Environments[i].IsLocked = !lock
-		// Add a line break if there is already a comment
-		if p.Environments[i].Comment != "" {
-			p.Environments[i].Comment = p.Environments[i].Comment + " | "
-		}
-		if !lock {
-			p.Environments[i].Comment = p.Environments[i].Comment + "you do not have permission to deploy "
-		}
-	}
-	return p
+	return githublib.NewClient(gt), nil
 }
 
 func main() {
 	flag.Parse()
+	log.Printf("Starting Goship...")
+
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	auth.Initialize(auth.User{Name: *defaultUser, Avatar: *defaultAvatar}, []byte(*cookieSessionHash))
 
-	log.Printf("Starting Goship...")
+	gcl, err := newGithubClient()
+	if err != nil {
+		log.Panicf("Failed to build github client: %v", err)
+	}
+
+	ac := accessControl(nullAccessControl{})
+	if auth.Enabled() {
+		ac = githubAccessControl{gcl: gcl}
+	}
+
 	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
 		log.Fatal("could not create data dir: ", err)
 	}
+
 	hub := notification.NewHub(ctx)
 	ecl := etcd.NewClient([]string{*ETCDServer})
 
-	http.Handle("/", auth.AuthenticateFunc(HomeHandler))
+	http.Handle("/", auth.Authenticate(HomeHandler{ac: ac, ecl: ecl}))
 	http.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, r.URL.Path[1:])
 	})
 	http.Handle("/web_push", websocket.Handler(hub.AcceptConnection))
 	http.Handle("/deploy", auth.AuthenticateFunc(DeployPage))
-	http.Handle("/deployLog/", auth.AuthenticateFunc(extractDeployLogHandler(DeployLogHandler)))
+	http.Handle("/deployLog/", auth.AuthenticateFunc(extractDeployLogHandler(ac, ecl, DeployLogHandler)))
 	http.Handle("/output/", auth.AuthenticateFunc(extractOutputHandler(DeployOutputHandler)))
-	http.Handle("/commits/", auth.AuthenticateFunc(extractCommitHandler(ProjCommitsHandler)))
+
+	pch := ProjCommitsHandler{ac: ac, gcl: gcl, ecl: ecl}
+	http.Handle("/commits/", auth.AuthenticateFunc(extractCommitHandler(pch.ServeHTTP)))
 	http.Handle("/deploy_handler", auth.Authenticate(DeployHandler{ecl: ecl, hub: hub}))
 	http.Handle("/lock", auth.AuthenticateFunc(LockHandler))
 	http.Handle("/unlock", auth.AuthenticateFunc(UnLockHandler))
