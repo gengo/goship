@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -20,6 +19,7 @@ import (
 	goship "github.com/gengo/goship/lib"
 	"github.com/gengo/goship/lib/auth"
 	"github.com/gengo/goship/lib/notification"
+	"github.com/golang/glog"
 	"github.com/google/go-github/github"
 	"golang.org/x/oauth2"
 )
@@ -32,13 +32,13 @@ type DeployHandler struct {
 func (h DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c, err := goship.ParseETCD(h.ecl)
 	if err != nil {
-		log.Println("ERROR: ", err)
+		glog.Errorf("Failed to fetch latest configuration: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	u, err := auth.CurrentUser(r)
 	if err != nil {
-		log.Println("Failed to get a User! ")
+		glog.Errorf("Failed to fetch current user: %v", err)
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
@@ -52,7 +52,7 @@ func (h DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if c.Notify != "" {
 		err := startNotify(c.Notify, user, p, env)
 		if err != nil {
-			log.Println("Error: ", err.Error())
+			glog.Errorf("Failed to notify start-deployment event of %s (%s): %v", p, env, err)
 		}
 	}
 
@@ -60,25 +60,25 @@ func (h DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	success := true
 	command, err := getDeployCommand(c.Projects, p, env)
 	if err != nil {
-		log.Println("ERROR: ", err)
+		glog.Errorf("Failed to fetch deploy command: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	cmd := exec.Command(command[0], command[1:]...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		log.Println("ERROR: could not get stdout of command:" + err.Error())
+		glog.Errorf("Could not get stdout of command: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		log.Println("ERROR: could not get stderr of command:" + err.Error())
+		glog.Errorf("Could not get stderr of command: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if err = cmd.Start(); err != nil {
-		log.Println("ERROR: could not run deployment command: " + err.Error())
+		glog.Errorf("Could not run deployment command: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -92,27 +92,27 @@ func (h DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err = cmd.Wait()
 	if err != nil {
 		success = false
-		log.Println("Deployment failed: " + err.Error())
+		glog.Errorf("Deployment failed: %v", err)
 	}
 	if c.Notify != "" {
 		err = endNotify(c.Notify, p, env, success)
 		if err != nil {
-			log.Println("Error: ", err.Error())
+			glog.Errorf("Failed to notify start-deployment event of %s (%s): %v", p, env, err)
 		}
 	}
 
 	if (c.Pivotal.Token != "") && (c.Pivotal.Project != "") && success {
 		err := goship.PostToPivotal(c.Pivotal, env, owner, name, toRevision, fromRevision)
 		if err != nil {
-			log.Println("ERROR: ", err)
+			glog.Errorf("Failed to post to pivotal: %v", err)
 		} else {
-			log.Printf("Pivotal Info: %s %s", c.Pivotal.Token, c.Pivotal.Project)
+			glog.Infof("Pivotal Info: %s %s", c.Pivotal.Token, c.Pivotal.Project)
 		}
 	}
 
 	err = insertEntry(fmt.Sprintf("%s-%s", p, env), owner, name, fromRevision, toRevision, user, success, deployTime)
 	if err != nil {
-		log.Println("ERROR: ", err)
+		glog.Errorf("Failed to insert an entry: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -129,14 +129,14 @@ func (h DeployHandler) sendOutput(wg *sync.WaitGroup, scanner *bufio.Scanner, p,
 		}{p, e, stripANSICodes(strings.TrimSpace(t))}
 		cmdOutput, err := json.Marshal(msg)
 		if err != nil {
-			log.Println("ERROR marshalling JSON: ", err.Error())
+			glog.Errorf("Failed to marshal output into JSON: %v", err)
 		}
 		h.hub.Broadcast(string(cmdOutput))
 
 		go appendDeployOutput(fmt.Sprintf("%s-%s", p, e), t, deployTime)
 	}
 	if err := scanner.Err(); err != nil {
-		log.Println("Error reading command output: " + err.Error())
+		glog.Errorf("Failed to scan deploy output: %v", err)
 		return
 	}
 }
@@ -226,7 +226,7 @@ func insertEntry(env, owner, repoName, fromRevision, toRevision, user string, su
 	c := github.NewClient(oauth2.NewClient(oauth2.NoContext, ts))
 	com, _, err := c.Git.GetCommit(owner, repoName, toRevision)
 	if err != nil {
-		log.Println("Error getting commit msg: ", err)
+		glog.Errorf("Failed to get commit %s (%s/%s): %v", toRevision, owner, repoName, err)
 	}
 	var m string
 	if com.Message != nil {

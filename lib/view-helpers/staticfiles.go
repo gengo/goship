@@ -3,9 +3,10 @@ package viewhelpers
 import (
 	"fmt"
 	"html/template"
-	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/golang/glog"
 )
 
 const (
@@ -41,7 +42,7 @@ func getFilePaths(root string, extension string) ([]string, error) {
 func getJavascriptFiles(folderpath string) []string {
 	fps, err := getFilePaths(folderpath, javascriptExt)
 	if err != nil {
-		log.Printf("Failed to get all javascript file paths: %s", err)
+		glog.Errorf("Failed to get all javascript file paths: %v", err)
 		return nil
 	}
 	return fps
@@ -50,7 +51,7 @@ func getJavascriptFiles(folderpath string) []string {
 func getStylesheetFiles(folderpath string) []string {
 	fps, err := getFilePaths(folderpath, stylesheetExt)
 	if err != nil {
-		log.Printf("Failed to get all Stylesheet file paths: %s", err)
+		glog.Errorf("Failed to get all Stylesheet file paths: %v", err)
 		return nil
 	}
 	return fps
@@ -78,7 +79,7 @@ func (a Assets) Templates() (js, css template.HTML) {
 	sfp, err := filepath.Abs(a.dir)
 	if err != nil {
 		var tmpl = template.HTML("")
-		log.Printf("Failed to locate static file path: %s", err)
+		glog.Errorf("Failed to locate static file path: %v", err)
 		return tmpl, tmpl
 	}
 	js = makeJavascriptTemplate(filepath.Join(sfp, "js"))

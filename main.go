@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"regexp"
@@ -21,6 +20,7 @@ import (
 	"github.com/gengo/goship/lib/notification"
 	helpers "github.com/gengo/goship/lib/view-helpers"
 	_ "github.com/gengo/goship/plugins"
+	"github.com/golang/glog"
 	ghandlers "github.com/gorilla/handlers"
 	"golang.org/x/net/context"
 	"golang.org/x/net/websocket"
@@ -51,14 +51,14 @@ func extractDeployLogHandler(ac acl.AccessControl, ecl *etcd.Client, fn func(htt
 		}
 		c, err := goship.ParseETCD(ecl)
 		if err != nil {
-			log.Println("ERROR: ", err)
+			glog.Errorf("Failed to get current configuration: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		// auth check for user
 		u, err := auth.CurrentUser(r)
 		if err != nil {
-			log.Println("Failed to get a user while deploying in Auth Mode! ")
+			glog.Error("Failed to get a user while deploying in Auth Mode: %v", err)
 			http.Error(w, err.Error(), http.StatusUnauthorized)
 		}
 		c.Projects = acl.ReadableProjects(ac, c.Projects, u)
@@ -74,7 +74,7 @@ func extractDeployLogHandler(ac acl.AccessControl, ecl *etcd.Client, fn func(htt
 		}
 		e, err := goship.EnvironmentFromName(c.Projects, projectName, environmentName)
 		if err != nil {
-			log.Println("ERROR: Can't get environment from name", err)
+			glog.Errorf("Can't get environment from name: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -120,7 +120,7 @@ func newGithubClient() (githublib.Client, error) {
 func buildHandler(ctx context.Context) (http.Handler, error) {
 	gcl, err := newGithubClient()
 	if err != nil {
-		log.Printf("Failed to build github client: %v", err)
+		glog.Errorf("Failed to build github client: %v", err)
 		return nil, err
 	}
 
@@ -130,7 +130,7 @@ func buildHandler(ctx context.Context) (http.Handler, error) {
 	}
 
 	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
-		log.Printf("could not create data dir: ", err)
+		glog.Errorf("could not create data dir: %v", err)
 		return nil, err
 	}
 
@@ -147,7 +147,7 @@ func buildHandler(ctx context.Context) (http.Handler, error) {
 
 	dph, err := deploypage.New(assets, fmt.Sprintf("ws://%s/web_push", *bindAddress))
 	if err != nil {
-		log.Printf("Failed to build deploy page handler: %v", err)
+		glog.Errorf("Failed to build deploy page handler: %v", err)
 		return nil, err
 	}
 	mux.Handle("/deploy", auth.Authenticate(dph))
@@ -171,7 +171,7 @@ func buildHandler(ctx context.Context) (http.Handler, error) {
 
 func main() {
 	flag.Parse()
-	log.Printf("Starting Goship...")
+	glog.Infof("Starting Goship...")
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
@@ -181,13 +181,13 @@ func main() {
 
 	h, err := buildHandler(ctx)
 	if err != nil {
-		log.Fatal(err)
+		glog.Fatal(err)
 	}
 	w := io.WriteCloser(os.Stdout)
 	if *requestLog != "-" {
 		w, err = os.OpenFile(*requestLog, os.O_APPEND|os.O_CREATE, 0644)
 		if err != nil {
-			log.Fatalf("Cannot open request log %s: %v", *requestLog, err)
+			glog.Fatalf("Cannot open request log %s: %v", *requestLog, err)
 		}
 		defer w.Close()
 	}
@@ -199,6 +199,6 @@ func main() {
 		Handler: h,
 	}
 	if err := s.ListenAndServe(); err != nil {
-		log.Fatal(err)
+		glog.Fatal(err)
 	}
 }

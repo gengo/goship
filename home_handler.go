@@ -2,7 +2,6 @@ package main
 
 import (
 	"html/template"
-	"log"
 	"net/http"
 	"os"
 	"sort"
@@ -13,6 +12,7 @@ import (
 	"github.com/gengo/goship/lib/auth"
 	helpers "github.com/gengo/goship/lib/view-helpers"
 	"github.com/gengo/goship/plugins/plugin"
+	"github.com/golang/glog"
 )
 
 // HomeHandler is the main home screen
@@ -25,19 +25,19 @@ type HomeHandler struct {
 func (h HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c, err := goship.ParseETCD(h.ecl)
 	if err != nil {
-		log.Printf("Failed to Parse to ETCD data %s", err)
+		glog.Errorf("Failed to Parse to ETCD data %s", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	u, err := auth.CurrentUser(r)
 	if err != nil {
-		log.Println("Failed to get User! ")
+		glog.Errorf("Failed to get current user: %v", err)
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
-		log.Printf("Failed to parse template: %s", err)
+		glog.Errorf("Failed to parse template: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -49,7 +49,7 @@ func (h HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	for _, pl := range plugin.Plugins {
 		err := pl.Apply(c)
 		if err != nil {
-			log.Printf("Failed to apply plugin: %s", err)
+			glog.Errorf("Failed to apply plugin: %s", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

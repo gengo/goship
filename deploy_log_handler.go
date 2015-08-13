@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
-	"log"
 	"math"
 	"net/http"
 	"path"
@@ -15,6 +14,7 @@ import (
 	goship "github.com/gengo/goship/lib"
 	"github.com/gengo/goship/lib/auth"
 	helpers "github.com/gengo/goship/lib/view-helpers"
+	"github.com/golang/glog"
 )
 
 // DeployLogHandler shows data about the environment including the deploy log.
@@ -25,17 +25,17 @@ type DeployLogHandler struct {
 func (h DeployLogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, fullEnv string, environment goship.Environment, projectName string) {
 	u, err := auth.CurrentUser(r)
 	if err != nil {
-		log.Println("Failed to get User! ")
+		glog.Errorf("Failed to get current user: %v", err)
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
 	d, err := readEntries(fullEnv)
 	if err != nil {
-		log.Println("Error: ", err)
+		glog.Errorf("Failed to read entries: %v", err)
 	}
 	t, err := template.New("deploy_log.html").ParseFiles("templates/deploy_log.html", "templates/base.html")
 	if err != nil {
-		log.Println("ERROR: ", err)
+		glog.Errorf("Failed to parse templates: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -91,7 +91,7 @@ func readEntries(env string) ([]DeployLogEntry, error) {
 		return d, err
 	}
 	if len(b) == 0 {
-		log.Printf("No deploy logs found for: %s", env)
+		glog.Errorf("No deploy logs found for: %s", env)
 		return []DeployLogEntry{}, nil
 	}
 	err = json.Unmarshal(b, &d)

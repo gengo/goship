@@ -6,13 +6,13 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gengo/goship/lib"
+	"github.com/golang/glog"
 	"github.com/kylelemons/go-gypsy/yaml"
 )
 
@@ -45,14 +45,14 @@ type config struct {
 
 func checkMissingConf(s, v, f string) {
 	if len(s) < 1 {
-		log.Fatalf("Warning: Missing %s in config file [%s]", v, f)
+		glog.Fatalf("Warning: Missing %s in config file [%s]", v, f)
 	}
 }
 
 func parseConfig() (c config) {
 	config, err := yaml.ReadFile(*configFile)
 	if err != nil {
-		log.Fatalf("Fatal: Can't parse conf file %s", *configFile)
+		glog.Fatalf("Fatal: Can't parse conf file %s", *configFile)
 	}
 	c.chefRepo, err = config.Get("chef_repo")
 	checkMissingConf(c.chefRepo, "chef_repo", *configFile)
@@ -74,7 +74,7 @@ func parseConfig() (c config) {
 // Update ChefRepo to ensure the latest chef cookbooks are pulled before deploying.
 // Current implementation is Gengo specified. Please re-implement this function according to your environment
 func updateChefRepo(conf config) {
-	log.Println("Updating devops-tools")
+	glog.Infof("Updating devops-tools")
 	os.Setenv("GIT_SSH", "/tmp/private_code/wrap-ssh4git.sh")
 	os.Setenv("EMAIL", "devops@gengo.com")
 	os.Setenv("NAME", "gengodev")
@@ -82,14 +82,14 @@ func updateChefRepo(conf config) {
 	gitPullCmd := "/usr/bin/git --git-dir=" + conf.chefRepo + "/.git --work-tree=" + conf.chefRepo + " pull origin " + *deployToolBranch
 	_, err := execCmd(gitPullCmd, conf)
 	if err != nil {
-		log.Fatal("ERROR: Failed to pull: ", err)
+		glog.Fatal("Failed to pull: ", err)
 	}
 	gitCheckoutCmd := "/usr/bin/git --git-dir=" + conf.chefRepo + "/.git --work-tree=" + conf.chefRepo + " checkout " + *deployToolBranch
 	_, err = execCmd(gitCheckoutCmd, conf)
 	if err != nil {
-		log.Fatal("ERROR: Failed to checkout: ", err)
+		glog.Fatal("Failed to checkout: ", err)
 	}
-	log.Println("Updated devops-tools to the latest " + *deployToolBranch + " branch")
+	glog.Infof("Updated devops-tools to the latest %s branch", *deployToolBranch)
 }
 
 func execCmd(icmd string, conf config) (output string, err error) {
@@ -102,14 +102,14 @@ func execCmd(icmd string, conf config) (output string, err error) {
 	cmd := exec.Command(head, parts...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		log.Fatal(err)
+		glog.Fatal(err)
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		log.Fatal(err)
+		glog.Fatal(err)
 	}
 	if err := cmd.Start(); err != nil {
-		log.Fatal(err)
+		glog.Fatal(err)
 	}
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
@@ -119,17 +119,17 @@ func execCmd(icmd string, conf config) (output string, err error) {
 
 	}
 	if err := scanner.Err(); err != nil {
-		log.Printf("Error reading standard output stream: %s", err)
+		glog.Errorf("Error reading standard output stream: %s", err)
 	}
 	scanner = bufio.NewScanner(stderr)
 	for scanner.Scan() {
-		log.Println(scanner.Text())
+		glog.Infof(scanner.Text())
 	}
 	if err := scanner.Err(); err != nil {
-		log.Printf("Error reading standard error stream: %s", err)
+		glog.Errorf("Error reading standard error stream: %s", err)
 	}
 	if err := cmd.Wait(); err != nil {
-		log.Fatalf("Error waiting for Chef to complete %s", err)
+		glog.Fatalf("Error waiting for Chef to complete %s", err)
 	}
 	return output, err
 }
@@ -143,15 +143,15 @@ func main() {
 	if *pullOnly == false {
 		c, err := goship.ParseETCD(etcd.NewClient([]string{conf.etcdServer}))
 		if err != nil {
-			log.Fatalf("Error parsing ETCD: %s", err)
+			glog.Fatalf("Error parsing ETCD: %s", err)
 		}
 		projectEnv, err := goship.EnvironmentFromName(c.Projects, *deployProj, *deployEnv)
 		if err != nil {
-			log.Fatalf("Error getting project %s %s %s", *deployProj, *deployEnv, err)
+			glog.Fatalf("Error getting project %s %s %s", *deployProj, *deployEnv, err)
 		}
-		log.Printf("Deploying project name: %s environment Name: %s", *deployEnv, projectEnv.Name)
+		glog.Infof("Deploying project name: %s environment Name: %s", *deployEnv, projectEnv.Name)
 		servers := projectEnv.Hosts
-		var d,e string
+		var d, e string
 		if *chefRunlist != "" {
 			e = " -o \"" + *chefRunlist + "\" "
 		}
@@ -161,11 +161,11 @@ func main() {
 			} else {
 				d = "knife solo cook -c " + conf.knifePath + " -i " + conf.pemKey + " --no-host-key-verify " + e + conf.deployUser + "@" + h.URI
 			}
-			log.Printf("Deploying to server: %s", h.URI)
-			log.Printf("Preparing Knife command: %s", d)
+			glog.Infof("Deploying to server: %s", h.URI)
+			glog.Infof("Preparing Knife command: %s", d)
 			_, err := execCmd(d, conf)
 			if err != nil {
-				log.Fatalf("Error Executing command %s", err)
+				glog.Fatalf("Error Executing command %s", err)
 			}
 		}
 	}

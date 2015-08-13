@@ -3,10 +3,10 @@ package auth
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 
+	"github.com/golang/glog"
 	"github.com/gorilla/sessions"
 	"github.com/stretchr/gomniauth"
 	githubOauth "github.com/stretchr/gomniauth/providers/github"
@@ -45,7 +45,7 @@ func Initialize(anynomous User, cookieSecret []byte) {
 	defaultUser = anynomous
 
 	if cred.githubRandomHashKey == "" || cred.githubOmniauthID == "" || cred.githubOmniauthKey == "" || githubCallbackBase == "" {
-		log.Printf(
+		glog.Warningf(
 			"Missing one or more Gomniauth Environment Variables: Running with with limited functionality! \n GITHUB_RANDOM_HASH_KEY [%s] \n GITHUB_OMNI_AUTH_ID [%s] \n GITHUB_OMNI_AUTH_KEY [%s] \n GITHUB_CALLBACK_URL [%s]",
 			cred.githubRandomHashKey,
 			cred.githubOmniauthID,
@@ -84,7 +84,8 @@ func CurrentUser(r *http.Request) (User, error) {
 	}
 	session, err := store.Get(r, sessionName)
 	if err != nil {
-		return User{}, errors.New("cannot fetch current session")
+		glog.Errorf("Failed to fetch current session: %v", err)
+		return User{}, err
 	}
 	name, ok := session.Values["userName"].(string)
 	if !ok {

@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 
 	"github.com/coreos/go-etcd/etcd"
@@ -10,6 +9,7 @@ import (
 	"github.com/gengo/goship/lib/acl"
 	"github.com/gengo/goship/lib/auth"
 	githublib "github.com/gengo/goship/lib/github"
+	"github.com/golang/glog"
 )
 
 type ProjCommitsHandler struct {
@@ -21,19 +21,19 @@ type ProjCommitsHandler struct {
 func (h ProjCommitsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, projName string) {
 	c, err := goship.ParseETCD(h.ecl)
 	if err != nil {
-		log.Println("ERROR: Parsing etc ", err)
+		glog.Errorf("Parsing etc: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	u, err := auth.CurrentUser(r)
 	if err != nil {
-		log.Println("ERROR:  Getting User", err)
+		glog.Errorf("Failed to get current user: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	proj, err := goship.ProjectFromName(c.Projects, projName)
 	if err != nil {
-		log.Println("ERROR:  Getting Project from name", err)
+		glog.Errorf("Failed to get project from name: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -41,20 +41,20 @@ func (h ProjCommitsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, pr
 	fp := acl.ReadableProjects(h.ac, []goship.Project{*proj}, u)
 	p, err := retrieveCommits(h.gcl, h.ac, r, fp[0], c.DeployUser)
 	if err != nil {
-		log.Println("ERROR: Retrieving Commits ", err)
+		glog.Errorf("Failed to retrieve commits: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	j, err := json.Marshal(p)
 	if err != nil {
-		log.Println("ERROR: Marshalling Retrieving Commits ", err)
+		glog.Errorf("Failed to marshal response: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, err = w.Write(j)
 	if err != nil {
-		log.Println("ERROR: ", err)
+		glog.Errorf("Failed to send response: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
