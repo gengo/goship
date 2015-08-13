@@ -1,14 +1,12 @@
 package main
 
 import (
-	"net/http"
 	"reflect"
 	"testing"
 	"time"
 
 	"github.com/coreos/go-etcd/etcd"
 	goship "github.com/gengo/goship/lib"
-	"github.com/gengo/goship/lib/auth"
 )
 
 func TestStripANSICodes(t *testing.T) {
@@ -145,24 +143,26 @@ func TestCleanProjects(t *testing.T) {
 	// Tenatively disabled because there's no way to safely test the target function
 	// TODO(yugui) recover this test once we make the github client mockable.
 	return
-	req, _ := http.NewRequest("GET", "", nil)
+	/*
+		req, _ := http.NewRequest("GET", "", nil)
 
-	p, err := goship.ParseETCD(&MockEtcdClient{})
-	if err != nil {
-		t.Fatalf("Can't parse %s %s", t, err)
-	}
-	u := auth.User{
-		Name: "bob",
-	}
+		p, err := goship.ParseETCD(&MockEtcdClient{})
+		if err != nil {
+			t.Fatalf("Can't parse %s %s", t, err)
+		}
+		u := auth.User{
+			Name: "bob",
+		}
 
-	got := len(p.Projects)
-	if got < 1 {
-		t.Errorf("clean projects test expects projects to have at least one project [%d]", got)
-	}
-	got = len(removeUnauthorizedProjects(p.Projects, req, u))
-	if got != 0 {
-		t.Errorf("clean projects failed to clean project for unauth user.. [%d]", got)
-	}
+		got := len(p.Projects)
+		if got < 1 {
+			t.Errorf("clean projects test expects projects to have at least one project [%d]", got)
+		}
+		got = len(removeUnauthorizedProjects(p.Projects, req, u))
+		if got != 0 {
+			t.Errorf("clean projects failed to clean project for unauth user.. [%d]", got)
+		}
+	*/
 }
 
 func TestGetEnvironmentFromName(t *testing.T) {

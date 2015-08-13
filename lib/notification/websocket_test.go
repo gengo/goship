@@ -1,6 +1,7 @@
 package notification
 
 import (
+	"fmt"
 	"io"
 	"net/http/httptest"
 	"net/url"
@@ -36,6 +37,19 @@ func withStubServer(t *testing.T, h *Hub, f func(s *stubServer)) {
 	f(&stubServer{location: *u})
 }
 
+func waitForConnectionEstablished(h *Hub, n int) error {
+	if len(h.connections) == n {
+		return nil
+	}
+	for i := 0; i < 10; i++ {
+		time.Sleep(3 * time.Millisecond)
+		if len(h.connections) == n {
+			return nil
+		}
+	}
+	return fmt.Errorf("timed out while waiting for %d connection(s) established", n)
+}
+
 func TestBroadcast(t *testing.T) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
@@ -64,6 +78,10 @@ func TestBroadcast(t *testing.T) {
 			}
 		}()
 
+		if err := waitForConnectionEstablished(h, 1); err != nil {
+			t.Errorf("waitForConnectionEstablished(h, 1) failed with %v; want success", err)
+			return
+		}
 		for _, msg := range msgs {
 			h.Broadcast(msg)
 		}
@@ -113,14 +131,19 @@ func TestBroadcastWithMultipleConnections(t *testing.T) {
 			done = append(done, ch)
 		}
 
+		if err := waitForConnectionEstablished(h, 5); err != nil {
+			t.Errorf("waitForConnectionEstablished(h, 5) failed with %v; want success", err)
+			return
+		}
+
 		for _, msg := range msgs {
 			h.Broadcast(msg)
 		}
 
-		for _, ch := range done {
+		for i, ch := range done {
 			select {
 			case <-time.NewTimer(100 * time.Millisecond).C:
-				t.Errorf("ch timed out; want closed")
+				t.Errorf("ch timed out; want closed; i=%d", i)
 			case <-ch:
 			}
 		}
@@ -161,6 +184,10 @@ func TestContextCancel(t *testing.T) {
 			}
 		}()
 
+		if err := waitForConnectionEstablished(h, 1); err != nil {
+			t.Errorf("waitForConnectionEstablished(h, 1) failed with %v; want success", err)
+			return
+		}
 		go func() {
 			for {
 				select {
@@ -190,8 +217,60 @@ func TestBroadCastWithStuckClient(t *testing.T) {
 		ws := s.Dial(t)
 		defer ws.Close()
 
+		if err := waitForConnectionEstablished(h, 1); err != nil {
+			t.Errorf("waitForConnectionEstablished(h, 1) failed with %v; want success", err)
+			return
+		}
 		for i := 0; i < 100000; i++ {
 			h.Broadcast("example message")
+		}
+	})
+}
+
+func TestHub(t *testing.T) {
+	ctx := context.Background()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	h := NewHub(ctx)
+	withStubServer(t, h, func(s *stubServer) {
+		r := s.Dial(t)
+		defer r.Close()
+		w := s.Dial(t)
+		defer w.Close()
+
+		msgs := []string{
+			"example 1",
+			"example 2",
+			"example 3",
+		}
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for _, want := range msgs {
+				var msg string
+				if err := websocket.Message.Receive(r, &msg); err != nil {
+					t.Errorf("websocket.Message.Recieve(r, &got) failed with %v; want success", err)
+				}
+				if got := msg; got != want {
+					t.Errorf("msg = %q; want %q", got, want)
+				}
+			}
+		}()
+
+		if err := waitForConnectionEstablished(h, 2); err != nil {
+			t.Errorf("waitForConnectionEstablished(h, 2) failed with %v; want success", err)
+			return
+		}
+		for _, msg := range msgs {
+			if err := websocket.Message.Send(w, msg); err != nil {
+				t.Errorf("websocket.Message.Send(w, %q) failed with %v; want success", msg, err)
+			}
+		}
+
+		select {
+		case <-time.NewTimer(100 * time.Millisecond).C:
+			t.Errorf("ch timed out; want closed")
+		case <-done:
 		}
 	})
 }

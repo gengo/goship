@@ -55,7 +55,7 @@ func TestMakeStylesheetTemplate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get absolute file path of %s. err: %s", tt.currentPath, err)
 		}
-		tmpl := MakeStylesheetTemplate(rootPath)
+		tmpl := makeStylesheetTemplate(rootPath)
 		var expectTmpl = template.HTML(tt.expected)
 		if tmpl != expectTmpl {
 			t.Errorf("Failed to make right HTML template structure for stylesheet. got: %v, want: %v", tmpl, expectTmpl)
@@ -78,7 +78,7 @@ func TestMakeJavascriptTemplate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to get absolute file path of %s. err: %s", tt.currentPath, err)
 		}
-		tmpl := MakeJavascriptTemplate(rootPath)
+		tmpl := makeJavascriptTemplate(rootPath)
 		var expectTmpl = template.HTML(tt.expected)
 		if tmpl != expectTmpl {
 			t.Errorf("Failed to make right HTML template structure for javascript. got: %v, want: %v", tmpl, expectTmpl)
