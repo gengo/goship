@@ -79,7 +79,6 @@ GoShip SSHes into the machines that you list in ETCD and gets the latest revisio
    ```
 
 # Commandline Options
-Available command line flags for the `go run goship.go` command are:
 
 ```
  -b [bind address]             Address to bind (default localhost:8000)
