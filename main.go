@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/coreos/go-etcd/etcd"
+	deploypage "github.com/gengo/goship/handlers/deploy-page"
 	"github.com/gengo/goship/handlers/lock"
 	goship "github.com/gengo/goship/lib"
 	"github.com/gengo/goship/lib/acl"
@@ -145,8 +146,13 @@ func main() {
 	http.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, r.URL.Path[1:])
 	})
+
+	dph, err := deploypage.New(assets, fmt.Sprintf("ws://%s/web_push", *bindAddress))
+	if err != nil {
+		log.Fatal(err)
+	}
+	http.Handle("/deploy", auth.Authenticate(dph))
 	http.Handle("/web_push", websocket.Handler(hub.AcceptConnection))
-	http.Handle("/deploy", auth.Authenticate(DeployPage{assets: assets}))
 
 	dlh := DeployLogHandler{assets: assets}
 	http.Handle("/deployLog/", auth.AuthenticateFunc(extractDeployLogHandler(ac, ecl, dlh.ServeHTTP)))
