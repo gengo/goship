@@ -44,7 +44,17 @@ func (h DeployLogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, full
 	}
 	sort.Sort(ByTime(d))
 	js, css := h.assets.Templates()
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Javascript": js, "Stylesheet": css, "Deployments": d, "User": u, "Env": fullEnv, "Environment": environment, "ProjectName": projectName})
+
+	params := map[string]interface{}{
+		"Javascript":  js,
+		"Stylesheet":  css,
+		"Deployments": d,
+		"User":        u,
+		"Env":         fullEnv,
+		"Environment": environment,
+		"ProjectName": projectName,
+	}
+	helpers.RespondWithTemplate(w, "text/html", t, "base", params)
 }
 
 func formatTime(t time.Time) string {

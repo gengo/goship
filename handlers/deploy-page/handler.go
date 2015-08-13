@@ -55,5 +55,18 @@ func (h deployPage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	js, css := h.assets.Templates()
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Javascript": js, "Stylesheet": css, "Project": p, "Env": env, "User": user, "PushAddresss": h.pushAddr, "RepoOwner": repoOwner, "RepoName": repoName, "ToRevision": toRevision, "FromRevision": fromRevision})
+
+	params := map[string]interface{}{
+		"Javascript":   js,
+		"Stylesheet":   css,
+		"Project":      p,
+		"Env":          env,
+		"User":         user,
+		"PushAddress":  h.pushAddr,
+		"RepoOwner":    repoOwner,
+		"RepoName":     repoName,
+		"ToRevision":   toRevision,
+		"FromRevision": fromRevision,
+	}
+	helpers.RespondWithTemplate(w, "text/html", t, "base", params)
 }

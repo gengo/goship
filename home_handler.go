@@ -51,13 +51,24 @@ func (h HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("Failed to apply plugin: %s", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 	}
 	js, css := h.assets.Templates()
 	gt := os.Getenv(gitHubAPITokenEnvVar)
 	pt := c.Pivotal.Token
 
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Javascript": js, "Stylesheet": css, "Projects": c.Projects, "User": u, "Page": "home", "ConfirmDeployFlag": *confirmDeployFlag, "GithubToken": gt, "PivotalToken": pt})
+	params := map[string]interface{}{
+		"Javascript":        js,
+		"Stylesheet":        css,
+		"Projects":          c.Projects,
+		"User":              u,
+		"Page":              "home",
+		"ConfirmDeployFlag": *confirmDeployFlag,
+		"GithubToken":       gt,
+		"PivotalToken":      pt,
+	}
+	helpers.RespondWithTemplate(w, "text/html", t, "base", params)
 }
 
 // ByName is the interface for sorting projects
