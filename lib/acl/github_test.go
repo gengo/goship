@@ -1,14 +1,15 @@
-package main
+package acl_test
 
 import (
 	"testing"
 
+	"github.com/gengo/goship/lib/acl"
 	"github.com/gengo/goship/lib/github/githubtest"
 )
 
 func TestGithubAuthorizerDeployable(t *testing.T) {
 	g := githubtest.NewStub()
-	auth := githubAccessControl{gcl: g}
+	ac := acl.NewGithub(g)
 	for _, spec := range []struct {
 		owner, repo, user string
 		want              bool
@@ -32,7 +33,7 @@ func TestGithubAuthorizerDeployable(t *testing.T) {
 			want: true,
 		},
 	} {
-		if got, want := auth.deployable(spec.owner, spec.repo, spec.user), spec.want; got != want {
+		if got, want := ac.Deployable(spec.owner, spec.repo, spec.user), spec.want; got != want {
 			t.Errorf("auth.deployable(%q, %q, %q) = %v; want %v", spec.owner, spec.repo, spec.user, got, want)
 		}
 	}

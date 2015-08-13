@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	goship "github.com/gengo/goship/lib"
+	"github.com/gengo/goship/lib/acl"
 	"github.com/gengo/goship/lib/auth"
 	githublib "github.com/gengo/goship/lib/github"
 	"github.com/google/go-github/github"
@@ -93,7 +94,7 @@ func getLatestGitHubCommit(wg *sync.WaitGroup, project goship.Project, environme
 // retrieveCommits fetches the latest deployed commits as well
 // as the latest GitHub commits for a given Project.
 // it will also check if the user has permission to pull.
-func retrieveCommits(gcl githublib.Client, ac accessControl, r *http.Request, project goship.Project, deployUser string) (goship.Project, error) {
+func retrieveCommits(gcl githublib.Client, ac acl.AccessControl, r *http.Request, project goship.Project, deployUser string) (goship.Project, error) {
 	// define a wait group to wait for all goroutines to finish
 	var wg sync.WaitGroup
 	for i, environment := range project.Environments {
@@ -125,7 +126,7 @@ func retrieveCommits(gcl githublib.Client, ac accessControl, r *http.Request, pr
 }
 
 //  set projects to lock where user is only in a pull only repo and append a comment
-func filterProject(ac accessControl, p goship.Project, r *http.Request, u auth.User) goship.Project {
+func filterProject(ac acl.AccessControl, p goship.Project, r *http.Request, u auth.User) goship.Project {
 	for i, e := range p.Environments {
 		// If the repo isn't already locked.. lock it if the user doesnt have permission
 		// and add to the comments
@@ -137,7 +138,7 @@ func filterProject(ac accessControl, p goship.Project, r *http.Request, u auth.U
 			continue
 		}
 
-		locked := !ac.deployable(p.RepoOwner, p.RepoName, u.Name)
+		locked := !ac.Deployable(p.RepoOwner, p.RepoName, u.Name)
 		p.Environments[i].IsLocked = locked
 		// Add a line break if there is already a comment
 		if p.Environments[i].Comment != "" {

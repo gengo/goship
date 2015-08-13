@@ -23,6 +23,7 @@ import (
 
 	"github.com/coreos/go-etcd/etcd"
 	goship "github.com/gengo/goship/lib"
+	"github.com/gengo/goship/lib/acl"
 	"github.com/gengo/goship/lib/auth"
 	githublib "github.com/gengo/goship/lib/github"
 	"github.com/gengo/goship/lib/notification"
@@ -239,7 +240,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, fullEnv string, en
 }
 
 type ProjCommitsHandler struct {
-	ac  accessControl
+	ac  acl.AccessControl
 	gcl githublib.Client
 	ecl *etcd.Client
 }
@@ -264,7 +265,7 @@ func (h ProjCommitsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, pr
 		return
 	}
 	// Remove projects that the user is not a collaborator on...
-	fp := readableProjects(h.ac, []goship.Project{*proj}, u)
+	fp := acl.ReadableProjects(h.ac, []goship.Project{*proj}, u)
 	p, err := retrieveCommits(h.gcl, h.ac, r, fp[0], c.DeployUser)
 	if err != nil {
 		log.Println("ERROR: Retrieving Commits ", err)
@@ -514,7 +515,7 @@ func (slice ByName) Swap(i, j int)      { slice[i], slice[j] = slice[j], slice[i
 
 // HomeHandler is the main home screen
 type HomeHandler struct {
-	ac  accessControl
+	ac  acl.AccessControl
 	ecl *etcd.Client
 }
 
@@ -534,7 +535,7 @@ func (h HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Failed to parse template: %s", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
-	c.Projects = readableProjects(h.ac, c.Projects, u)
+	c.Projects = acl.ReadableProjects(h.ac, c.Projects, u)
 
 	sort.Sort(ByName(c.Projects))
 
@@ -567,7 +568,7 @@ func getAssetsTemplates() (js, css template.HTML) {
 
 var validPathWithEnv = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
 
-func extractDeployLogHandler(ac accessControl, ecl *etcd.Client, fn func(http.ResponseWriter, *http.Request, string, goship.Environment, string)) http.HandlerFunc {
+func extractDeployLogHandler(ac acl.AccessControl, ecl *etcd.Client, fn func(http.ResponseWriter, *http.Request, string, goship.Environment, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		m := validPathWithEnv.FindStringSubmatch(r.URL.Path)
 		if m == nil {
@@ -586,7 +587,7 @@ func extractDeployLogHandler(ac accessControl, ecl *etcd.Client, fn func(http.Re
 			log.Println("Failed to get a user while deploying in Auth Mode! ")
 			http.Error(w, err.Error(), http.StatusUnauthorized)
 		}
-		c.Projects = readableProjects(ac, c.Projects, u)
+		c.Projects = acl.ReadableProjects(ac, c.Projects, u)
 		// get project name and env from url
 		a := strings.Split(m[2], "-")
 		l := len(a)
@@ -658,9 +659,9 @@ func main() {
 		log.Panicf("Failed to build github client: %v", err)
 	}
 
-	ac := accessControl(nullAccessControl{})
+	ac := acl.Null
 	if auth.Enabled() {
-		ac = githubAccessControl{gcl: gcl}
+		ac = acl.NewGithub(gcl)
 	}
 
 	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
