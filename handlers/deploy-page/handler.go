@@ -21,7 +21,7 @@ func New(assets helpers.Assets, pushAddr string) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	if addr.IsAbs() {
+	if !addr.IsAbs() {
 		return nil, fmt.Errorf("not an absolute URL: %s", pushAddr)
 	}
 	if addr.Scheme != "ws" {
