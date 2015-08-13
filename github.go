@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -42,11 +43,14 @@ func remoteCmdOutput(username, hostname, cmd string, privateKey []byte) (b []byt
 		return b, errors.New("ERROR: Failed to create session: " + err.Error())
 	}
 	defer session.Close()
-	b, err = session.Output(cmd)
-	if err != nil {
-		return b, fmt.Errorf("ERROR: Failed to run cmd on host %s: %s", hostname, err.Error())
+
+	var outBuf, errBuf bytes.Buffer
+	session.Stdout = &outBuf
+	session.Stderr = &errBuf
+	if err := session.Run(cmd); err != nil {
+		return b, fmt.Errorf("ERROR: Failed to run cmd %q on host %s: %v: %s", cmd, hostname, err, errBuf.String())
 	}
-	return b, nil
+	return outBuf.Bytes(), nil
 }
 
 // latestDeployedCommit gets the latest commit hash on the host.
