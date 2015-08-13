@@ -1,4 +1,4 @@
-package main
+package comment
 
 import (
 	"log"
@@ -10,15 +10,22 @@ import (
 
 // CommentHandler allows you to update a comment on an environment
 // i.e. http://127.0.0.1:8000/comment?environment=staging&project=admin&comment=DONOTDEPLOYPLEASE!
-func CommentHandler(w http.ResponseWriter, r *http.Request) {
-	c := etcd.NewClient([]string{*ETCDServer})
+type handler struct {
+	ecl *etcd.Client
+}
+
+func New(ecl *etcd.Client) http.Handler {
+	return handler{ecl: ecl}
+}
+
+func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	comment := r.FormValue("comment")
-	err := goship.SetComment(c, p, env, comment)
+	err := goship.SetComment(h.ecl, p, env, comment)
 	if err != nil {
 		log.Println("ERROR: ", err)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	http.Redirect(w, r, "/", http.StatusSeeOther)

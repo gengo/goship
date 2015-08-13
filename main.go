@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/coreos/go-etcd/etcd"
+	"github.com/gengo/goship/handlers/comment"
 	deploypage "github.com/gengo/goship/handlers/deploy-page"
 	"github.com/gengo/goship/handlers/lock"
 	goship "github.com/gengo/goship/lib"
@@ -163,7 +164,7 @@ func main() {
 	http.Handle("/deploy_handler", auth.Authenticate(DeployHandler{ecl: ecl, hub: hub}))
 	http.Handle("/lock", auth.Authenticate(lock.NewLock(ecl)))
 	http.Handle("/unlock", auth.Authenticate(lock.NewUnlock(ecl)))
-	http.Handle("/comment", auth.AuthenticateFunc(CommentHandler))
+	http.Handle("/comment", auth.Authenticate(comment.New(ecl)))
 	http.HandleFunc("/auth/github/login", auth.LoginHandler)
 	http.HandleFunc("/auth/github/callback", auth.CallbackHandler)
 	fmt.Printf("Running on %s\n", *bindAddress)
