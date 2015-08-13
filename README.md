@@ -6,45 +6,49 @@ A simple tool for deploying code to servers.
 
 ![pirate gopher](https://cloud.githubusercontent.com/assets/3772659/8693461/3c5f74a8-2b12-11e5-9a27-ff4421589df6.png)
 
-### What it does:
+# What it does:
 
 GoShip SSHes into the machines that you list in ETCD and gets the latest revision from the specified git repository. It then compares that to the latest revision on GitHub and, if they differ, shows a link to the diff as well as a Deploy button. You can then deploy by clicking the button, and will show you the output of the deployment command, as well as save the output, diff, and whether the command succeeded.
 
 ![GoShip Index Page Screenshot](https://cloud.githubusercontent.com/assets/3772659/8693471/55ec2592-2b12-11e5-965f-8e572309c945.png)
 
-### Usage
+# Installation
+1. Install [go](http://golang.org) development environment
+2. run `go get github.com/gengo/goship`
+3. run `go build github.com/gengo/goship`
 
-Export your GitHub API token:
+# Usage
 
-    export GITHUB_API_TOKEN="your-organization-github-token-here"
+1. Export your GitHub API token:
+   
+   ```shell
+   export GITHUB_API_TOKEN="your-organization-github-token-here"
+   ```
+2. Github Omniauth Integration:
+   
+   Users who are collaborator on a repo can 'see' that repo in Goship.
+   You must create a developer application to use omniauth.
+   If you do NOT add the appropriate env keys below AUTH will be OFF I.E. Please be careful and check the logs.
+   Please  note the "Authorization callback URL" should match your site i.e. `http://<your-url-and-port>/auth/github/callback`.
 
-### Github Omniauth Integration:
-
-    Users who are collaborator on a repo can 'see' that repo in Goship.
-    You must create a developer application to use omniauth.
-    If you do NOT add the appropriate env keys below AUTH will be OFF I.E. Please be careful and check the logs.
-    Please  note the "Authorization callback URL" should match your site i.e. "http://<your-url-and-port>/auth/github/callback"
-
-    export GITHUB_RANDOM_HASH_KEY="some-random-hash-here";
-    export GITHUB_OMNI_AUTH_ID="github-application-id";
-    export GITHUB_OMNI_AUTH_KEY="github-application-key";
-    export GITHUB_CALLBACK_URL="http://<your-url-and-port>";  // must match that given to Github! Would be 127.0.0.1:port for testing
-
-    If authentication is 'turned on', organization 'team' members who are collaborators and exclusively on a 'pull' only team will be able to see a repo, however the deploy button will be diasbled for them.
-
-Create an ETCD server / follow the instructions in the etcd README:
-
-    https://github.com/coreos/etcd
+   ```shell
+   export GITHUB_RANDOM_HASH_KEY="some-random-hash-here";
+   export GITHUB_OMNI_AUTH_ID="github-application-id";
+   export GITHUB_OMNI_AUTH_KEY="github-application-key";
+   export GITHUB_CALLBACK_URL="http://<your-url-and-port>";  // must match that given to Github! Would be 127.0.0.1:port for testing
+   ```
+   
+   If authentication is 'turned on', organization 'team' members who are collaborators and exclusively on a 'pull' only team will be able to see a repo, however the deploy button will be diasbled for them.
+   
+3. Create an ETCD server
+   * Follow the instructions in the [etcd](https://github.com/coreos/etcd) README
+   * There are various tools to update your ETCD server including the etcdctl client or curl, you can also use a variety of clients and JSON formatting:
+   * There is also a convert.go in tools that can be used to 'bootstrap' etcd.
 
 
-There are various tools to update your ETCD server including the etcdctl client or curl, you can also use a variety of clients and JSON formatting:
-There is also a convert.go in tools that can be used to 'bootstrap' etcd.
-
-
-   #example setup using etcd
-   https://github.com/coreos/etcdctl/
-
-```
+# Examples
+1. example setup using [etcdctl](https://github.com/coreos/etcdctl/)
+   ```shell
    etcdctl set /deploy_user 'deployer'
    finish deployment. e.g. Notify chat room
    etcdctl mkdir '/projects'
@@ -59,26 +63,20 @@ There is also a convert.go in tools that can be used to 'bootstrap' etcd.
    etcdctl set /projects/my-project/environments/staging/branch master
    etcdctl set /projects/my-project/environments/staging/repo_path PATH_TO_REPOSITORY/.git
    etcdctl set /projects/my-project/environments/staging/deploy "/tmp/deploy -p=my-project -e=staging" # You need to set your deployment command here. This is an example using `tools/deploy/deploy.go`
-```
-
-   #curl example
-
-```
+   ```
+2. curl example
+   ```shell
    curl -L http://127.0.0.1:4001/projects/my-project/environments/staging/deploy -XPUT -d value="/path/to/deployscripts/myproj_staging.sh"
-```
+   ```
 
-   #convert.go example in the tools folder of goship. ( config.yml and etcd settings are configurable - run with -h for options)
-
-```
+3. convert.go example in the tools folder of goship.
+   
+   -- config.yml and etcd settings are configurable - run with -h for options
+   ```shell
    go run convert.go -c /mnt/srv/http/gengo/goship/shared/config.yml
-```
+   ```
 
-Then run the server manually
-
-```shell
-go run goship.go -b localhost:8888 -k ~/.ssh/id_rsa
-```
-
+# Commandline Options
 Available command line flags for the `go run goship.go` command are:
 
 ```
@@ -89,7 +87,7 @@ Available command line flags for the `go run goship.go` command are:
  -f [deploy confirmation flag] Flag to specify if user is prompted with confirmation dialog before deploys. Defaults to True
 ```
 
-### Chat Notifications
+# Chat Notifications
 To notify a chat room when the Deploy button is pushed, create a script that takes a message as an argument and sends the message to the room, and then add it to etcd:
 
 ```
@@ -98,14 +96,14 @@ etcdctl set /notify '/home/deployer/notify.sh'
 
 [Sevabot](http://sevabot-skype-bot.readthedocs.org/en/latest/) is a good choice for Skype.
 
-### Tools
+# Tools
 
 There are some tools added in the /tools directory that can be used interface with Goship
 1) convert.go: takes a config.yml  file and converts it to ETCD. Used for bootstrapping ETCD from the original
 conf file.
 2) deploy.go:  Can be used as a script by the "deploy" to create a knife solo command which reads in the appropriate servers from ETCD and runs knife solo.
 
-### Plugins
+# Plugins
 
 Goship suffices as a basic application to aid your deployments. However, you may wish to extend Goship with some custom UI on its home page with plugins.
 
