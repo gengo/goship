@@ -48,6 +48,7 @@ GoShip SSHes into the machines that you list in ETCD and gets the latest revisio
 
 # Examples
 1. example setup using [etcdctl](https://github.com/coreos/etcdctl/)
+   
    ```shell
    etcdctl set /deploy_user 'deployer'
    finish deployment. e.g. Notify chat room
@@ -64,6 +65,7 @@ GoShip SSHes into the machines that you list in ETCD and gets the latest revisio
    etcdctl set /projects/my-project/environments/staging/repo_path PATH_TO_REPOSITORY/.git
    etcdctl set /projects/my-project/environments/staging/deploy "/tmp/deploy -p=my-project -e=staging" # You need to set your deployment command here. This is an example using `tools/deploy/deploy.go`
    ```
+   
 2. curl example
    ```shell
    curl -L http://127.0.0.1:4001/projects/my-project/environments/staging/deploy -XPUT -d value="/path/to/deployscripts/myproj_staging.sh"
