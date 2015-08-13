@@ -6,9 +6,14 @@ import (
 	"net/http"
 
 	"github.com/gengo/goship/lib/auth"
+	helpers "github.com/gengo/goship/lib/view-helpers"
 )
 
-func DeployPage(w http.ResponseWriter, r *http.Request) {
+type DeployPage struct {
+	assets helpers.Assets
+}
+
+func (h DeployPage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	user, err := auth.CurrentUser(r)
 	if err != nil {
 		log.Println("Failed to Get User")
@@ -26,6 +31,6 @@ func DeployPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	js, css := getAssetsTemplates()
+	js, css := h.assets.Templates()
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Javascript": js, "Stylesheet": css, "Project": p, "Env": env, "User": user, "BindAddress": bindAddress, "RepoOwner": repoOwner, "RepoName": repoName, "ToRevision": toRevision, "FromRevision": fromRevision})
 }

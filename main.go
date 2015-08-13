@@ -3,12 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"html/template"
 	"log"
 	"net/http"
 	"os"
-	"path"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -37,18 +34,6 @@ var (
 	defaultAvatar     = flag.String("a", "https://camo.githubusercontent.com/33a7d9a138ac73ece82dee977c216eb13dffc984/687474703a2f2f692e696d6775722e636f6d2f524c766b486b612e706e67", "Default Avatar (default goship gopher image)")
 	confirmDeployFlag = flag.Bool("f", true, "Flag to always ask for confirmation before deploying")
 )
-
-func getAssetsTemplates() (js, css template.HTML) {
-	sfp, err := filepath.Abs(*staticFilePath)
-	if err != nil {
-		var tmpl = template.HTML("")
-		log.Printf("Failed to locate static file path: %s", err)
-		return tmpl, tmpl
-	}
-	js = helpers.MakeJavascriptTemplate(path.Join(sfp, "js"))
-	css = helpers.MakeStylesheetTemplate(path.Join(sfp, "css"))
-	return js, css
-}
 
 var validPathWithEnv = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
 
@@ -154,13 +139,17 @@ func main() {
 	hub := notification.NewHub(ctx)
 	ecl := etcd.NewClient([]string{*ETCDServer})
 
-	http.Handle("/", auth.Authenticate(HomeHandler{ac: ac, ecl: ecl}))
+	assets := helpers.New(*staticFilePath)
+
+	http.Handle("/", auth.Authenticate(HomeHandler{ac: ac, ecl: ecl, assets: assets}))
 	http.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, r.URL.Path[1:])
 	})
 	http.Handle("/web_push", websocket.Handler(hub.AcceptConnection))
-	http.Handle("/deploy", auth.AuthenticateFunc(DeployPage))
-	http.Handle("/deployLog/", auth.AuthenticateFunc(extractDeployLogHandler(ac, ecl, DeployLogHandler)))
+	http.Handle("/deploy", auth.Authenticate(DeployPage{assets: assets}))
+
+	dlh := DeployLogHandler{assets: assets}
+	http.Handle("/deployLog/", auth.AuthenticateFunc(extractDeployLogHandler(ac, ecl, dlh.ServeHTTP)))
 	http.Handle("/output/", auth.AuthenticateFunc(extractOutputHandler(DeployOutputHandler)))
 
 	pch := ProjCommitsHandler{ac: ac, gcl: gcl, ecl: ecl}

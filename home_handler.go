@@ -11,13 +11,15 @@ import (
 	goship "github.com/gengo/goship/lib"
 	"github.com/gengo/goship/lib/acl"
 	"github.com/gengo/goship/lib/auth"
+	helpers "github.com/gengo/goship/lib/view-helpers"
 	"github.com/gengo/goship/plugins/plugin"
 )
 
 // HomeHandler is the main home screen
 type HomeHandler struct {
-	ac  acl.AccessControl
-	ecl *etcd.Client
+	ac     acl.AccessControl
+	ecl    *etcd.Client
+	assets helpers.Assets
 }
 
 func (h HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -48,7 +50,7 @@ func (h HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	}
-	js, css := getAssetsTemplates()
+	js, css := h.assets.Templates()
 	gt := os.Getenv(gitHubAPITokenEnvVar)
 	pt := c.Pivotal.Token
 

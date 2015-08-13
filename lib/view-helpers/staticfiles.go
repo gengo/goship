@@ -5,7 +5,6 @@ import (
 	"html/template"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
 )
 
@@ -16,11 +15,19 @@ const (
 	stylesheetTag = "<link href='/static/css/%s' rel='stylesheet'>"
 )
 
+type Assets struct {
+	dir string
+}
+
+func New(dir string) Assets {
+	return Assets{dir: dir}
+}
+
 func getFilePaths(root string, extension string) ([]string, error) {
 	var filepaths []string
 	var getFile = func(fp string, _ os.FileInfo, _ error) error {
-		if path.Ext(fp) == extension {
-			filepaths = append(filepaths, path.Base(fp)) // we only want the base file paths
+		if filepath.Ext(fp) == extension {
+			filepaths = append(filepaths, filepath.Base(fp)) // we only want the base file paths
 		}
 		return nil
 	}
@@ -49,7 +56,7 @@ func getStylesheetFiles(folderpath string) []string {
 	return fps
 }
 
-func MakeJavascriptTemplate(folderpath string) template.HTML {
+func makeJavascriptTemplate(folderpath string) template.HTML {
 	fps := getJavascriptFiles(folderpath)
 	var str string = ""
 	for _, fp := range fps {
@@ -58,11 +65,23 @@ func MakeJavascriptTemplate(folderpath string) template.HTML {
 	return template.HTML(str)
 }
 
-func MakeStylesheetTemplate(folderpath string) template.HTML {
+func makeStylesheetTemplate(folderpath string) template.HTML {
 	fps := getStylesheetFiles(folderpath)
 	var str string = ""
 	for _, fp := range fps {
 		str += fmt.Sprintf(stylesheetTag, fp)
 	}
 	return template.HTML(str)
+}
+
+func (a Assets) Templates() (js, css template.HTML) {
+	sfp, err := filepath.Abs(a.dir)
+	if err != nil {
+		var tmpl = template.HTML("")
+		log.Printf("Failed to locate static file path: %s", err)
+		return tmpl, tmpl
+	}
+	js = makeJavascriptTemplate(filepath.Join(sfp, "js"))
+	css = makeStylesheetTemplate(filepath.Join(sfp, "css"))
+	return js, css
 }

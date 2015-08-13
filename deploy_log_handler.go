@@ -14,10 +14,15 @@ import (
 
 	goship "github.com/gengo/goship/lib"
 	"github.com/gengo/goship/lib/auth"
+	helpers "github.com/gengo/goship/lib/view-helpers"
 )
 
 // DeployLogHandler shows data about the environment including the deploy log.
-func DeployLogHandler(w http.ResponseWriter, r *http.Request, fullEnv string, environment goship.Environment, projectName string) {
+type DeployLogHandler struct {
+	assets helpers.Assets
+}
+
+func (h DeployLogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, fullEnv string, environment goship.Environment, projectName string) {
 	u, err := auth.CurrentUser(r)
 	if err != nil {
 		log.Println("Failed to get User! ")
@@ -37,7 +42,7 @@ func DeployLogHandler(w http.ResponseWriter, r *http.Request, fullEnv string, en
 		d[i].FormattedTime = formatTime(d[i].Time)
 	}
 	sort.Sort(ByTime(d))
-	js, css := getAssetsTemplates()
+	js, css := h.assets.Templates()
 	t.ExecuteTemplate(w, "base", map[string]interface{}{"Javascript": js, "Stylesheet": css, "Deployments": d, "User": u, "Env": fullEnv, "Environment": environment, "ProjectName": projectName})
 }
 
