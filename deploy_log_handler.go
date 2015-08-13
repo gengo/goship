@@ -27,6 +27,7 @@ func (h DeployLogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, full
 	if err != nil {
 		log.Println("Failed to get User! ")
 		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
 	}
 	d, err := readEntries(fullEnv)
 	if err != nil {

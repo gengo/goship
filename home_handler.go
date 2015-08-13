@@ -27,16 +27,19 @@ func (h HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Failed to Parse to ETCD data %s", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	u, err := auth.CurrentUser(r)
 	if err != nil {
 		log.Println("Failed to get User! ")
 		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
 	}
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
 		log.Printf("Failed to parse template: %s", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	c.Projects = acl.ReadableProjects(h.ac, c.Projects, u)
 

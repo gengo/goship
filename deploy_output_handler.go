@@ -12,6 +12,7 @@ func DeployOutputHandler(w http.ResponseWriter, r *http.Request, env string, for
 	b, err := ioutil.ReadFile(log)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	w.Write(b)
