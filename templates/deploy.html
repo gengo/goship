@@ -18,7 +18,7 @@
   </div>
   <script>
     $(function() {
-      var ws = new WebSocket({{.PushAddress | printf "%q"}});
+      var ws = new WebSocket({{.PushAddress | printf "%s"}});
       var project = {{.Project}};
       var environment = {{.Env}};
       var user = {{.User.Name}};
