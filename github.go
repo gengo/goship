@@ -15,6 +15,7 @@ import (
 	"github.com/gengo/goship/lib/ssh"
 	"github.com/golang/glog"
 	"github.com/google/go-github/github"
+	"golang.org/x/net/context"
 )
 
 // latestDeployedCommit gets the latest commit hash on the host.
@@ -23,11 +24,7 @@ func latestDeployedCommit(username, hostname string, e goship.Environment) (b []
 	if err != nil {
 		return b, errors.New("Failed to open private key file: " + err.Error())
 	}
-	o, err := ssh.RemoteCmdOutput(username, hostname, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath), p)
-	if err != nil {
-		return b, err
-	}
-	return o, nil
+	return ssh.RemoteCmdOutput(context.TODO(), username, hostname, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", repoPath), p)
 }
 
 // getCommit is called in a goroutine and gets the latest deployed commit on a host.
