@@ -61,6 +61,7 @@ func Initialize(anynomous User, cookieSecret []byte) {
 	gomniauth.WithProviders(
 		githubOauth.New(cred.githubOmniauthID, cred.githubOmniauthKey, url),
 	)
+	glog.Infof("Enabled authentication by github OAuth2")
 	enabled = true
 }
 

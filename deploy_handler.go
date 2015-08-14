@@ -77,6 +77,7 @@ func (h DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	glog.Infof("Starting deployment of %s-%s (%s/%s) from %s to %s; requested by %s", p, env, owner, name, fromRevision, toRevision, user)
 	if err = cmd.Start(); err != nil {
 		glog.Errorf("Could not run deployment command: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -92,7 +93,9 @@ func (h DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err = cmd.Wait()
 	if err != nil {
 		success = false
-		glog.Errorf("Deployment failed: %v", err)
+		glog.Errorf("Deployment of %s failed: %v", p, err)
+	} else {
+		glog.Infof("Successfully deployed %s", p)
 	}
 	if c.Notify != "" {
 		err = endNotify(c.Notify, p, env, success)
