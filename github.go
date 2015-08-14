@@ -19,41 +19,33 @@ import (
 )
 
 // latestDeployedCommit gets the latest commit hash on the host.
-func latestDeployedCommit(username, hostname string, e goship.Environment) (b []byte, err error) {
+func latestDeployedCommit(username, hostname, repoPath string) ([]byte, error) {
 	p, err := ioutil.ReadFile(*keyPath)
 	if err != nil {
-		return b, errors.New("Failed to open private key file: " + err.Error())
+		return nil, errors.New("Failed to open private key file: " + err.Error())
 	}
 	return ssh.RemoteCmdOutput(context.TODO(), username, hostname, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", repoPath), p)
 }
 
-// getCommit is called in a goroutine and gets the latest deployed commit on a host.
-// It updates the Environment in-place.
-func getCommit(wg *sync.WaitGroup, project goship.Project, env goship.Environment, host goship.Host, deployUser string, i, j int) {
-	defer wg.Done()
-	lc, err := latestDeployedCommit(deployUser, host.URI+":"+sshPort, env)
+// getCommit returns the latest commit deployed in the host.
+func getCommit(host goship.Host, deployUser, repoPath string) (string, error) {
+	lc, err := latestDeployedCommit(deployUser, host.URI+":"+sshPort, repoPath)
 	if err != nil {
 		glog.Errorf("Failed to get latest deployed commit: %s, %s. Error: %v", host.URI, deployUser, err)
-		host.LatestCommit = string(lc)
-		project.Environments[i].Hosts[j] = host
+		return "", err
 	}
-	host.LatestCommit = strings.TrimSpace(string(lc))
-	project.Environments[i].Hosts[j] = host
+	return strings.TrimSpace(string(lc)), nil
 }
 
-// getLatestGitHubCommit is called in a goroutine and retrieves the latest commit
-// from GitHub for a given branch of a project. It updates the Environment in-place.
-func getLatestGitHubCommit(wg *sync.WaitGroup, project goship.Project, environment goship.Environment, gcl githublib.Client, repoOwner, repoName string, i int) {
-	defer wg.Done()
-	opts := &github.CommitsListOptions{SHA: environment.Branch}
+// getLatestGitHubCommit returns the latest commit of the given branch.
+func getLatestGitHubCommit(gcl githublib.Client, repoOwner, repoName, branch string) (string, error) {
+	opts := &github.CommitsListOptions{SHA: branch}
 	commits, _, err := gcl.ListCommits(repoOwner, repoName, opts)
 	if err != nil {
 		glog.Errorf("Failed to get commits from GitHub: %v", err)
-		environment.LatestGitHubCommit = ""
-	} else {
-		environment.LatestGitHubCommit = *commits[0].SHA
+		return "", err
 	}
-	project.Environments[i] = environment
+	return *commits[0].SHA, nil
 }
 
 // retrieveCommits fetches the latest deployed commits as well
@@ -66,15 +58,30 @@ func retrieveCommits(gcl githublib.Client, ac acl.AccessControl, r *http.Request
 		for j, host := range environment.Hosts {
 			// start a goroutine for SSHing on to the machine
 			wg.Add(1)
-			go getCommit(&wg, project, environment, host, deployUser, i, j)
+			go func(i, j int, host goship.Host, repoPath string) {
+				defer wg.Done()
+				commit, err := getCommit(host, deployUser, repoPath)
+				if err != nil {
+					project.Environments[i].Hosts[j].LatestCommit = ""
+					return
+				}
+				project.Environments[i].Hosts[j].LatestCommit = commit
+			}(i, j, host, environment.RepoPath)
 		}
 		wg.Add(1)
-		go getLatestGitHubCommit(&wg, project, environment, gcl, project.RepoOwner, project.RepoName, i)
+		go func(i int, branch string) {
+			defer wg.Done()
+			commit, err := getLatestGitHubCommit(gcl, project.RepoOwner, project.RepoName, branch)
+			if err != nil {
+				project.Environments[i].LatestGitHubCommit = ""
+				return
+			}
+			project.Environments[i].LatestGitHubCommit = commit
+		}(i, environment.Branch)
 	}
 	// wait for goroutines to finish
 	wg.Wait()
 	for i, e := range project.Environments {
-
 		project.Environments[i] = e
 		for j, host := range e.Hosts {
 			host.GitHubCommitURL = host.LatestGitHubCommitURL(project)
