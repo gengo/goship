@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -13,45 +12,10 @@ import (
 	"github.com/gengo/goship/lib/acl"
 	"github.com/gengo/goship/lib/auth"
 	githublib "github.com/gengo/goship/lib/github"
+	"github.com/gengo/goship/lib/ssh"
 	"github.com/golang/glog"
 	"github.com/google/go-github/github"
-	"golang.org/x/crypto/ssh"
 )
-
-// remoteCmdOutput runs the given command on a remote server at the given hostname as the given user.
-func remoteCmdOutput(username, hostname, cmd string, privateKey []byte) (b []byte, err error) {
-	p, err := ssh.ParseRawPrivateKey(privateKey)
-	if err != nil {
-		return b, err
-	}
-	s, err := ssh.NewSignerFromKey(p)
-	if err != nil {
-		return b, err
-	}
-	pub := ssh.PublicKeys(s)
-	clientConfig := &ssh.ClientConfig{
-		User: username,
-		Auth: []ssh.AuthMethod{pub},
-	}
-	client, err := ssh.Dial("tcp", hostname, clientConfig)
-	if err != nil {
-		return b, errors.New("ERROR: Failed to dial: " + err.Error())
-	}
-	defer client.Close()
-	session, err := client.NewSession()
-	if err != nil {
-		return b, errors.New("ERROR: Failed to create session: " + err.Error())
-	}
-	defer session.Close()
-
-	var outBuf, errBuf bytes.Buffer
-	session.Stdout = &outBuf
-	session.Stderr = &errBuf
-	if err := session.Run(cmd); err != nil {
-		return b, fmt.Errorf("ERROR: Failed to run cmd %q on host %s: %v: %s", cmd, hostname, err, errBuf.String())
-	}
-	return outBuf.Bytes(), nil
-}
 
 // latestDeployedCommit gets the latest commit hash on the host.
 func latestDeployedCommit(username, hostname string, e goship.Environment) (b []byte, err error) {
@@ -59,7 +23,7 @@ func latestDeployedCommit(username, hostname string, e goship.Environment) (b []
 	if err != nil {
 		return b, errors.New("Failed to open private key file: " + err.Error())
 	}
-	o, err := remoteCmdOutput(username, hostname, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath), p)
+	o, err := ssh.RemoteCmdOutput(username, hostname, fmt.Sprintf("git --git-dir=%s rev-parse HEAD", e.RepoPath), p)
 	if err != nil {
 		return b, err
 	}
