@@ -40,6 +40,7 @@ func (h DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println("Failed to get a User! ")
 		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
 	}
 	user := u.Name
 	p := r.FormValue("project")

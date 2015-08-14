@@ -2,10 +2,10 @@ package auth
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"path"
 
 	"github.com/gorilla/sessions"
 	"github.com/stretchr/gomniauth"
@@ -22,7 +22,7 @@ var (
 	// defaultUser is the value which CurrentUser returns if client authentication is disabled.
 	defaultUser User
 
-	githubCallbackURL string
+	githubCallbackBase string
 
 	store *sessions.CookieStore
 )
@@ -32,7 +32,7 @@ var (
 // Client authentication is disabled and CurrentUser always returns "anonymous" if any of the environment variables are missing.
 func Initialize(anynomous User, cookieSecret []byte) {
 	store = sessions.NewCookieStore(cookieSecret)
-	githubCallbackURL = os.Getenv("GITHUB_CALLBACK_URL")
+	githubCallbackBase = os.Getenv("GITHUB_CALLBACK_URL")
 	cred := struct {
 		githubRandomHashKey string
 		githubOmniauthID    string
@@ -44,22 +44,22 @@ func Initialize(anynomous User, cookieSecret []byte) {
 	}
 	defaultUser = anynomous
 
-	if cred.githubRandomHashKey == "" || cred.githubOmniauthID == "" || cred.githubOmniauthKey == "" || githubCallbackURL == "" {
+	if cred.githubRandomHashKey == "" || cred.githubOmniauthID == "" || cred.githubOmniauthKey == "" || githubCallbackBase == "" {
 		log.Printf(
-			"Missing one or more Gomniauth Environment Variables: Running with with limited functionality! \n githubRandomHashKey [%s] \n githubOmniauthID [%s] \n githubOmniauthKey[%s] \n githubCallbackURL[%s]",
+			"Missing one or more Gomniauth Environment Variables: Running with with limited functionality! \n GITHUB_RANDOM_HASH_KEY [%s] \n GITHUB_OMNI_AUTH_ID [%s] \n GITHUB_OMNI_AUTH_KEY [%s] \n GITHUB_CALLBACK_URL [%s]",
 			cred.githubRandomHashKey,
 			cred.githubOmniauthID,
 			cred.githubOmniauthKey,
-			githubCallbackURL,
+			githubCallbackBase,
 		)
 		enabled = false
 		return
 	}
-	githubCallbackURL = path.Join(githubCallbackURL, "/auth/github/callback")
+	url := fmt.Sprintf("%s/auth/github/callback", githubCallbackBase)
 
 	gomniauth.SetSecurityKey(cred.githubRandomHashKey)
 	gomniauth.WithProviders(
-		githubOauth.New(cred.githubOmniauthID, cred.githubOmniauthKey, githubCallbackURL),
+		githubOauth.New(cred.githubOmniauthID, cred.githubOmniauthKey, url),
 	)
 	enabled = true
 }

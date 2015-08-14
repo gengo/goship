@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -16,11 +17,12 @@ const (
 
 // Authenticate decorates "h" with github OAuth authentication.
 func Authenticate(h http.Handler) http.Handler {
+	callback := fmt.Sprintf("%s/auth/github/login", githubCallbackBase)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := CurrentUser(r)
 		if err != nil {
 			log.Printf("error getting a User %s", err)
-			http.Redirect(w, r, githubCallbackURL, http.StatusSeeOther)
+			http.Redirect(w, r, callback, http.StatusSeeOther)
 			return
 		}
 		h.ServeHTTP(w, r)

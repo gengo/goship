@@ -27,16 +27,19 @@ func (h HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("Failed to Parse to ETCD data %s", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	u, err := auth.CurrentUser(r)
 	if err != nil {
 		log.Println("Failed to get User! ")
 		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
 	}
 	t, err := template.New("index.html").ParseFiles("templates/index.html", "templates/base.html")
 	if err != nil {
 		log.Printf("Failed to parse template: %s", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	c.Projects = acl.ReadableProjects(h.ac, c.Projects, u)
 
@@ -48,13 +51,24 @@ func (h HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			log.Printf("Failed to apply plugin: %s", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 	}
 	js, css := h.assets.Templates()
 	gt := os.Getenv(gitHubAPITokenEnvVar)
 	pt := c.Pivotal.Token
 
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Javascript": js, "Stylesheet": css, "Projects": c.Projects, "User": u, "Page": "home", "ConfirmDeployFlag": *confirmDeployFlag, "GithubToken": gt, "PivotalToken": pt})
+	params := map[string]interface{}{
+		"Javascript":        js,
+		"Stylesheet":        css,
+		"Projects":          c.Projects,
+		"User":              u,
+		"Page":              "home",
+		"ConfirmDeployFlag": *confirmDeployFlag,
+		"GithubToken":       gt,
+		"PivotalToken":      pt,
+	}
+	helpers.RespondWithTemplate(w, "text/html", t, "base", params)
 }
 
 // ByName is the interface for sorting projects

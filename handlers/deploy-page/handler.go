@@ -21,7 +21,7 @@ func New(assets helpers.Assets, pushAddr string) (http.Handler, error) {
 	if err != nil {
 		return nil, err
 	}
-	if addr.IsAbs() {
+	if !addr.IsAbs() {
 		return nil, fmt.Errorf("not an absolute URL: %s", pushAddr)
 	}
 	if addr.Scheme != "ws" {
@@ -40,6 +40,7 @@ func (h deployPage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Println("Failed to Get User")
 		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
 	}
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
@@ -54,5 +55,18 @@ func (h deployPage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	js, css := h.assets.Templates()
-	t.ExecuteTemplate(w, "base", map[string]interface{}{"Javascript": js, "Stylesheet": css, "Project": p, "Env": env, "User": user, "PushAddresss": h.pushAddr, "RepoOwner": repoOwner, "RepoName": repoName, "ToRevision": toRevision, "FromRevision": fromRevision})
+
+	params := map[string]interface{}{
+		"Javascript":   js,
+		"Stylesheet":   css,
+		"Project":      p,
+		"Env":          env,
+		"User":         user,
+		"PushAddress":  h.pushAddr,
+		"RepoOwner":    repoOwner,
+		"RepoName":     repoName,
+		"ToRevision":   toRevision,
+		"FromRevision": fromRevision,
+	}
+	helpers.RespondWithTemplate(w, "text/html", t, "base", params)
 }
