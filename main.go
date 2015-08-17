@@ -136,7 +136,6 @@ func buildHandler(ctx context.Context) (http.Handler, error) {
 
 	hub := notification.NewHub(ctx)
 	ecl := etcd.NewClient([]string{*ETCDServer})
-
 	assets := helpers.New(*staticFilePath)
 
 	mux := http.NewServeMux()
