@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
+	"path"
 	"regexp"
 	"strconv"
 	"time"
@@ -27,7 +27,8 @@ const (
 
 // Host stores information on a host, such as URI and the latest commit revision.
 type Host struct {
-	URI             string
+	URI string
+
 	LatestCommit    string
 	GitHubCommitURL string
 	GitHubDiffURL   string
@@ -36,16 +37,16 @@ type Host struct {
 
 // Environment stores information about an individual environment, such as its name and whether it is deployable.
 type Environment struct {
-	Name               string
-	Deploy             string
-	RepoPath           string
-	Hosts              []Host
-	Branch             string
-	Revision           string
+	Name     string
+	Deploy   string
+	RepoPath string
+	Hosts    []Host
+	Branch   string
+	Revision string
+	Comment  string
+	IsLocked bool
+
 	LatestGitHubCommit string
-	Comment            string
-	pivotalCommentURL  string
-	IsLocked           bool
 }
 
 // Column is an interface that demands a RenderHeader and RenderDetails method to be able to generate a table column (with header and body)
@@ -59,12 +60,13 @@ type Column interface {
 
 // Project stores information about a GitHub project, such as its GitHub URL and repo name, and a list of extra columns (PluginColumns)
 type Project struct {
-	PluginColumns []Column
-	Name          string
+	Name         string
+	RepoName     string
+	RepoOwner    string
+	Environments []Environment
+
 	GitHubURL     string
-	RepoName      string
-	RepoOwner     string
-	Environments  []Environment
+	PluginColumns []Column
 }
 
 func (p *Project) AddPluginColumn(c Column) {
@@ -245,120 +247,128 @@ func LockEnvironment(client ETCDInterface, projectName, projectEnv, lock string)
 	return err
 }
 
-// ParseETCD connects to ETCD and returns the appropriate structs and strings.
-func ParseETCD(client ETCDInterface) (c Config, err error) {
+// Load loads a deployment configuration from etcd
+func Load(client ETCDInterface) (Config, error) {
 	baseInfo, err := client.Get("/", false, false)
 	if err != nil {
-		return c, err
+		return Config{}, err
 	}
-	deployUser := ""
-	pivotalProject := ""
-	pivotalToken := ""
-	notify := ""
+	if !baseInfo.Node.Dir {
+		return Config{}, fmt.Errorf("node %s must be a directory", baseInfo.Node.Key)
+	}
+	cfg := Config{
+		Pivotal:    new(PivotalConfiguration),
+		ETCDClient: client,
+	}
 	for _, b := range baseInfo.Node.Nodes {
-		switch filepath.Base(b.Key) {
+		switch path.Base(b.Key) {
 		case "deploy_user":
-			deployUser = b.Value
+			cfg.DeployUser = b.Value
 		case "pivotal_project":
-			pivotalProject = b.Value
+			cfg.Pivotal.Project = b.Value
 		case "pivotal_token":
-			pivotalToken = b.Value
+			cfg.Pivotal.Token = b.Value
 		case "notify":
-			notify = b.Value
+			cfg.Notify = b.Value
 		}
 	}
+	if err := loadProjects(client, &cfg); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
+}
 
-	allProjects := []Project{}
-	//  Get Projects //
-	projectNodes, err := client.Get("/projects", false, false)
+func loadProjects(client ETCDInterface, cfg *Config) error {
+	projs, err := client.Get("/projects", false, true)
 	if err != nil {
-		return c, err
+		return err
 	}
-	for _, p := range projectNodes.Node.Nodes {
-		name := filepath.Base(p.Key)
-		projectNode, err := client.Get("/projects/"+name, false, false)
+	if !projs.Node.Dir {
+		return fmt.Errorf("node %s must be a directory", projs.Node.Key)
+	}
+	for _, node := range projs.Node.Nodes {
+		proj, err := loadProject(node)
 		if err != nil {
-			return c, err
-		}
-		projectInfo := projectNode.Node.Nodes
-		repoOwner := ""
-		repoName := ""
-		for _, k := range projectInfo {
-			switch filepath.Base(k.Key) {
-			case "repo_owner":
-				repoOwner = filepath.Base(k.Value)
-			case "repo_name":
-				repoName = filepath.Base(k.Value)
-			}
-		}
-		githubURL := fmt.Sprintf("https://github.com/%s/%s", repoOwner, repoName)
-		proj := Project{Name: name, GitHubURL: githubURL, RepoName: repoName, RepoOwner: repoOwner}
-		environments, err := client.Get("/projects/"+name+"/environments", false, false)
-		if err != nil {
-			return c, err
-		}
-		allEnvironments := []Environment{}
-		for _, e := range environments.Node.Nodes {
-			envSettings, err := client.Get("/projects/"+name+"/environments/"+filepath.Base(e.Key), false, false)
-			if err != nil {
-				return c, err
-			}
-			envName := filepath.Base(e.Key)
-			revision := "head"
-			branch := "master"
-			deploy := ""
-			repoPath := ""
-			isLocked := false
-			comment := ""
-			for _, n := range envSettings.Node.Nodes {
-				switch filepath.Base(n.Key) {
-				case "revision":
-					revision = n.Value
-				case "branch":
-					branch = n.Value
-				case "deploy":
-					deploy = n.Value
-				case "repo_path":
-					repoPath = n.Value
-				case "locked":
-					nv, err := strconv.ParseBool(n.Value)
-					if err != nil {
-						fmt.Printf("Error parsing isLocked %s - Setting to unlocked: Please make sure environment has <locked> field", err)
-						isLocked = false
-					}
-					isLocked = nv
-				case "comment":
-					comment = n.Value
-				}
-			}
-			//  Get Hosts per Environment.
-			hosts, err := client.Get("/projects/"+name+"/environments/"+envName+"/hosts", false, false)
-			if err != nil {
-				return c, err
-			}
-			allHosts := []Host{}
-			for _, h := range hosts.Node.Nodes {
-				host := Host{URI: filepath.Base(h.Key)}
-				allHosts = append(allHosts, host)
-			}
-			env := Environment{Name: envName, Deploy: deploy, RepoPath: repoPath, Branch: branch, Revision: revision, IsLocked: isLocked, Comment: comment}
-			env.Hosts = allHosts
-			allEnvironments = append(allEnvironments, env)
-		}
-		if err != nil {
-			fmt.Printf("Skipping Project: %s", err)
+			glog.Errorf("Skipping Project %s: %v", path.Base(node.Key), err)
 			continue
 		}
-		proj.Environments = allEnvironments
-		allProjects = append(allProjects, proj)
+		cfg.Projects = append(cfg.Projects, proj)
 	}
-	piv := new(PivotalConfiguration)
-	piv.Project = pivotalProject
-	piv.Token = pivotalToken
-	c.Projects = allProjects
-	c.DeployUser = deployUser
-	c.Notify = notify
-	c.Pivotal = piv
-	c.ETCDClient = client
-	return c, err
+	return nil
+}
+
+func loadProject(node *etcd.Node) (Project, error) {
+	proj := Project{Name: path.Base(node.Key)}
+	for _, child := range node.Nodes {
+		switch path.Base(child.Key) {
+		case "repo_owner":
+			proj.RepoOwner = path.Base(child.Value)
+		case "repo_name":
+			proj.RepoName = path.Base(child.Value)
+		case "environments":
+			if err := loadEnvironments(child, &proj); err != nil {
+				return Project{}, err
+			}
+		}
+	}
+	proj.GitHubURL = fmt.Sprintf("https://github.com/%s/%s", proj.RepoOwner, proj.RepoName)
+	return proj, nil
+}
+
+func loadEnvironments(node *etcd.Node, proj *Project) error {
+	if !node.Dir {
+		return fmt.Errorf("node %s must be a directory", node.Key)
+	}
+	for _, child := range node.Nodes {
+		env, err := loadEnvironment(child)
+		if err != nil {
+			return err
+		}
+		proj.Environments = append(proj.Environments, env)
+	}
+	return nil
+}
+
+func loadEnvironment(node *etcd.Node) (Environment, error) {
+	env := Environment{
+		Name:     path.Base(node.Key),
+		Revision: "HEAD",
+		Branch:   "master",
+	}
+	for _, n := range node.Nodes {
+		switch path.Base(n.Key) {
+		case "revision":
+			env.Revision = n.Value
+		case "branch":
+			env.Branch = n.Value
+		case "deploy":
+			env.Deploy = n.Value
+		case "repo_path":
+			env.RepoPath = n.Value
+		case "locked":
+			locked, err := strconv.ParseBool(n.Value)
+			if err != nil {
+				glog.Errorf("Failed to parse 'locked' field %q. Assuming unlocked: %v", n.Value, err)
+				continue
+			}
+			env.IsLocked = locked
+		case "comment":
+			env.Comment = n.Value
+		case "hosts":
+			if err := loadHosts(n, &env); err != nil {
+				return Environment{}, err
+			}
+		}
+	}
+	return env, nil
+}
+
+func loadHosts(node *etcd.Node, env *Environment) error {
+	if !node.Dir {
+		return fmt.Errorf("node %s must be a directory", node.Key)
+	}
+	for _, h := range node.Nodes {
+		env.Hosts = append(env.Hosts, Host{URI: path.Base(h.Key)})
+	}
+	return nil
 }

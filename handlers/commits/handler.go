@@ -41,7 +41,7 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	projName := components[2]
-	c, err := config.ParseETCD(h.ecl)
+	c, err := config.Load(h.ecl)
 	if err != nil {
 		glog.Errorf("Parsing etc: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

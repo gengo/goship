@@ -141,7 +141,7 @@ func main() {
 		updateChefRepo(conf)
 	}
 	if *pullOnly == false {
-		c, err := gsconfig.ParseETCD(etcd.NewClient([]string{conf.etcdServer}))
+		c, err := gsconfig.Load(etcd.NewClient([]string{conf.etcdServer}))
 		if err != nil {
 			glog.Fatalf("Error parsing ETCD: %s", err)
 		}

@@ -71,8 +71,8 @@ func compareStrings(name, got, want string, t *testing.T) {
 	}
 }
 
-func TestCanParseETCD(t *testing.T) {
-	got, err := config.ParseETCD(&MockEtcdClient{})
+func TestLoad(t *testing.T) {
+	got, err := config.Load(&MockEtcdClient{})
 	if err != nil {
 		t.Fatalf("Can't parse %s %s", t, err)
 	}
@@ -167,68 +167,52 @@ func (*MockEtcdClient) Set(s, c string, x uint64) (*etcd.Response, error) {
 func (*MockEtcdClient) Get(s string, t bool, x bool) (*etcd.Response, error) {
 	m := make(map[string]*etcd.Response)
 	m["/"] = &etcd.Response{Action: "Get", Node: &etcd.Node{
-		Key: "projects", Value: "",
+		Key: "/", Value: "",
 		Nodes: etcd.Nodes{
-			{Key: "deploy_user", Value: "test_user", Dir: false},
-			{Key: "pivotal_token", Value: "XXXXXX", Dir: false},
-			{Key: "pivotal_project", Value: "111111", Dir: false},
+			{Key: "/deploy_user", Value: "test_user", Dir: false},
+			{Key: "/pivotal_token", Value: "XXXXXX", Dir: false},
+			{Key: "/pivotal_project", Value: "111111", Dir: false},
 		}, Dir: true,
 	}, EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
 	}
 	m["/projects"] = &etcd.Response{
 		Action: "Get",
 		Node: &etcd.Node{
-			Key: "projects", Value: "",
-			Nodes: etcd.Nodes{
-				{Key: "/projects/pivotal_project", Dir: true},
-			}, Dir: true,
-		},
-		EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
-	}
-	m["/projects/pivotal_project"] = &etcd.Response{
-		Action: "Get",
-		Node: &etcd.Node{
-			Key: "/projects/pivotal_project", Value: "",
+			Key: "/projects", Value: "",
 			Nodes: etcd.Nodes{
 				{
-					Key: "project_name", Value: "/projects/pivotal_project/project_name/TC", Dir: true,
+					Key: "/projects/pivotal_project",
+					Dir: true,
+					Nodes: etcd.Nodes{
+						{
+							Key:   "/projects/pivotal_project/project_name",
+							Value: "/projects/pivotal_project/project_name/TC",
+							Dir:   true,
+						},
+						{
+							Key: "/projects/pivotal_project/environments",
+							Dir: true,
+							Nodes: etcd.Nodes{
+								{
+									Key: "/projects/pivotal_project/environments/qa",
+									Dir: true,
+									Nodes: etcd.Nodes{
+										{Key: "/projects/pivotal_project/environments/qa/repo_path", Value: "/repos/test_repo_name/.git"},
+										{Key: "/projects/pivotal_project/environments/qa/branch", Value: "master"},
+										{
+											Key: "/projects/pivotal_project/environments/qa/hosts",
+											Dir: true,
+											Nodes: etcd.Nodes{
+												{Key: "test-qa-01.somewhere.com", Dir: true},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
-			},
-			Dir: true,
-		},
-		EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
-	}
-	m["/projects/pivotal_project/environments"] = &etcd.Response{
-		Action: "Get",
-		Node: &etcd.Node{
-			Key:   "/projects/pivotal_project/environments",
-			Value: "",
-			Nodes: etcd.Nodes{
-				{Key: "qa", Dir: true},
-			},
-			Dir: true,
-		},
-		EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
-	}
-	m["/projects/pivotal_project/environments/qa"] = &etcd.Response{
-		Action: "Get",
-		Node: &etcd.Node{
-			Key:   "qa",
-			Value: "",
-			Nodes: etcd.Nodes{
-				{Key: "repo_path", Value: "/repos/test_repo_name/.git", Dir: false},
-				{Key: "branch", Value: "master", Dir: false},
 			}, Dir: true,
-		}, EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
-	}
-	m["/projects/pivotal_project/environments/qa/hosts"] = &etcd.Response{
-		Action: "Get",
-		Node: &etcd.Node{
-			Key: "/projects/pivotal_project/environments/qa/hosts", Value: "",
-			Nodes: etcd.Nodes{
-				{Key: "test-qa-01.somewhere.com", Dir: true},
-			},
-			Dir: true,
 		},
 		EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
 	}

@@ -23,7 +23,7 @@ type HomeHandler struct {
 }
 
 func (h HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	c, err := config.ParseETCD(h.ecl)
+	c, err := config.Load(h.ecl)
 	if err != nil {
 		glog.Errorf("Failed to Parse to ETCD data %s", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -50,7 +50,7 @@ func extractDeployLogHandler(ac acl.AccessControl, ecl *etcd.Client, fn func(htt
 			http.NotFound(w, r)
 			return
 		}
-		c, err := config.ParseETCD(ecl)
+		c, err := config.Load(ecl)
 		if err != nil {
 			glog.Errorf("Failed to get current configuration: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)

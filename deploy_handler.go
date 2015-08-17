@@ -30,7 +30,7 @@ type DeployHandler struct {
 }
 
 func (h DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	c, err := config.ParseETCD(h.ecl)
+	c, err := config.Load(h.ecl)
 	if err != nil {
 		glog.Errorf("Failed to fetch latest configuration: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
