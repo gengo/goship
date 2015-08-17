@@ -7,9 +7,9 @@ import (
 	"sort"
 
 	"github.com/coreos/go-etcd/etcd"
-	goship "github.com/gengo/goship/lib"
 	"github.com/gengo/goship/lib/acl"
 	"github.com/gengo/goship/lib/auth"
+	"github.com/gengo/goship/lib/config"
 	helpers "github.com/gengo/goship/lib/view-helpers"
 	"github.com/gengo/goship/plugins/plugin"
 	"github.com/golang/glog"
@@ -23,7 +23,7 @@ type HomeHandler struct {
 }
 
 func (h HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	c, err := goship.ParseETCD(h.ecl)
+	c, err := config.ParseETCD(h.ecl)
 	if err != nil {
 		glog.Errorf("Failed to Parse to ETCD data %s", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -72,7 +72,7 @@ func (h HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // ByName is the interface for sorting projects
-type ByName []goship.Project
+type ByName []config.Project
 
 func (slice ByName) Len() int           { return len(slice) }
 func (slice ByName) Less(i, j int) bool { return slice[i].Name < slice[j].Name }

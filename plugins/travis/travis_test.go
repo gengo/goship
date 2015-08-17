@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/coreos/go-etcd/etcd"
-	goship "github.com/gengo/goship/lib"
+	"github.com/gengo/goship/lib/config"
 )
 
 type tokenMockClient struct {
@@ -37,7 +37,7 @@ func TestGetTokenPrivate(t *testing.T) {
 	mockEtcd := &tokenMockClient{
 		Token: "test_token",
 	}
-	p := goship.Project{
+	p := config.Project{
 		Name: "test_private",
 	}
 	got := getToken(mockEtcd, p)
@@ -48,7 +48,7 @@ func TestGetTokenPrivate(t *testing.T) {
 }
 
 func TestGetTokenPublic(t *testing.T) {
-	p := goship.Project{
+	p := config.Project{
 		Name: "test_public",
 	}
 	got := getToken(&tokenMockClient{}, p)
@@ -108,9 +108,9 @@ func TestRenderDetailPrivate(t *testing.T) {
 
 func TestApply(t *testing.T) {
 	p := &TravisPlugin{}
-	config := goship.Config{
-		Projects: []goship.Project{
-			goship.Project{
+	config := config.Config{
+		Projects: []config.Project{
+			config.Project{
 				RepoName:  "test_project",
 				RepoOwner: "test",
 			},

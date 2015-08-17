@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	goship "github.com/gengo/goship/lib"
+	"github.com/gengo/goship/lib/config"
 	githublib "github.com/gengo/goship/lib/github"
 	"github.com/gengo/goship/lib/revision"
 	"github.com/gengo/goship/lib/ssh"
@@ -39,7 +39,7 @@ func (c control) Latest(ctx context.Context, owner, repo, ref string) (revision.
 }
 
 // LatestDeployed returns the latest commit deployed into the host.
-func (c control) LatestDeployed(ctx context.Context, host goship.Host, repoPath string) (revision.Revision, error) {
+func (c control) LatestDeployed(ctx context.Context, host config.Host, repoPath string) (revision.Revision, error) {
 	hostname := host.URI
 	cmd := fmt.Sprintf("git --git-dir=%s rev-parse HEAD", repoPath)
 	buf, err := c.ssh.Output(ctx, hostname, cmd)

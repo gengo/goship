@@ -3,7 +3,7 @@ package helloworld
 import (
 	"html/template"
 
-	goship "github.com/gengo/goship/lib"
+	"github.com/gengo/goship/lib/config"
 	"github.com/gengo/goship/plugins/plugin"
 )
 
@@ -26,7 +26,7 @@ func (c HelloWorldColumn) RenderDetail() (template.HTML, error) {
 	return template.HTML("<td>Hello World!</td>"), nil
 }
 
-func (p *HelloWorldPlugin) Apply(g goship.Config) error {
+func (p *HelloWorldPlugin) Apply(g config.Config) error {
 	for i := range g.Projects {
 		g.Projects[i].AddPluginColumn(p.Column)
 	}

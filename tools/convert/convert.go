@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/gengo/goship/lib"
+	"github.com/gengo/goship/lib/config"
 	"github.com/golang/glog"
 	"github.com/kylelemons/go-gypsy/yaml"
 )
@@ -56,7 +56,7 @@ func YAMLtoETCDEnvironment(m yaml.Node, client *etcd.Client, projPath string) {
 		client.CreateDir(projPath, 0)
 
 		for _, host := range v.(yaml.Map)["hosts"].(yaml.List) {
-			h := goship.Host{URI: host.(yaml.Scalar).String()}
+			h := config.Host{URI: host.(yaml.Scalar).String()}
 			glog.Infof("Setting Hosts => %s \n", projPath+h.URI)
 			client.CreateDir(projPath+h.URI, 0)
 		}
@@ -64,7 +64,7 @@ func YAMLtoETCDEnvironment(m yaml.Node, client *etcd.Client, projPath string) {
 }
 
 // parseYAML parses the config.yml file and returns the appropriate structs and strings.
-func YAMLtoETCD(client *etcd.Client) (c goship.Config, err error) {
+func YAMLtoETCD(client *etcd.Client) (c config.Config, err error) {
 	config, err := yaml.ReadFile(*ConfigFile)
 	if err != nil {
 		return c, err

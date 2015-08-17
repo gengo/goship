@@ -3,7 +3,7 @@ package pivotal
 import (
 	"html/template"
 
-	goship "github.com/gengo/goship/lib"
+	"github.com/gengo/goship/lib/config"
 	"github.com/gengo/goship/plugins/plugin"
 )
 
@@ -26,7 +26,7 @@ func (c StoryColumn) RenderDetail() (template.HTML, error) {
 	return template.HTML(`<td class="story"></td>`), nil
 }
 
-func (p *PivotalPlugin) Apply(g goship.Config) error {
+func (p *PivotalPlugin) Apply(g config.Config) error {
 	for i := range g.Projects {
 		g.Projects[i].AddPluginColumn(StoryColumn{})
 	}

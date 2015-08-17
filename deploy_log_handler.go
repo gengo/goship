@@ -11,8 +11,8 @@ import (
 	"sort"
 	"time"
 
-	goship "github.com/gengo/goship/lib"
 	"github.com/gengo/goship/lib/auth"
+	"github.com/gengo/goship/lib/config"
 	helpers "github.com/gengo/goship/lib/view-helpers"
 	"github.com/golang/glog"
 )
@@ -22,7 +22,7 @@ type DeployLogHandler struct {
 	assets helpers.Assets
 }
 
-func (h DeployLogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, fullEnv string, environment goship.Environment, projectName string) {
+func (h DeployLogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, fullEnv string, environment config.Environment, projectName string) {
 	u, err := auth.CurrentUser(r)
 	if err != nil {
 		glog.Errorf("Failed to get current user: %v", err)

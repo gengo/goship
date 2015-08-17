@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"html/template"
 
-	goship "github.com/gengo/goship/lib"
+	"github.com/gengo/goship/lib/config"
 	"github.com/gengo/goship/plugins/plugin"
 	"github.com/golang/glog"
 )
@@ -44,7 +44,7 @@ func (c TravisColumn) RenderDetail() (template.HTML, error) {
 	return template.HTML(fmt.Sprintf(`<td><a target=_blank href=%s><img src=%s onerror='this.style.display = "none"'></img></a></td>`, url, svg)), nil
 }
 
-func getToken(c goship.ETCDInterface, p goship.Project) string {
+func getToken(c config.ETCDInterface, p config.Project) string {
 	r, err := c.Get(fmt.Sprintf("/projects/%s/travis_token", p.Name), false, false)
 	if err != nil {
 		glog.Error(err)
@@ -53,7 +53,7 @@ func getToken(c goship.ETCDInterface, p goship.Project) string {
 	return r.Node.Value
 }
 
-func (p *TravisPlugin) Apply(c goship.Config) error {
+func (p *TravisPlugin) Apply(c config.Config) error {
 	for i := range c.Projects {
 		c.Projects[i].AddPluginColumn(TravisColumn{
 			Project:      c.Projects[i].RepoName,

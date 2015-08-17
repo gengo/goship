@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-etcd/etcd"
-	goship "github.com/gengo/goship/lib"
+	"github.com/gengo/goship/lib/config"
 )
 
 func TestStripANSICodes(t *testing.T) {
@@ -29,13 +29,13 @@ func TestStripANSICodes(t *testing.T) {
 }
 
 var githubDiffURLTests = []struct {
-	h    goship.Host
-	p    goship.Project
-	e    goship.Environment
+	h    config.Host
+	p    config.Project
+	e    config.Environment
 	want string
 }{
-	{goship.Host{LatestCommit: "abc123"}, goship.Project{nil, "test project", "https://github.com/test/foo", "foo", "test", []goship.Environment{}}, goship.Environment{LatestGitHubCommit: "abc123"}, ""},
-	{goship.Host{LatestCommit: "abc123"}, goship.Project{nil, "test project", "https://github.com/test/foo", "foo", "test", []goship.Environment{}}, goship.Environment{LatestGitHubCommit: "abc456"}, "https://github.com/test/foo/compare/abc123...abc456"},
+	{config.Host{LatestCommit: "abc123"}, config.Project{nil, "test project", "https://github.com/test/foo", "foo", "test", []config.Environment{}}, config.Environment{LatestGitHubCommit: "abc123"}, ""},
+	{config.Host{LatestCommit: "abc123"}, config.Project{nil, "test project", "https://github.com/test/foo", "foo", "test", []config.Environment{}}, config.Environment{LatestGitHubCommit: "abc456"}, "https://github.com/test/foo/compare/abc123...abc456"},
 }
 
 func TestGitHubDiffURL(t *testing.T) {
@@ -46,34 +46,34 @@ func TestGitHubDiffURL(t *testing.T) {
 	}
 }
 
-var wantConfig = goship.Config{
-	Projects: []goship.Project{
+var wantConfig = config.Config{
+	Projects: []config.Project{
 		{Name: "Test Project One", GitHubURL: "https://github.com/test_owner/test_repo_name", RepoName: "test_repo_name", RepoOwner: "test_owner",
-			Environments: []goship.Environment{{Name: "live", Deploy: "/deploy/test_project_one.sh", RepoPath: "/repos/test_repo_name/.git",
-				Hosts: []goship.Host{{URI: "test-project-one.test.com"}}, Branch: "master"}}},
+			Environments: []config.Environment{{Name: "live", Deploy: "/deploy/test_project_one.sh", RepoPath: "/repos/test_repo_name/.git",
+				Hosts: []config.Host{{URI: "test-project-one.test.com"}}, Branch: "master"}}},
 		{Name: "Test Project Two", GitHubURL: "https://github.com/test_owner/test_repo_name_two", RepoName: "test_repo_name_two", RepoOwner: "test_owner",
-			Environments: []goship.Environment{{Name: "live", Deploy: "/deploy/test_project_two.sh", RepoPath: "/repos/test_repo_name_two/.git",
-				Hosts: []goship.Host{{URI: "test-project-two.test.com"}}, Branch: "master", LatestGitHubCommit: ""}}}},
+			Environments: []config.Environment{{Name: "live", Deploy: "/deploy/test_project_two.sh", RepoPath: "/repos/test_repo_name_two/.git",
+				Hosts: []config.Host{{URI: "test-project-two.test.com"}}, Branch: "master", LatestGitHubCommit: ""}}}},
 	DeployUser: "deploy_user",
 	Notify:     "/notify/notify.sh",
-	Pivotal:    &goship.PivotalConfiguration{Project: "111111", Token: "test"}}
+	Pivotal:    &config.PivotalConfiguration{Project: "111111", Token: "test"}}
 
 func TestSetComment(t *testing.T) {
-	err := goship.SetComment(&MockEtcdClient{}, "test_project", "test_environment", "A comment")
+	err := config.SetComment(&MockEtcdClient{}, "test_project", "test_environment", "A comment")
 	if err != nil {
 		t.Fatalf("Can't set Comment %s", err)
 	}
 }
 
 func TestLockingEnvironment(t *testing.T) {
-	err := goship.LockEnvironment(&MockEtcdClient{}, "test_project", "test_environment", "true")
+	err := config.LockEnvironment(&MockEtcdClient{}, "test_project", "test_environment", "true")
 	if err != nil {
 		t.Fatalf("Can't lock %s", err)
 	}
 }
 
 func TestUnlockingEnvironment(t *testing.T) {
-	err := goship.LockEnvironment(&MockEtcdClient{}, "test_project", "test_environment", "false")
+	err := config.LockEnvironment(&MockEtcdClient{}, "test_project", "test_environment", "false")
 	if err != nil {
 		t.Fatalf("Can't unlock %s", err)
 	}
@@ -87,7 +87,7 @@ func compareStrings(name, got, want string, t *testing.T) {
 
 func TestCanParseETCD(t *testing.T) {
 
-	got, err := goship.ParseETCD(&MockEtcdClient{})
+	got, err := config.ParseETCD(&MockEtcdClient{})
 	if err != nil {
 		t.Fatalf("Can't parse %s %s", t, err)
 	}
@@ -124,18 +124,18 @@ func TestFormatTime(t *testing.T) {
 }
 
 func TestProjectFromName(t *testing.T) {
-	var want = goship.Project{Name: "TestProject"}
-	projects := []goship.Project{want}
-	got, err := goship.ProjectFromName(projects, "TestProject")
+	var want = config.Project{Name: "TestProject"}
+	projects := []config.Project{want}
+	got, err := config.ProjectFromName(projects, "TestProject")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(got, &want) {
-		t.Errorf("goship.GetProjectFromName = %v, want %v", got, want)
+		t.Errorf("config.GetProjectFromName = %v, want %v", got, want)
 	}
-	got, err = goship.ProjectFromName(projects, "BadProject")
+	got, err = config.ProjectFromName(projects, "BadProject")
 	if err == nil {
-		t.Errorf("goship.GetProjectFromName error case did not error")
+		t.Errorf("config.GetProjectFromName error case did not error")
 	}
 }
 
@@ -146,7 +146,7 @@ func TestCleanProjects(t *testing.T) {
 	/*
 		req, _ := http.NewRequest("GET", "", nil)
 
-		p, err := goship.ParseETCD(&MockEtcdClient{})
+		p, err := config.ParseETCD(&MockEtcdClient{})
 		if err != nil {
 			t.Fatalf("Can't parse %s %s", t, err)
 		}
@@ -167,20 +167,20 @@ func TestCleanProjects(t *testing.T) {
 
 func TestGetEnvironmentFromName(t *testing.T) {
 	var (
-		want = goship.Environment{Name: "TestEnvironment"}
-		envs = []goship.Environment{want}
+		want = config.Environment{Name: "TestEnvironment"}
+		envs = []config.Environment{want}
 	)
-	projects := []goship.Project{goship.Project{Name: "TestProject", Environments: envs}}
-	got, err := goship.EnvironmentFromName(projects, "TestProject", "TestEnvironment")
+	projects := []config.Project{config.Project{Name: "TestProject", Environments: envs}}
+	got, err := config.EnvironmentFromName(projects, "TestProject", "TestEnvironment")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(got, &want) {
-		t.Errorf("goship.EnvironmentFromName = %v, want %v", got, want)
+		t.Errorf("config.EnvironmentFromName = %v, want %v", got, want)
 	}
-	got, err = goship.EnvironmentFromName(projects, "BadProject", "BadEnvironment")
+	got, err = config.EnvironmentFromName(projects, "BadProject", "BadEnvironment")
 	if err == nil {
-		t.Errorf("goship.EnvironmentFromName error case did not error")
+		t.Errorf("config.EnvironmentFromName error case did not error")
 	}
 }
 
