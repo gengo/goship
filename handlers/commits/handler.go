@@ -1,8 +1,9 @@
-package main
+package commits
 
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/coreos/go-etcd/etcd"
@@ -17,17 +18,29 @@ import (
 	"golang.org/x/net/context"
 )
 
-type ProjCommitsHandler struct {
-	ac  acl.AccessControl
-	gcl githublib.Client
-	ecl *etcd.Client
+type handler struct {
+	ac         acl.AccessControl
+	ecl        *etcd.Client
+	gcl        githublib.Client
+	sshKeyPath string
 }
 
-func (h ProjCommitsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, projName string) {
+// New returns a new http.Handler which serves latest revisions in deploy targets and the revision control system.
+func New(ac acl.AccessControl, ecl *etcd.Client, gcl githublib.Client, sshKeyPath string) http.Handler {
+	return handler{ac: ac, ecl: ecl, gcl: gcl, sshKeyPath: sshKeyPath}
+}
+
+func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	components := strings.Split(r.URL.Path, "/")
+	if len(components) != 3 || components[0] != "" || components[1] != "commits" {
+		http.NotFound(w, r)
+		return
+	}
+	projName := components[2]
 	c, err := goship.ParseETCD(h.ecl)
 	if err != nil {
 		glog.Errorf("Parsing etc: %v", err)
@@ -76,8 +89,8 @@ func (h ProjCommitsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, pr
 	}
 }
 
-func (h ProjCommitsHandler) retrieveCommits(ctx context.Context, project goship.Project, deployUser string) (goship.Project, error) {
-	s, err := ssh.WithPrivateKeyFile(deployUser, *keyPath)
+func (h handler) retrieveCommits(ctx context.Context, project goship.Project, deployUser string) (goship.Project, error) {
+	s, err := ssh.WithPrivateKeyFile(deployUser, h.sshKeyPath)
 	if err != nil {
 		return goship.Project{}, err
 	}
