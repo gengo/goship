@@ -11,6 +11,7 @@ import (
 
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gengo/goship/handlers/comment"
+	"github.com/gengo/goship/handlers/commits"
 	deploypage "github.com/gengo/goship/handlers/deploy-page"
 	"github.com/gengo/goship/handlers/lock"
 	goship "github.com/gengo/goship/lib"
@@ -81,16 +82,6 @@ func extractDeployLogHandler(ac acl.AccessControl, ecl *etcd.Client, fn func(htt
 		fn(w, r, m[2], *e, projectName)
 	}
 }
-func extractCommitHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		m := validPathWithEnv.FindStringSubmatch(r.URL.Path)
-		if m == nil {
-			http.NotFound(w, r)
-			return
-		}
-		fn(w, r, m[2])
-	}
-}
 
 var validPathWithEnvAndTime = regexp.MustCompile("^/(output)/(.*)/(.*)$")
 
@@ -136,7 +127,6 @@ func buildHandler(ctx context.Context) (http.Handler, error) {
 
 	hub := notification.NewHub(ctx)
 	ecl := etcd.NewClient([]string{*ETCDServer})
-
 	assets := helpers.New(*staticFilePath)
 
 	mux := http.NewServeMux()
@@ -156,9 +146,7 @@ func buildHandler(ctx context.Context) (http.Handler, error) {
 	dlh := DeployLogHandler{assets: assets}
 	mux.Handle("/deployLog/", auth.AuthenticateFunc(extractDeployLogHandler(ac, ecl, dlh.ServeHTTP)))
 	mux.Handle("/output/", auth.AuthenticateFunc(extractOutputHandler(DeployOutputHandler)))
-
-	pch := ProjCommitsHandler{ac: ac, gcl: gcl, ecl: ecl}
-	mux.Handle("/commits/", auth.AuthenticateFunc(extractCommitHandler(pch.ServeHTTP)))
+	mux.Handle("/commits/", auth.Authenticate(commits.New(ac, ecl, gcl, *keyPath)))
 	mux.Handle("/deploy_handler", auth.Authenticate(DeployHandler{ecl: ecl, hub: hub}))
 	mux.Handle("/lock", auth.Authenticate(lock.NewLock(ecl)))
 	mux.Handle("/unlock", auth.Authenticate(lock.NewUnlock(ecl)))
