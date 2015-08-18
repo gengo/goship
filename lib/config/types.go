@@ -27,7 +27,6 @@ type Config struct {
 	DeployUser string
 	Notify     string
 	Pivotal    *PivotalConfiguration
-	ETCDClient ETCDInterface
 }
 
 // Project stores information about a GitHub project, such as its GitHub URL and repo name, and a list of extra columns (PluginColumns)
@@ -36,6 +35,7 @@ type Project struct {
 	RepoName     string
 	RepoOwner    string
 	Environments []Environment
+	TravisToken  string
 
 	GitHubURL     string
 	PluginColumns []Column

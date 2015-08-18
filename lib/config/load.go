@@ -41,8 +41,7 @@ func Load(client ETCDInterface) (Config, error) {
 		return Config{}, fmt.Errorf("node %s must be a directory", baseInfo.Node.Key)
 	}
 	cfg := Config{
-		Pivotal:    new(PivotalConfiguration),
-		ETCDClient: client,
+		Pivotal: new(PivotalConfiguration),
 	}
 	for _, b := range baseInfo.Node.Nodes {
 		switch path.Base(b.Key) {
@@ -89,6 +88,8 @@ func loadProject(node *etcd.Node) (Project, error) {
 			proj.RepoOwner = path.Base(child.Value)
 		case "repo_name":
 			proj.RepoName = path.Base(child.Value)
+		case "travis_token":
+			proj.TravisToken = path.Base(child.Value)
 		case "environments":
 			if err := loadEnvironments(child, &proj); err != nil {
 				return Project{}, err

@@ -33,31 +33,6 @@ func (*tokenMockClient) Get(s string, t bool, x bool) (*etcd.Response, error) {
 	return mockResponse, nil
 }
 
-func TestGetTokenPrivate(t *testing.T) {
-	mockEtcd := &tokenMockClient{
-		Token: "test_token",
-	}
-	p := config.Project{
-		Name: "test_private",
-	}
-	got := getToken(mockEtcd, p)
-	want := mockEtcd.Token
-	if got != want {
-		t.Errorf("Want %#v, got %#v", want, got)
-	}
-}
-
-func TestGetTokenPublic(t *testing.T) {
-	p := config.Project{
-		Name: "test_public",
-	}
-	got := getToken(&tokenMockClient{}, p)
-	want := ""
-	if got != want {
-		t.Errorf("Want %#v, got %#v", want, got)
-	}
-}
-
 func TestRenderHeader(t *testing.T) {
 	c := TravisColumn{
 		Project:      "test_public",
@@ -115,7 +90,6 @@ func TestApply(t *testing.T) {
 				RepoOwner: "test",
 			},
 		},
-		ETCDClient: &tokenMockClient{},
 	}
 	err := p.Apply(config)
 	if err != nil {
