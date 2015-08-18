@@ -96,7 +96,6 @@ func loadProject(node *etcd.Node) (Project, error) {
 			}
 		}
 	}
-	proj.GitHubURL = fmt.Sprintf("https://github.com/%s/%s", proj.RepoOwner, proj.RepoName)
 	return proj, nil
 }
 

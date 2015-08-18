@@ -97,45 +97,44 @@
         url: '/commits/' + projectId,
         dataType: 'json',
         success: function(response) {
-          var environments = response.Environments,
-            project = response.Name,
-            $project = $('[data-id="' + project +'"]');
+          var environments = response,
+            $project = $('[data-id="' + projectId +'"]');
           for (var e = 0; e < environments.length; e++) {
             var env = environments[e];
-            var $env = $project.find('.environment[data-id="'+ env.Name +'"]');
+            var $env = $project.find('.environment[data-id="'+ env.name +'"]');
             var $hosts = $env.find('.hosts');
             $hosts.text('');
-            for (var h = 0; h < env.Hosts.length; h++) {
-              var host = env.Hosts[h];
+            for (var d = 0; d < env.deployments.length; d++) {
+              var deploy = env.deployments[d];
               var $host = $hostSkeleton.clone().removeAttr('id').removeClass('hidden');
               $host.find('.GitHubCommitURL').attr({
-                'href': host.GitHubCommitURL
-              }).text(host.ShortCommitHash);
+                'href': deploy.revisionURL
+              }).text(deploy.shortRevision);
               $hosts.append($host);
-              if (host.GitHubDiffURL) {
-                $host.find('.GitHubDiffURL').attr('href', host.GitHubDiffURL).closest('span.hidden').removeClass('hidden');
+              if (deploy.sourceCodeDiffURl) {
+                $host.find('.GitHubDiffURL').attr('href', deploy.sourceCodeDiffURL).closest('span.hidden').removeClass('hidden');
               }
             }
-            for (var h = 0; h < env.Hosts.length; h++) {
-              var host = env.Hosts[h];
+            for (var d = 0; d < env.deployments.length; d++) {
+              var deploy = env.deployments[d];
                 $deployForm = $env.find('.form-deploy');
-                $deployForm.find('[name="from_revision"]').val(host.LatestCommit);
-                $deployForm.find('[name="to_revision"]').val(env.LatestGitHubCommit);
-              if (host.GitHubDiffURL) {
-                $deployForm.find('[name="diffUrl"]').val(host.GitHubDiffURL);
+                $deployForm.find('[name="from_revision"]').val(deploy.revision);
+                $deployForm.find('[name="to_revision"]').val(env.latestDeployable);
+              if (deploy.sourceCodeDiffURL) {
+                $deployForm.find('[name="diffUrl"]').val(deploy.sourceCodeDiffURL);
                 break;
               }
             }
             $comment = $env.find(".comment")
-            if (env.Comment || env.IsLocked) {
+            if (env.comment || env.isLocked) {
               $env.find(".glyphicon-comment").removeClass('hidden').popover({
                 trigger: 'hover focus',
-                content: env.Comment,
+                content: env.comment,
                 placement: 'left'
               });
             }
             $comment = $env.find(".comment")
-            if (env.IsLocked) {
+            if (env.isLocked) {
               $deployForm = $env.find(".form-deploy").find(".btn")
               $deployForm.addClass('disabled')
             }

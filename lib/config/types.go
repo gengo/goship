@@ -37,7 +37,6 @@ type Project struct {
 	Environments []Environment
 	TravisToken  string
 
-	GitHubURL     string
 	PluginColumns []Column
 }
 
@@ -55,41 +54,11 @@ type Environment struct {
 	Revision string
 	Comment  string
 	IsLocked bool
-
-	LatestGitHubCommit string
 }
 
 // Host stores information on a host, such as URI and the latest commit revision.
 type Host struct {
 	URI string
-
-	LatestCommit    string
-	GitHubCommitURL string
-	GitHubDiffURL   string
-	ShortCommitHash string
-}
-
-// gitHubCommitURL takes a project and returns the GitHub URL for its latest commit hash.
-func (h *Host) LatestGitHubCommitURL(p Project) string {
-	return fmt.Sprintf("%s/commit/%s", p.GitHubURL, h.LatestCommit)
-}
-
-// gitHubDiffURL takes a project and an environment and returns the GitHub diff URL
-// for the latest commit on the host compared to the latest commit on GitHub.
-func (h *Host) LatestGitHubDiffURL(p Project, e Environment) string {
-	var s string
-	if h.LatestCommit != e.LatestGitHubCommit {
-		s = fmt.Sprintf("%s/compare/%s...%s", p.GitHubURL, h.LatestCommit, e.LatestGitHubCommit)
-	}
-	return s
-}
-
-// ShortCommitHash returns a shortened version of the latest commit hash on a host.
-func (h *Host) LatestShortCommitHash() string {
-	if len(h.LatestCommit) == 0 {
-		return ""
-	}
-	return h.LatestCommit[:7]
 }
 
 // PivotalConfiguration used to store Pivotal interface
@@ -190,13 +159,13 @@ func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err err
 
 // ProjectFromName takes a project name as a string and returns
 // a project by that name if it can find one.
-func ProjectFromName(projects []Project, projectName string) (*Project, error) {
+func ProjectFromName(projects []Project, projectName string) (Project, error) {
 	for _, project := range projects {
 		if project.Name == projectName {
-			return &project, nil
+			return project, nil
 		}
 	}
-	return nil, fmt.Errorf("No project found: %s", projectName)
+	return Project{}, fmt.Errorf("No project found: %s", projectName)
 }
 
 // EnvironmentFromName takes an environment and project name as a string and returns
