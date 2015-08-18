@@ -51,7 +51,6 @@ type Environment struct {
 	RepoPath string
 	Hosts    []Host
 	Branch   string
-	Revision string
 	Comment  string
 	IsLocked bool
 }

@@ -115,14 +115,11 @@ func loadEnvironments(node *etcd.Node, proj *Project) error {
 
 func loadEnvironment(node *etcd.Node) (Environment, error) {
 	env := Environment{
-		Name:     path.Base(node.Key),
-		Revision: "HEAD",
-		Branch:   "master",
+		Name:   path.Base(node.Key),
+		Branch: "master",
 	}
 	for _, n := range node.Nodes {
 		switch path.Base(n.Key) {
-		case "revision":
-			env.Revision = n.Value
 		case "branch":
 			env.Branch = n.Value
 		case "deploy":
