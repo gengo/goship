@@ -7,11 +7,10 @@ package travis
 import (
 	"fmt"
 	"html/template"
-	"log"
 
 	goship "github.com/gengo/goship/lib"
-
 	"github.com/gengo/goship/plugins/plugin"
+	"github.com/golang/glog"
 )
 
 type TravisPlugin struct{}
@@ -48,7 +47,7 @@ func (c TravisColumn) RenderDetail() (template.HTML, error) {
 func getToken(c goship.ETCDInterface, p goship.Project) string {
 	r, err := c.Get(fmt.Sprintf("/projects/%s/travis_token", p.Name), false, false)
 	if err != nil {
-		log.Print(err)
+		glog.Error(err)
 		return ""
 	}
 	return r.Node.Value

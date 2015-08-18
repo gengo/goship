@@ -2,10 +2,10 @@ package auth
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 
+	"github.com/golang/glog"
 	"github.com/gorilla/sessions"
 	"github.com/stretchr/gomniauth"
 	"github.com/stretchr/objx"
@@ -21,7 +21,7 @@ func Authenticate(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, err := CurrentUser(r)
 		if err != nil {
-			log.Printf("error getting a User %s", err)
+			glog.Warningf("Failed to fetch the current user: %v", err)
 			http.Redirect(w, r, callback, http.StatusSeeOther)
 			return
 		}
@@ -41,7 +41,7 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 
 	provider, err := gomniauth.Provider(providerName)
 	if err != nil {
-		log.Printf("error getting gomniauth provider")
+		glog.Errorf("failed to get authentication provider %s: %v", providerName, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -66,14 +66,14 @@ func CallbackHandler(w http.ResponseWriter, r *http.Request) {
 
 	provider, err := gomniauth.Provider(providerName)
 	if err != nil {
-		log.Printf("error getting gomniauth provider")
+		glog.Errorf("failed to get authentication provider %s: %v", providerName, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	omap, err := objx.FromURLQuery(r.URL.RawQuery)
 	if err != nil {
-		log.Printf("error getting resp from callback")
+		glog.Errorf("Failed to parse querystring: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -86,14 +86,14 @@ func CallbackHandler(w http.ResponseWriter, r *http.Request) {
 
 	user, userErr := provider.GetUser(creds)
 	if userErr != nil {
-		log.Printf("Failed to get user from Github %s", user)
+		glog.Errorf("Failed to get user from Github %s", user)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	session, err := store.Get(r, sessionName)
 	if err != nil {
-		log.Printf("Failed to get Session %s", user)
+		glog.Errorf("Failed to fetch current session: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

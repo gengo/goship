@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"html/template"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-etcd/etcd"
+	"github.com/golang/glog"
 	"github.com/google/go-github/github"
 	"golang.org/x/oauth2"
 )
@@ -92,7 +92,7 @@ func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current 
 	loc, err := time.LoadLocation("Asia/Tokyo")
 	if err != nil {
 		layout += " (UTC)"
-		log.Println("error: time zone information for Asia/Tokyo not found")
+		glog.Error("time zone information for Asia/Tokyo not found")
 	} else {
 		layout += " (JST)"
 		timestamp = timestamp.In(loc)
@@ -148,7 +148,7 @@ func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err err
 	p.Set("text", m)
 	req, err := http.NewRequest("POST", fmt.Sprintf(pivotalCommentURL, piv.Project, id), nil)
 	if err != nil {
-		log.Println("ERROR: could not form put request to Pivotal: ", err)
+		glog.Errorf("could not form put request to Pivotal: %v", err)
 		return err
 	}
 	req.URL.RawQuery = p.Encode()
@@ -156,13 +156,13 @@ func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err err
 	req.Header.Add("X-TrackerToken", piv.Token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		log.Println("ERROR: could not make put request to Pivotal: ", err)
+		glog.Errorf("could not make put request to Pivotal: %v", err)
 		return err
 	}
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("ERROR: non-200 Response from Pivotal API: %s %s ", resp.Status, body)
+		glog.Errorf("non-200 Response from Pivotal API: %s %s ", resp.Status, body)
 	}
 	return nil
 }

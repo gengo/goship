@@ -3,12 +3,12 @@ package deploypage
 import (
 	"fmt"
 	"html/template"
-	"log"
 	"net/http"
 	"net/url"
 
 	"github.com/gengo/goship/lib/auth"
 	helpers "github.com/gengo/goship/lib/view-helpers"
+	"github.com/golang/glog"
 )
 
 // New return an http handler which renders deploy page.
@@ -38,7 +38,7 @@ type deployPage struct {
 func (h deployPage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	user, err := auth.CurrentUser(r)
 	if err != nil {
-		log.Println("Failed to Get User")
+		glog.Errorf("Failed to get current user: %v", err)
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
@@ -50,7 +50,7 @@ func (h deployPage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	repoName := r.FormValue("repo_name")
 	t, err := template.New("deploy.html").ParseFiles("templates/deploy.html", "templates/base.html")
 	if err != nil {
-		log.Println("ERROR: ", err)
+		glog.Errorf("Failed to parse templates: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

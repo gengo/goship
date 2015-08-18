@@ -1,11 +1,11 @@
 package comment
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/coreos/go-etcd/etcd"
 	goship "github.com/gengo/goship/lib"
+	"github.com/golang/glog"
 )
 
 // CommentHandler allows you to update a comment on an environment
@@ -24,7 +24,7 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	comment := r.FormValue("comment")
 	err := goship.SetComment(h.ecl, p, env, comment)
 	if err != nil {
-		log.Println("ERROR: ", err)
+		glog.Errorf("Failed to store comment for project=%s env=%s: %v", p, env, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

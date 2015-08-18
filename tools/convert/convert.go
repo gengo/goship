@@ -5,12 +5,11 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"log"
 	"strings"
 
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gengo/goship/lib"
+	"github.com/golang/glog"
 	"github.com/kylelemons/go-gypsy/yaml"
 )
 
@@ -30,7 +29,7 @@ func getYAMLString(n yaml.Node, key string) string {
 
 // Send etcd Data and output.
 func setETCD(client *etcd.Client, full_key, value string) {
-	log.Printf("Setting %s => %s \n", full_key, value)
+	glog.Infof("Setting %s => %s \n", full_key, value)
 	client.Create(full_key, value, 0)
 }
 
@@ -40,7 +39,7 @@ func YAMLtoETCDEnvironment(m yaml.Node, client *etcd.Client, projPath string) {
 	for k, v := range m.(yaml.Map) {
 		projPath = projPath + "environments/" + k + "/"
 
-		log.Printf("Setting env name=> %s \n", projPath)
+		glog.Infof("Setting env name=> %s \n", projPath)
 		client.CreateDir(projPath, 0)
 
 		branch := getYAMLString(v, "branch")
@@ -53,12 +52,12 @@ func YAMLtoETCDEnvironment(m yaml.Node, client *etcd.Client, projPath string) {
 		setETCD(client, projPath+"deploy", deploy)
 
 		projPath = projPath + "hosts/"
-		log.Printf("Creating Host Directory => %s \n", projPath+"hosts/")
+		glog.Infof("Creating Host Directory => %s \n", projPath+"hosts/")
 		client.CreateDir(projPath, 0)
 
 		for _, host := range v.(yaml.Map)["hosts"].(yaml.List) {
 			h := goship.Host{URI: host.(yaml.Scalar).String()}
-			log.Printf("Setting Hosts => %s \n", projPath+h.URI)
+			glog.Infof("Setting Hosts => %s \n", projPath+h.URI)
 			client.CreateDir(projPath+h.URI, 0)
 		}
 	}
@@ -70,7 +69,7 @@ func YAMLtoETCD(client *etcd.Client) (c goship.Config, err error) {
 	if err != nil {
 		return c, err
 	}
-	log.Printf("Setting project root => /projects")
+	glog.Infof("Setting project root => /projects")
 	client.CreateDir("/projects", 0)
 	configRoot, _ := config.Root.(yaml.Map)
 	projects, _ := configRoot["projects"].(yaml.List)
@@ -79,7 +78,7 @@ func YAMLtoETCD(client *etcd.Client) (c goship.Config, err error) {
 
 			projectPath := "/projects/" + k + "/"
 
-			log.Printf("Setting project => %s \n", projectPath)
+			glog.Infof("Setting project => %s \n", projectPath)
 			client.CreateDir(projectPath, 0)
 
 			name := getYAMLString(v, "project_name")
@@ -118,10 +117,12 @@ func YAMLtoETCD(client *etcd.Client) (c goship.Config, err error) {
 
 func main() {
 	flag.Parse()
-	log.Printf("Reading Config file: %s Connecting to ETCD server: %s", *ConfigFile, *ETCDServer)
+	defer glog.Flush()
+
+	glog.Infof("Reading Config file: %s Connecting to ETCD server: %s", *ConfigFile, *ETCDServer)
 	a := etcd.NewClient([]string{*ETCDServer})
 	_, err := YAMLtoETCD(a)
 	if err != nil {
-		fmt.Printf("Failed to Parse Yaml and Add to ETCD [%s]\n", err)
+		glog.Fatalf("Failed to Parse Yaml and Add to ETCD [%s]\n", err)
 	}
 }

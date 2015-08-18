@@ -1,10 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -13,6 +13,7 @@ import (
 	"github.com/gengo/goship/lib/acl"
 	"github.com/gengo/goship/lib/auth"
 	githublib "github.com/gengo/goship/lib/github"
+	"github.com/golang/glog"
 	"github.com/google/go-github/github"
 	"golang.org/x/crypto/ssh"
 )
@@ -42,11 +43,14 @@ func remoteCmdOutput(username, hostname, cmd string, privateKey []byte) (b []byt
 		return b, errors.New("ERROR: Failed to create session: " + err.Error())
 	}
 	defer session.Close()
-	b, err = session.Output(cmd)
-	if err != nil {
-		return b, fmt.Errorf("ERROR: Failed to run cmd on host %s: %s", hostname, err.Error())
+
+	var outBuf, errBuf bytes.Buffer
+	session.Stdout = &outBuf
+	session.Stderr = &errBuf
+	if err := session.Run(cmd); err != nil {
+		return b, fmt.Errorf("ERROR: Failed to run cmd %q on host %s: %v: %s", cmd, hostname, err, errBuf.String())
 	}
-	return b, nil
+	return outBuf.Bytes(), nil
 }
 
 // latestDeployedCommit gets the latest commit hash on the host.
@@ -68,7 +72,7 @@ func getCommit(wg *sync.WaitGroup, project goship.Project, env goship.Environmen
 	defer wg.Done()
 	lc, err := latestDeployedCommit(deployUser, host.URI+":"+sshPort, env)
 	if err != nil {
-		log.Printf("ERROR: failed to get latest deployed commit: %s, %s. Error: %v", host.URI, deployUser, err)
+		glog.Errorf("Failed to get latest deployed commit: %s, %s. Error: %v", host.URI, deployUser, err)
 		host.LatestCommit = string(lc)
 		project.Environments[i].Hosts[j] = host
 	}
@@ -83,7 +87,7 @@ func getLatestGitHubCommit(wg *sync.WaitGroup, project goship.Project, environme
 	opts := &github.CommitsListOptions{SHA: environment.Branch}
 	commits, _, err := gcl.ListCommits(repoOwner, repoName, opts)
 	if err != nil {
-		log.Println("ERROR: Failed to get commits from GitHub: ", err)
+		glog.Errorf("Failed to get commits from GitHub: %v", err)
 		environment.LatestGitHubCommit = ""
 	} else {
 		environment.LatestGitHubCommit = *commits[0].SHA
@@ -120,7 +124,7 @@ func retrieveCommits(gcl githublib.Client, ac acl.AccessControl, r *http.Request
 	}
 	u, err := auth.CurrentUser(r)
 	if err != nil {
-		log.Printf("Failed to get user %s", err)
+		glog.Errorf("Failed to get user %s", err)
 	}
 	return filterProject(ac, project, r, u), err
 }

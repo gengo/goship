@@ -1,11 +1,11 @@
 package lock
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/coreos/go-etcd/etcd"
 	goship "github.com/gengo/goship/lib"
+	"github.com/golang/glog"
 )
 
 // http://127.0.0.1:8000/lock?environment=staging&project=admin
@@ -32,7 +32,7 @@ func handler(ecl *etcd.Client, w http.ResponseWriter, r *http.Request, lock bool
 	}
 	err := goship.LockEnvironment(ecl, p, env, lockStr)
 	if err != nil {
-		log.Println("ERROR: ", err)
+		glog.Errorf("Failed to lock/unlock project=%s env=%s: %v", p, env, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

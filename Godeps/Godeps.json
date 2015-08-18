@@ -15,6 +15,10 @@
 			"Rev": "f02171fbd43c7b9b53ce8679b03235a1ef3c7b12"
 		},
 		{
+			"ImportPath": "github.com/golang/glog",
+			"Rev": "44145f04b68cf362d9c4df2182967c2275eaefed"
+		},
+		{
 			"ImportPath": "github.com/google/go-github/github",
 			"Rev": "fccd5bb66f985db0a0d150342ca0a9529a23488a"
 		},
