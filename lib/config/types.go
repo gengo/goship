@@ -21,37 +21,13 @@ const (
 	gitHubAPITokenEnvVar = "GITHUB_API_TOKEN"
 )
 
-// Host stores information on a host, such as URI and the latest commit revision.
-type Host struct {
-	URI string
-
-	LatestCommit    string
-	GitHubCommitURL string
-	GitHubDiffURL   string
-	ShortCommitHash string
-}
-
-// Environment stores information about an individual environment, such as its name and whether it is deployable.
-type Environment struct {
-	Name     string
-	Deploy   string
-	RepoPath string
-	Hosts    []Host
-	Branch   string
-	Revision string
-	Comment  string
-	IsLocked bool
-
-	LatestGitHubCommit string
-}
-
-// Column is an interface that demands a RenderHeader and RenderDetails method to be able to generate a table column (with header and body)
-// See templates/index.html to see how the Header and Render methods are used
-type Column interface {
-	// RenderHeader() returns a HTML template that should render a <th> element
-	RenderHeader() (template.HTML, error)
-	// RenderDetail() returns a HTML template that should render a <td> element
-	RenderDetail() (template.HTML, error)
+// Config is a set of Goship configurations
+type Config struct {
+	Projects   []Project
+	DeployUser string
+	Notify     string
+	Pivotal    *PivotalConfiguration
+	ETCDClient ETCDInterface
 }
 
 // Project stores information about a GitHub project, such as its GitHub URL and repo name, and a list of extra columns (PluginColumns)
@@ -69,6 +45,30 @@ func (p *Project) AddPluginColumn(c Column) {
 	p.PluginColumns = append(p.PluginColumns, c)
 }
 
+// Environment stores information about an individual environment, such as its name and whether it is deployable.
+type Environment struct {
+	Name     string
+	Deploy   string
+	RepoPath string
+	Hosts    []Host
+	Branch   string
+	Revision string
+	Comment  string
+	IsLocked bool
+
+	LatestGitHubCommit string
+}
+
+// Host stores information on a host, such as URI and the latest commit revision.
+type Host struct {
+	URI string
+
+	LatestCommit    string
+	GitHubCommitURL string
+	GitHubDiffURL   string
+	ShortCommitHash string
+}
+
 // gitHubCommitURL takes a project and returns the GitHub URL for its latest commit hash.
 func (h *Host) LatestGitHubCommitURL(p Project) string {
 	return fmt.Sprintf("%s/commit/%s", p.GitHubURL, h.LatestCommit)
@@ -82,6 +82,29 @@ func (h *Host) LatestGitHubDiffURL(p Project, e Environment) string {
 		s = fmt.Sprintf("%s/compare/%s...%s", p.GitHubURL, h.LatestCommit, e.LatestGitHubCommit)
 	}
 	return s
+}
+
+// ShortCommitHash returns a shortened version of the latest commit hash on a host.
+func (h *Host) LatestShortCommitHash() string {
+	if len(h.LatestCommit) == 0 {
+		return ""
+	}
+	return h.LatestCommit[:7]
+}
+
+// PivotalConfiguration used to store Pivotal interface
+type PivotalConfiguration struct {
+	Project string
+	Token   string
+}
+
+// Column is an interface that demands a RenderHeader and RenderDetails method to be able to generate a table column (with header and body)
+// See templates/index.html to see how the Header and Render methods are used
+type Column interface {
+	// RenderHeader() returns a HTML template that should render a <th> element
+	RenderHeader() (template.HTML, error)
+	// RenderDetail() returns a HTML template that should render a <td> element
+	RenderDetail() (template.HTML, error)
 }
 
 func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current string) error {
@@ -165,35 +188,6 @@ func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err err
 	return nil
 }
 
-// ShortCommitHash returns a shortened version of the latest commit hash on a host.
-func (h *Host) LatestShortCommitHash() string {
-	if len(h.LatestCommit) == 0 {
-		return ""
-	}
-	return h.LatestCommit[:7]
-}
-
-// config contains the information from config.yml.
-type Config struct {
-	Projects   []Project
-	DeployUser string
-	Notify     string
-	Pivotal    *PivotalConfiguration
-	ETCDClient ETCDInterface
-}
-
-// PivotalConfiguration used to store Pivotal interface
-type PivotalConfiguration struct {
-	Project string
-	Token   string
-}
-
-// ETCDInterface emulates ETCD to allow testing
-type ETCDInterface interface {
-	Get(string, bool, bool) (*etcd.Response, error)
-	Set(string, string, uint64) (*etcd.Response, error)
-}
-
 // ProjectFromName takes a project name as a string and returns
 // a project by that name if it can find one.
 func ProjectFromName(projects []Project, projectName string) (*Project, error) {
@@ -219,4 +213,10 @@ func EnvironmentFromName(projects []Project, projectName, environmentName string
 		}
 	}
 	return nil, fmt.Errorf("No environment found: %s", environmentName)
+}
+
+// ETCDInterface emulates ETCD to allow testing
+type ETCDInterface interface {
+	Get(string, bool, bool) (*etcd.Response, error)
+	Set(string, string, uint64) (*etcd.Response, error)
 }
