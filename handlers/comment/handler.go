@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/coreos/go-etcd/etcd"
-	goship "github.com/gengo/goship/lib"
+	"github.com/gengo/goship/lib/config"
 	"github.com/golang/glog"
 )
 
@@ -22,7 +22,7 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p := r.FormValue("project")
 	env := r.FormValue("environment")
 	comment := r.FormValue("comment")
-	err := goship.SetComment(h.ecl, p, env, comment)
+	err := config.SetComment(h.ecl, p, env, comment)
 	if err != nil {
 		glog.Errorf("Failed to store comment for project=%s env=%s: %v", p, env, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

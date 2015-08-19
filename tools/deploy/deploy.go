@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/gengo/goship/lib"
+	gsconfig "github.com/gengo/goship/lib/config"
 	"github.com/golang/glog"
 	"github.com/kylelemons/go-gypsy/yaml"
 )
@@ -141,11 +141,11 @@ func main() {
 		updateChefRepo(conf)
 	}
 	if *pullOnly == false {
-		c, err := goship.ParseETCD(etcd.NewClient([]string{conf.etcdServer}))
+		c, err := gsconfig.Load(etcd.NewClient([]string{conf.etcdServer}))
 		if err != nil {
 			glog.Fatalf("Error parsing ETCD: %s", err)
 		}
-		projectEnv, err := goship.EnvironmentFromName(c.Projects, *deployProj, *deployEnv)
+		projectEnv, err := gsconfig.EnvironmentFromName(c.Projects, *deployProj, *deployEnv)
 		if err != nil {
 			glog.Fatalf("Error getting project %s %s %s", *deployProj, *deployEnv, err)
 		}

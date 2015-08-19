@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"github.com/coreos/go-etcd/etcd"
-	goship "github.com/gengo/goship/lib"
 	"github.com/gengo/goship/lib/auth"
+	"github.com/gengo/goship/lib/config"
 	"github.com/gengo/goship/lib/notification"
 	"github.com/golang/glog"
 	"github.com/google/go-github/github"
@@ -30,7 +30,7 @@ type DeployHandler struct {
 }
 
 func (h DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	c, err := goship.ParseETCD(h.ecl)
+	c, err := config.Load(h.ecl)
 	if err != nil {
 		glog.Errorf("Failed to fetch latest configuration: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -105,7 +105,7 @@ func (h DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if (c.Pivotal.Token != "") && (c.Pivotal.Project != "") && success {
-		err := goship.PostToPivotal(c.Pivotal, env, owner, name, toRevision, fromRevision)
+		err := config.PostToPivotal(c.Pivotal, env, owner, name, toRevision, fromRevision)
 		if err != nil {
 			glog.Errorf("Failed to post to pivotal: %v", err)
 		} else {
@@ -204,8 +204,8 @@ func endNotify(n, p, env string, success bool) error {
 
 // getDeployCommand returns the deployment command for a given
 // environment as a string slice that has been split on spaces.
-func getDeployCommand(projects []goship.Project, projectName, environmentName string) (s []string, err error) {
-	e, err := goship.EnvironmentFromName(projects, projectName, environmentName)
+func getDeployCommand(projects []config.Project, projectName, environmentName string) (s []string, err error) {
+	e, err := config.EnvironmentFromName(projects, projectName, environmentName)
 	if err != nil {
 		return s, err
 	}

@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/coreos/go-etcd/etcd"
-	goship "github.com/gengo/goship/lib"
+	"github.com/gengo/goship/lib/config"
 	"github.com/golang/glog"
 )
 
@@ -30,7 +30,7 @@ func handler(ecl *etcd.Client, w http.ResponseWriter, r *http.Request, lock bool
 	if lock {
 		lockStr = "true"
 	}
-	err := goship.LockEnvironment(ecl, p, env, lockStr)
+	err := config.LockEnvironment(ecl, p, env, lockStr)
 	if err != nil {
 		glog.Errorf("Failed to lock/unlock project=%s env=%s: %v", p, env, err)
 		http.Error(w, err.Error(), http.StatusBadRequest)

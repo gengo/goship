@@ -1,11 +1,13 @@
 package plugin
 
-import goship "github.com/gengo/goship/lib"
+import (
+	"github.com/gengo/goship/lib/config"
+)
 
 var Plugins []Plugin
 
 type Plugin interface {
-	Apply(goship.Config) error
+	Apply(config.Config) error
 }
 
 func RegisterPlugin(p Plugin) {

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/coreos/go-etcd/etcd"
-	goship "github.com/gengo/goship/lib"
+	"github.com/gengo/goship/lib/config"
 )
 
 type tokenMockClient struct {
@@ -31,31 +31,6 @@ func (*tokenMockClient) Get(s string, t bool, x bool) (*etcd.Response, error) {
 		return nil, errors.New("Key doesn't exist!")
 	}
 	return mockResponse, nil
-}
-
-func TestGetTokenPrivate(t *testing.T) {
-	mockEtcd := &tokenMockClient{
-		Token: "test_token",
-	}
-	p := goship.Project{
-		Name: "test_private",
-	}
-	got := getToken(mockEtcd, p)
-	want := mockEtcd.Token
-	if got != want {
-		t.Errorf("Want %#v, got %#v", want, got)
-	}
-}
-
-func TestGetTokenPublic(t *testing.T) {
-	p := goship.Project{
-		Name: "test_public",
-	}
-	got := getToken(&tokenMockClient{}, p)
-	want := ""
-	if got != want {
-		t.Errorf("Want %#v, got %#v", want, got)
-	}
 }
 
 func TestRenderHeader(t *testing.T) {
@@ -108,14 +83,13 @@ func TestRenderDetailPrivate(t *testing.T) {
 
 func TestApply(t *testing.T) {
 	p := &TravisPlugin{}
-	config := goship.Config{
-		Projects: []goship.Project{
-			goship.Project{
+	config := config.Config{
+		Projects: []config.Project{
+			config.Project{
 				RepoName:  "test_project",
 				RepoOwner: "test",
 			},
 		},
-		ETCDClient: &tokenMockClient{},
 	}
 	err := p.Apply(config)
 	if err != nil {

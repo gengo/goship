@@ -4,7 +4,7 @@ import (
 	"html/template"
 	"testing"
 
-	goship "github.com/gengo/goship/lib"
+	"github.com/gengo/goship/lib/config"
 )
 
 func TestRenderDetail(t *testing.T) {
@@ -33,14 +33,14 @@ func TestRenderHeader(t *testing.T) {
 
 func TestApply(t *testing.T) {
 	p := &PivotalPlugin{}
-	config := goship.Config{
-		Projects: []goship.Project{
-			goship.Project{
+	config := config.Config{
+		Projects: []config.Project{
+			config.Project{
 				RepoName:  "test_project",
 				RepoOwner: "test",
 			},
 		},
-		Pivotal: &goship.PivotalConfiguration{Token: "token", Project: "1100"},
+		Pivotal: &config.PivotalConfiguration{Token: "token", Project: "1100"},
 	}
 	err := p.Apply(config)
 	if err != nil {

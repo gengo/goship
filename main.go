@@ -14,9 +14,9 @@ import (
 	"github.com/gengo/goship/handlers/commits"
 	deploypage "github.com/gengo/goship/handlers/deploy-page"
 	"github.com/gengo/goship/handlers/lock"
-	goship "github.com/gengo/goship/lib"
 	"github.com/gengo/goship/lib/acl"
 	"github.com/gengo/goship/lib/auth"
+	"github.com/gengo/goship/lib/config"
 	githublib "github.com/gengo/goship/lib/github"
 	"github.com/gengo/goship/lib/notification"
 	helpers "github.com/gengo/goship/lib/view-helpers"
@@ -43,14 +43,14 @@ var (
 
 var validPathWithEnv = regexp.MustCompile("^/(deployLog|commits)/(.*)$")
 
-func extractDeployLogHandler(ac acl.AccessControl, ecl *etcd.Client, fn func(http.ResponseWriter, *http.Request, string, goship.Environment, string)) http.HandlerFunc {
+func extractDeployLogHandler(ac acl.AccessControl, ecl *etcd.Client, fn func(http.ResponseWriter, *http.Request, string, config.Environment, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		m := validPathWithEnv.FindStringSubmatch(r.URL.Path)
 		if m == nil {
 			http.NotFound(w, r)
 			return
 		}
-		c, err := goship.ParseETCD(ecl)
+		c, err := config.Load(ecl)
 		if err != nil {
 			glog.Errorf("Failed to get current configuration: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -73,7 +73,7 @@ func extractDeployLogHandler(ac acl.AccessControl, ecl *etcd.Client, fn func(htt
 		} else {
 			projectName = strings.Join(a[0:l-1], "-")
 		}
-		e, err := goship.EnvironmentFromName(c.Projects, projectName, environmentName)
+		e, err := config.EnvironmentFromName(c.Projects, projectName, environmentName)
 		if err != nil {
 			glog.Errorf("Can't get environment from name: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)

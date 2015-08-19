@@ -7,9 +7,9 @@ import (
 	"sync"
 
 	"github.com/coreos/go-etcd/etcd"
-	goship "github.com/gengo/goship/lib"
 	"github.com/gengo/goship/lib/acl"
 	"github.com/gengo/goship/lib/auth"
+	"github.com/gengo/goship/lib/config"
 	githublib "github.com/gengo/goship/lib/github"
 	"github.com/gengo/goship/lib/revision"
 	githubrev "github.com/gengo/goship/lib/revision/github"
@@ -41,7 +41,7 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	projName := components[2]
-	c, err := goship.ParseETCD(h.ecl)
+	c, err := config.Load(h.ecl)
 	if err != nil {
 		glog.Errorf("Parsing etc: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -53,14 +53,14 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	proj, err := goship.ProjectFromName(c.Projects, projName)
+	proj, err := config.ProjectFromName(c.Projects, projName)
 	if err != nil {
 		glog.Errorf("Failed to get project from name: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	fp := acl.ReadableProjects(h.ac, []goship.Project{*proj}, u)
+	fp := acl.ReadableProjects(h.ac, []config.Project{*proj}, u)
 	if len(fp) == 0 {
 		http.Error(w, "Permission denied", http.StatusForbidden)
 		return
@@ -89,17 +89,17 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h handler) retrieveCommits(ctx context.Context, project goship.Project, deployUser string) (goship.Project, error) {
+func (h handler) retrieveCommits(ctx context.Context, project config.Project, deployUser string) (config.Project, error) {
 	s, err := ssh.WithPrivateKeyFile(deployUser, h.sshKeyPath)
 	if err != nil {
-		return goship.Project{}, err
+		return config.Project{}, err
 	}
 	c := revision.Control(githubrev.New(h.gcl, s))
 	var wg sync.WaitGroup
 	for i, environment := range project.Environments {
 		for j, host := range environment.Hosts {
 			wg.Add(1)
-			go func(i, j int, host goship.Host, repoPath string) {
+			go func(i, j int, host config.Host, repoPath string) {
 				defer wg.Done()
 				commit, err := c.LatestDeployed(ctx, host, repoPath)
 				if err != nil {
@@ -134,7 +134,7 @@ func (h handler) retrieveCommits(ctx context.Context, project goship.Project, de
 	return project, nil
 }
 
-func addPermissionComment(ac acl.AccessControl, p goship.Project, u auth.User) goship.Project {
+func addPermissionComment(ac acl.AccessControl, p config.Project, u auth.User) config.Project {
 	for i, e := range p.Environments {
 		// If the repo isn't already locked.. lock it if the user doesnt have permission
 		// and add to the comments
