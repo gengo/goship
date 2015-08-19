@@ -12,7 +12,7 @@ type HelloWorldPlugin struct {
 }
 
 func init() {
-	p := &HelloWorldPlugin{HelloWorldColumn{}}
+	var p HelloWorldPlugin
 	plugin.RegisterPlugin(p)
 }
 
@@ -26,9 +26,6 @@ func (c HelloWorldColumn) RenderDetail() (template.HTML, error) {
 	return template.HTML("<td>Hello World!</td>"), nil
 }
 
-func (p *HelloWorldPlugin) Apply(g config.Config) error {
-	for i := range g.Projects {
-		g.Projects[i].AddPluginColumn(p.Column)
-	}
-	return nil
+func (p HelloWorldPlugin) Apply(proj config.Project) ([]plugin.Column, error) {
+	return []plugin.Column{p.Column}, nil
 }

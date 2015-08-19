@@ -2,6 +2,7 @@
   <div class="container contents">
     <div class="row">
       <div class="span6">
+        {{$params := .}}
         {{range $project := .Projects}}
         <div class="project" data-id="{{$project.Name}}">
           <h3><a href="#" class="refresh">↻</a> {{.Name}}</h3>
@@ -12,7 +13,7 @@
                 <th class="column-environment">Environment</th>
                 <th class="column-hosts">Hosts</th>
                 {{/* add and display the header of all plugins' columns */}}
-                {{range $project.PluginColumns}}
+                {{range (index $params.PluginColumns $project.Name)}}
                   {{.RenderHeader}}
                 {{end}}
                 <th class="column-deployed-revision">Deployed Revision</th>
@@ -30,7 +31,7 @@
                   {{end}}
                 </td>
                 {{/* add and display the main content (through Render) of all plugins' columns */}}
-                {{range $project.PluginColumns}}
+                {{range (index $params.PluginColumns $project.Name)}}
                   {{.RenderDetail}}
                 {{end}}
                 <td class="hosts">

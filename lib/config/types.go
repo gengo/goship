@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"html/template"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -36,12 +35,6 @@ type Project struct {
 	RepoOwner    string
 	Environments []Environment
 	TravisToken  string
-
-	PluginColumns []Column
-}
-
-func (p *Project) AddPluginColumn(c Column) {
-	p.PluginColumns = append(p.PluginColumns, c)
 }
 
 // Environment stores information about an individual environment, such as its name and whether it is deployable.
@@ -64,15 +57,6 @@ type Host struct {
 type PivotalConfiguration struct {
 	Project string
 	Token   string
-}
-
-// Column is an interface that demands a RenderHeader and RenderDetails method to be able to generate a table column (with header and body)
-// See templates/index.html to see how the Header and Render methods are used
-type Column interface {
-	// RenderHeader() returns a HTML template that should render a <th> element
-	RenderHeader() (template.HTML, error)
-	// RenderDetail() returns a HTML template that should render a <td> element
-	RenderDetail() (template.HTML, error)
 }
 
 func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current string) error {

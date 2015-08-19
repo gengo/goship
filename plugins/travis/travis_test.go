@@ -3,10 +3,12 @@ package travis
 import (
 	"errors"
 	"html/template"
+	"reflect"
 	"testing"
 
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/gengo/goship/lib/config"
+	"github.com/gengo/goship/plugins/plugin"
 )
 
 type tokenMockClient struct {
@@ -83,26 +85,23 @@ func TestRenderDetailPrivate(t *testing.T) {
 
 func TestApply(t *testing.T) {
 	p := &TravisPlugin{}
-	config := config.Config{
-		Projects: []config.Project{
-			config.Project{
-				RepoName:  "test_project",
-				RepoOwner: "test",
-			},
-		},
+	proj := config.Project{
+		RepoName:    "test_project",
+		RepoOwner:   "test",
+		TravisToken: "XXXXXX",
 	}
-	err := p.Apply(config)
+	cols, err := p.Apply(proj)
 	if err != nil {
 		t.Fatalf("Error applying plugin %v", err)
 	}
-	if len(config.Projects[0].PluginColumns) != 1 {
-		t.Fatalf("Failed to add plugin column, PluginColumn len = %d", len(config.Projects[0].PluginColumns))
+	want := []plugin.Column{
+		TravisColumn{
+			Organization: "test",
+			Project:      "test_project",
+			Token:        "XXXXXX",
+		},
 	}
-	pl := config.Projects[0].PluginColumns[0]
-	switch pl.(type) {
-	case TravisColumn:
-		break
-	default:
-		t.Errorf("Plugin is not correct type, type %T", pl)
+	if got := cols; !reflect.DeepEqual(got, want) {
+		t.Errorf("cols = %#v; want %#v", got, want)
 	}
 }
