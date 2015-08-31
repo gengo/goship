@@ -2,6 +2,7 @@ package commits
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"sync"
@@ -16,6 +17,10 @@ import (
 	"github.com/gengo/goship/lib/ssh"
 	"github.com/golang/glog"
 	"golang.org/x/net/context"
+)
+
+var (
+	projectUnaccessible = errors.New("permission denied")
 )
 
 type handler struct {
@@ -41,120 +46,141 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	projName := components[2]
-	c, err := config.Load(h.ecl)
-	if err != nil {
-		glog.Errorf("Parsing etc: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	u, err := auth.CurrentUser(r)
 	if err != nil {
 		glog.Errorf("Failed to get current user: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	proj, err := config.ProjectFromName(c.Projects, projName)
+
+	envs, err := h.fetchStatuses(ctx, projName, u)
+	if err == projectUnaccessible {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
 	if err != nil {
-		glog.Errorf("Failed to get project from name: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	fp := acl.ReadableProjects(h.ac, []config.Project{*proj}, u)
-	if len(fp) == 0 {
-		http.Error(w, "Permission denied", http.StatusForbidden)
-		return
-	}
-
-	p, err := h.retrieveCommits(ctx, fp[0], c.DeployUser)
-	if err != nil {
-		glog.Errorf("Failed to retrieve commits: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	p = addPermissionComment(h.ac, p, u)
-
-	j, err := json.Marshal(p)
+	buf, err := json.Marshal(envs)
 	if err != nil {
 		glog.Errorf("Failed to marshal response: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write(j)
-	if err != nil {
+	if _, err := w.Write(buf); err != nil {
 		glog.Errorf("Failed to send response: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 }
 
-func (h handler) retrieveCommits(ctx context.Context, project config.Project, deployUser string) (config.Project, error) {
+func (h handler) fetchStatuses(ctx context.Context, projName string, u auth.User) ([]environment, error) {
+	p, deployUser, err := h.loadProject(projName, u)
+	if err != nil {
+		return nil, err
+	}
+	envs, err := h.retrieveCommits(ctx, p, deployUser)
+	if err != nil {
+		glog.Errorf("Failed to retrieve commits: %v", err)
+		return nil, err
+	}
+
+	for i := range envs {
+		env := &envs[i]
+		locked, comments := func() (bool, []string) {
+			var comments []string
+			if c := env.Comment; c != "" {
+				comments = append(comments, c)
+			}
+			if env.Locked {
+				return true, append(comments, "repo is locked.")
+			}
+			if !h.ac.Deployable(p.RepoOwner, p.RepoName, u.Name) {
+				return true, append(comments, "you do not have permission to deploy")
+			}
+			return false, comments
+		}()
+		env.Locked = locked
+		env.Comment = strings.Join(comments, " | ")
+	}
+
+	return envs, nil
+}
+
+func (h handler) loadProject(projName string, u auth.User) (p config.Project, deployUser string, err error) {
+	c, err := config.Load(h.ecl)
+	if err != nil {
+		glog.Errorf("Parsing etc: %v", err)
+		return config.Project{}, "", err
+	}
+	p, err = config.ProjectFromName(c.Projects, projName)
+	if err != nil {
+		glog.Errorf("Failed to get project from name: %v", err)
+		return config.Project{}, "", err
+	}
+	if !h.ac.Readable(p.RepoOwner, p.RepoName, u.Name) {
+		return config.Project{}, "", projectUnaccessible
+	}
+	return p, c.DeployUser, nil
+
+}
+
+func (h handler) retrieveCommits(ctx context.Context, proj config.Project, deployUser string) ([]environment, error) {
 	s, err := ssh.WithPrivateKeyFile(deployUser, h.sshKeyPath)
 	if err != nil {
-		return config.Project{}, err
+		return nil, err
 	}
 	c := revision.Control(githubrev.New(h.gcl, s))
+
 	var wg sync.WaitGroup
-	for i, environment := range project.Environments {
-		for j, host := range environment.Hosts {
+	envs := make([]environment, len(proj.Environments))
+	for i, e := range proj.Environments {
+		envs[i] = environment{
+			Name:        e.Name,
+			Locked:      e.IsLocked,
+			Deployments: make([]deployStatus, len(e.Hosts)),
+		}
+		env := &envs[i]
+
+		for j, host := range e.Hosts {
 			wg.Add(1)
-			go func(i, j int, host config.Host, repoPath string) {
+			go func(st *deployStatus, host config.Host, repoPath string) {
 				defer wg.Done()
-				commit, err := c.LatestDeployed(ctx, host, repoPath)
+				rev, srcRev, err := c.LatestDeployed(ctx, host, repoPath)
 				if err != nil {
-					project.Environments[i].Hosts[j].LatestCommit = ""
+					st.Revision = ""
 					return
 				}
-				project.Environments[i].Hosts[j].LatestCommit = string(commit)
-			}(i, j, host, environment.RepoPath)
+				st.Revision = rev
+				st.ShortRevision = rev.Short()
+				st.RevisionURL = c.RevisionURL(proj, rev)
+				st.SourceCodeRevision = srcRev
+			}(&env.Deployments[j], host, e.RepoPath)
 		}
 		wg.Add(1)
-		go func(i int, ref string) {
+		go func(env *environment, ref string) {
 			defer wg.Done()
-			commit, err := c.Latest(ctx, project.RepoOwner, project.RepoName, ref)
+			rev, srcRev, err := c.Latest(ctx, proj.RepoOwner, proj.RepoName, ref)
 			if err != nil {
-				project.Environments[i].LatestGitHubCommit = ""
+				env.Revision = ""
 				return
 			}
-			project.Environments[i].LatestGitHubCommit = string(commit)
-		}(i, environment.Branch)
+			env.Revision = rev
+			env.SourceCodeRevision = srcRev
+			env.ShortRevision = rev.Short()
+		}(env, e.Branch)
 	}
 	wg.Wait()
 
-	for i, e := range project.Environments {
-		project.Environments[i] = e
-		for j, host := range e.Hosts {
-			host.GitHubCommitURL = host.LatestGitHubCommitURL(project)
-			host.GitHubDiffURL = host.LatestGitHubDiffURL(project, e)
-			host.ShortCommitHash = host.LatestShortCommitHash()
-			project.Environments[i].Hosts[j] = host
+	for i := range envs {
+		env := &envs[i]
+		for j := range env.Deployments {
+			d := &env.Deployments[j]
+			d.SourceCodeDiffURL = c.SourceDiffURL(proj, env.SourceCodeRevision, d.SourceCodeRevision)
 		}
 	}
-	return project, nil
-}
-
-func addPermissionComment(ac acl.AccessControl, p config.Project, u auth.User) config.Project {
-	for i, e := range p.Environments {
-		// If the repo isn't already locked.. lock it if the user doesnt have permission
-		// and add to the comments
-		if e.IsLocked {
-			if p.Environments[i].Comment != "" {
-				p.Environments[i].Comment = p.Environments[i].Comment + " | "
-			}
-			p.Environments[i].Comment = p.Environments[i].Comment + "repo is locked."
-			continue
-		}
-
-		locked := !ac.Deployable(p.RepoOwner, p.RepoName, u.Name)
-		p.Environments[i].IsLocked = locked
-		// Add a line break if there is already a comment
-		if p.Environments[i].Comment != "" {
-			p.Environments[i].Comment = p.Environments[i].Comment + " | "
-		}
-		if locked {
-			p.Environments[i].Comment = p.Environments[i].Comment + "you do not have permission to deploy "
-		}
-	}
-	return p
+	return envs, nil
 }

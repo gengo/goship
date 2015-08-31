@@ -15,7 +15,7 @@ import (
 type TravisPlugin struct{}
 
 func init() {
-	p := &TravisPlugin{}
+	var p TravisPlugin
 	plugin.RegisterPlugin(p)
 }
 
@@ -43,13 +43,11 @@ func (c TravisColumn) RenderDetail() (template.HTML, error) {
 	return template.HTML(fmt.Sprintf(`<td><a target=_blank href=%s><img src=%s onerror='this.style.display = "none"'></img></a></td>`, url, svg)), nil
 }
 
-func (p *TravisPlugin) Apply(c config.Config) error {
-	for i, p := range c.Projects {
-		c.Projects[i].AddPluginColumn(TravisColumn{
-			Project:      p.RepoName,
-			Token:        p.TravisToken,
-			Organization: p.RepoOwner,
-		})
+func (p TravisPlugin) Apply(proj config.Project) ([]plugin.Column, error) {
+	c := TravisColumn{
+		Project:      proj.RepoName,
+		Token:        proj.TravisToken,
+		Organization: proj.RepoOwner,
 	}
-	return nil
+	return []plugin.Column{c}, nil
 }

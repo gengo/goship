@@ -8,42 +8,6 @@ import (
 	"github.com/gengo/goship/lib/config"
 )
 
-func TestGitHubDiffURL(t *testing.T) {
-	for _, tt := range []struct {
-		h    config.Host
-		p    config.Project
-		e    config.Environment
-		want string
-	}{
-		{
-			h: config.Host{LatestCommit: "abc123"},
-			p: config.Project{
-				Name:      "test project",
-				GitHubURL: "https://github.com/test/foo",
-				RepoOwner: "foo",
-				RepoName:  "test",
-			},
-			e:    config.Environment{LatestGitHubCommit: "abc123"},
-			want: "",
-		},
-		{
-			h: config.Host{LatestCommit: "abc123"},
-			p: config.Project{
-				Name:      "test project",
-				GitHubURL: "https://github.com/test/foo",
-				RepoOwner: "foo",
-				RepoName:  "test",
-			},
-			e:    config.Environment{LatestGitHubCommit: "abc456"},
-			want: "https://github.com/test/foo/compare/abc123...abc456",
-		},
-	} {
-		if got := tt.h.LatestGitHubDiffURL(tt.p, tt.e); got != tt.want {
-			t.Errorf("%s.LatestGitHubDiffURL = %s; want %s", got, tt.want)
-		}
-	}
-}
-
 func TestSetComment(t *testing.T) {
 	err := config.SetComment(&MockEtcdClient{}, "test_project", "test_environment", "A comment")
 	if err != nil {
@@ -92,7 +56,7 @@ func TestProjectFromName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(got, &want) {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("config.GetProjectFromName = %v, want %v", got, want)
 	}
 	got, err = config.ProjectFromName(projects, "BadProject")

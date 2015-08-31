@@ -33,27 +33,19 @@ func TestRenderHeader(t *testing.T) {
 
 func TestApply(t *testing.T) {
 	p := &PivotalPlugin{}
-	config := config.Config{
-		Projects: []config.Project{
-			config.Project{
-				RepoName:  "test_project",
-				RepoOwner: "test",
-			},
-		},
-		Pivotal: &config.PivotalConfiguration{Token: "token", Project: "1100"},
+	proj := config.Project{
+		RepoName:  "test_project",
+		RepoOwner: "test",
 	}
-	err := p.Apply(config)
+	cols, err := p.Apply(proj)
 	if err != nil {
-		t.Fatalf("Error applying plugin %v", err)
+		t.Errorf("p.Apply(%#v) failed with %v; want success", proj, err)
 	}
-	if len(config.Projects[0].PluginColumns) != 1 {
-		t.Fatalf("Failed to add plugin column, PluginColumn len = %d", len(config.Projects[0].PluginColumns))
+	if got, want := len(cols), 1; got != want {
+		t.Errorf("len(cols) = %d; want %d", got, want)
+		return
 	}
-	pl := config.Projects[0].PluginColumns[0]
-	switch pl.(type) {
-	case StoryColumn:
-		break
-	default:
-		t.Errorf("Plugin is not correct type, type %T", pl)
+	if _, ok := cols[0].(StoryColumn); !ok {
+		t.Errorf("cols[0] = %#v; want a StoryColumn", cols[0])
 	}
 }

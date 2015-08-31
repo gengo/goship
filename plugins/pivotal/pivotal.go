@@ -12,7 +12,7 @@ type PivotalPlugin struct {
 }
 
 func init() {
-	p := &PivotalPlugin{}
+	var p PivotalPlugin
 	plugin.RegisterPlugin(p)
 }
 
@@ -26,9 +26,6 @@ func (c StoryColumn) RenderDetail() (template.HTML, error) {
 	return template.HTML(`<td class="story"></td>`), nil
 }
 
-func (p *PivotalPlugin) Apply(g config.Config) error {
-	for i := range g.Projects {
-		g.Projects[i].AddPluginColumn(StoryColumn{})
-	}
-	return nil
+func (p PivotalPlugin) Apply(proj config.Project) ([]plugin.Column, error) {
+	return []plugin.Column{p.Column}, nil
 }

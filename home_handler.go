@@ -41,17 +41,21 @@ func (h HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	c.Projects = acl.ReadableProjects(h.ac, c.Projects, u)
+	projs := acl.ReadableProjects(h.ac, c.Projects, u)
 
 	sort.Sort(ByName(c.Projects))
 
-	// apply each plugin
+	// columns maps a plugin name to a list of columns
+	columns := make(map[string][]plugin.Column)
 	for _, pl := range plugin.Plugins {
-		err := pl.Apply(c)
-		if err != nil {
-			glog.Errorf("Failed to apply plugin: %s", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		for _, p := range c.Projects {
+			cols, err := pl.Apply(p)
+			if err != nil {
+				glog.Errorf("Failed to apply plugin: %s", err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			columns[p.Name] = append(columns[p.Name], cols...)
 		}
 	}
 	js, css := h.assets.Templates()
@@ -61,7 +65,8 @@ func (h HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	params := map[string]interface{}{
 		"Javascript":        js,
 		"Stylesheet":        css,
-		"Projects":          c.Projects,
+		"Projects":          projs,
+		"PluginColumns":     columns,
 		"User":              u,
 		"Page":              "home",
 		"ConfirmDeployFlag": *confirmDeployFlag,
