@@ -149,7 +149,7 @@ func loadHosts(node *etcd.Node, env *Environment) error {
 		return fmt.Errorf("node %s must be a directory", node.Key)
 	}
 	for _, h := range node.Nodes {
-		env.Hosts = append(env.Hosts, Host{URI: path.Base(h.Key)})
+		env.Hosts = append(env.Hosts, path.Base(h.Key))
 	}
 	return nil
 }

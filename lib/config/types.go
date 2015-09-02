@@ -42,15 +42,10 @@ type Environment struct {
 	Name     string
 	Deploy   string
 	RepoPath string
-	Hosts    []Host
+	Hosts    []string
 	Branch   string
 	Comment  string
 	IsLocked bool
-}
-
-// Host stores information on a host, such as URI and the latest commit revision.
-type Host struct {
-	URI string
 }
 
 // PivotalConfiguration used to store Pivotal interface

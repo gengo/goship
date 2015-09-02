@@ -46,7 +46,7 @@ func TestLoad(t *testing.T) {
 	compareStrings("project name", got.Projects[0].Name, "pivotal_project", t)
 	compareStrings("repo path", got.Projects[0].Environments[0].RepoPath, "/repos/test_repo_name/.git", t)
 	compareStrings("repo branch", got.Projects[0].Environments[0].Branch, "master", t)
-	compareStrings("host name", got.Projects[0].Environments[0].Hosts[0].URI, "test-qa-01.somewhere.com", t)
+	compareStrings("host name", got.Projects[0].Environments[0].Hosts[0], "test-qa-01.somewhere.com", t)
 }
 
 func TestProjectFromName(t *testing.T) {
