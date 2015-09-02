@@ -22,36 +22,36 @@ const (
 
 // Config is a set of Goship configurations
 type Config struct {
-	Projects   []Project
-	DeployUser string
-	Notify     string
-	Pivotal    *PivotalConfiguration
+	Projects   []Project             `json:"-" yaml:"projects,omitempty"`
+	DeployUser string                `json:"deploy_user" yaml:"deploy_user"`
+	Notify     string                `json:"notify" yaml:"notify"`
+	Pivotal    *PivotalConfiguration `json:"pivotal,omitempty" yaml:"pivotal,omitempty"`
 }
 
 // Project stores information about a GitHub project, such as its GitHub URL and repo name, and a list of extra columns (PluginColumns)
 type Project struct {
-	Name         string
-	RepoName     string
-	RepoOwner    string
-	Environments []Environment
-	TravisToken  string
+	Name         string        `json:"-" yaml:"name"`
+	RepoName     string        `json:"repo_name" yaml:"repo_name"`
+	RepoOwner    string        `json:"repo_owner" yaml:"repo_owner"`
+	Environments []Environment `json:"-" yaml:"envs"`
+	TravisToken  string        `json:"travis_token" yaml:"travis_token"`
 }
 
 // Environment stores information about an individual environment, such as its name and whether it is deployable.
 type Environment struct {
-	Name     string
-	Deploy   string
-	RepoPath string
-	Hosts    []string
-	Branch   string
-	Comment  string
-	IsLocked bool
+	Name     string   `json:"-" yaml:"name"`
+	Deploy   string   `json:"deploy" yaml:"deploy"`
+	RepoPath string   `json:"repo_path" yaml:"repo_path"`
+	Hosts    []string `json:"hosts" yaml:"hosts,omitempty"`
+	Branch   string   `json:"branch" yaml:"branch"`
+	Comment  string   `json:"comment" yaml:"comment"`
+	IsLocked bool     `json:"is_locked,omitempty" yaml:"is_locked,omitempty"`
 }
 
 // PivotalConfiguration used to store Pivotal interface
 type PivotalConfiguration struct {
-	Project string
-	Token   string
+	Project string `json:"project" yaml:"project"`
+	Token   string `json:"token" yaml:"token"`
 }
 
 func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current string) error {
