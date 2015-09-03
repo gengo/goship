@@ -27,7 +27,7 @@
                 <td><a href="/deployLog/{{$project.Name}}-{{.Name}}">{{.Name}}</a></td>
                 <td>
                   {{range $host := $environment.Hosts}}
-                    <div>{{$host.URI}}</div>
+                    <div>{{$host}}</div>
                   {{end}}
                 </td>
                 {{/* add and display the main content (through Render) of all plugins' columns */}}
@@ -112,7 +112,7 @@
                 'href': deploy.revisionURL
               }).text(deploy.shortRevision);
               $hosts.append($host);
-              if (deploy.sourceCodeDiffURl) {
+              if (deploy.sourceCodeDiffURL) {
                 $host.find('.GitHubDiffURL').attr('href', deploy.sourceCodeDiffURL).closest('span.hidden').removeClass('hidden');
               }
             }

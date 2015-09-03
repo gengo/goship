@@ -1,66 +1,33 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"path"
-	"strconv"
 
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/golang/glog"
 )
 
-// SetComment will set the  comment field on an environment
-func SetComment(client ETCDInterface, projectName, projectEnv, comment string) (err error) {
-	projectString := fmt.Sprintf("/projects/%s/environments/%s/comment", projectName, projectEnv)
-	// guard against empty values ( simple validation)
-	if projectName == "" || projectEnv == "" {
-		return fmt.Errorf("Missing parameters")
-	}
-	_, err = client.Set(projectString, comment, 0)
-	return err
-}
-
-// LockEnvironment Locks or unlock an environment for deploy
-func LockEnvironment(client ETCDInterface, projectName, projectEnv, lock string) (err error) {
-	projectString := fmt.Sprintf("/projects/%s/environments/%s/locked", projectName, projectEnv)
-	// guard against empty values ( simple validation)
-	if projectName == "" || projectEnv == "" {
-		return fmt.Errorf("Missing parameters")
-	}
-	_, err = client.Set(projectString, lock, 0)
-	return err
-}
-
 // Load loads a deployment configuration from etcd
 func Load(client ETCDInterface) (Config, error) {
-	baseInfo, err := client.Get("/", false, false)
+	resp, err := client.Get("/goship/config", false, false)
 	if err != nil {
 		return Config{}, err
 	}
-	if !baseInfo.Node.Dir {
-		return Config{}, fmt.Errorf("node %s must be a directory", baseInfo.Node.Key)
+	var cfg Config
+	if err := json.Unmarshal([]byte(resp.Node.Value), &cfg); err != nil {
+		glog.Errorf("Failed to unmarshal %s: %v", resp.Node.Value, err)
+		return Config{}, err
 	}
-	cfg := Config{
-		Pivotal: new(PivotalConfiguration),
-	}
-	for _, b := range baseInfo.Node.Nodes {
-		switch path.Base(b.Key) {
-		case "deploy_user":
-			cfg.DeployUser = b.Value
-		case "pivotal_token":
-			cfg.Pivotal.Token = b.Value
-		case "notify":
-			cfg.Notify = b.Value
-		}
-	}
-	if err := loadProjects(client, &cfg); err != nil {
+	if err := loadProjects(client, &cfg, "/goship"); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
 }
 
-func loadProjects(client ETCDInterface, cfg *Config) error {
-	projs, err := client.Get("/projects", false, true)
+func loadProjects(client ETCDInterface, cfg *Config, basePath string) error {
+	projs, err := client.Get(path.Join(basePath, "projects"), false, true)
 	if err != nil {
 		return err
 	}
@@ -79,20 +46,23 @@ func loadProjects(client ETCDInterface, cfg *Config) error {
 }
 
 func loadProject(node *etcd.Node) (Project, error) {
-	proj := Project{Name: path.Base(node.Key)}
+	name := path.Base(node.Key)
+	var proj Project
+	var envs *etcd.Node
 	for _, child := range node.Nodes {
 		switch path.Base(child.Key) {
-		case "repo_owner":
-			proj.RepoOwner = path.Base(child.Value)
-		case "repo_name":
-			proj.RepoName = path.Base(child.Value)
-		case "travis_token":
-			proj.TravisToken = path.Base(child.Value)
-		case "environments":
-			if err := loadEnvironments(child, &proj); err != nil {
+		case "config":
+			if err := json.Unmarshal([]byte(child.Value), &proj); err != nil {
+				glog.Errorf("Failed to unmarshal %s: %v", child.Value, err)
 				return Project{}, err
 			}
+		case "environments":
+			envs = child
 		}
+	}
+	proj.Name = name
+	if err := loadEnvironments(envs, &proj); err != nil {
+		return Project{}, err
 	}
 	return proj, nil
 }
@@ -112,42 +82,14 @@ func loadEnvironments(node *etcd.Node, proj *Project) error {
 }
 
 func loadEnvironment(node *etcd.Node) (Environment, error) {
-	env := Environment{
-		Name:   path.Base(node.Key),
-		Branch: "master",
+	var env Environment
+	if err := json.Unmarshal([]byte(node.Value), &env); err != nil {
+		glog.Errorf("Failed to unmarshal %s: %v", node.Value, err)
+		return Environment{}, err
 	}
-	for _, n := range node.Nodes {
-		switch path.Base(n.Key) {
-		case "branch":
-			env.Branch = n.Value
-		case "deploy":
-			env.Deploy = n.Value
-		case "repo_path":
-			env.RepoPath = n.Value
-		case "locked":
-			locked, err := strconv.ParseBool(n.Value)
-			if err != nil {
-				glog.Errorf("Failed to parse 'locked' field %q. Assuming unlocked: %v", n.Value, err)
-				continue
-			}
-			env.IsLocked = locked
-		case "comment":
-			env.Comment = n.Value
-		case "hosts":
-			if err := loadHosts(n, &env); err != nil {
-				return Environment{}, err
-			}
-		}
+	env.Name = path.Base(node.Key)
+	if env.Branch == "" {
+		env.Branch = "master"
 	}
 	return env, nil
-}
-
-func loadHosts(node *etcd.Node, env *Environment) error {
-	if !node.Dir {
-		return fmt.Errorf("node %s must be a directory", node.Key)
-	}
-	for _, h := range node.Nodes {
-		env.Hosts = append(env.Hosts, Host{URI: path.Base(h.Key)})
-	}
-	return nil
 }
