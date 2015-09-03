@@ -27,7 +27,7 @@
                 <td><a href="/deployLog/{{$project.Name}}-{{.Name}}">{{.Name}}</a></td>
                 <td>
                   {{range $host := $environment.Hosts}}
-                    <div>{{$host}}</div>
+                    <div>{{$host.URI}}</div>
                   {{end}}
                 </td>
                 {{/* add and display the main content (through Render) of all plugins' columns */}}

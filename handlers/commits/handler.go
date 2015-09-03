@@ -147,7 +147,7 @@ func (h handler) retrieveCommits(ctx context.Context, proj config.Project, deplo
 
 		for j, host := range e.Hosts {
 			wg.Add(1)
-			go func(st *deployStatus, host, repoPath string) {
+			go func(st *deployStatus, host config.Host, repoPath string) {
 				defer wg.Done()
 				rev, srcRev, err := c.LatestDeployed(ctx, host, repoPath)
 				if err != nil {

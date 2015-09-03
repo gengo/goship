@@ -40,11 +40,12 @@ func (c control) Latest(ctx context.Context, owner, repo, ref string) (rev, srcR
 }
 
 // LatestDeployed returns the latest commit deployed into the host.
-func (c control) LatestDeployed(ctx context.Context, hostname, repoPath string) (rev, srcRev revision.Revision, err error) {
+func (c control) LatestDeployed(ctx context.Context, host config.Host, repoPath string) (rev, srcRev revision.Revision, err error) {
+	hostname := host.URI
 	cmd := fmt.Sprintf("git --git-dir=%s rev-parse HEAD", repoPath)
 	buf, err := c.ssh.Output(ctx, hostname, cmd)
 	if err != nil {
-		glog.Errorf("Failed to get latest deployed commit from %s:%s : %v", hostname, repoPath, err)
+		glog.Errorf("Failed to get latest deployed commit from %s:%s : %v", host.URI, repoPath, err)
 		return "", "", err
 	}
 	rev = revision.Revision(strings.TrimSpace(string(buf)))
