@@ -12,8 +12,7 @@ func TestStore(t *testing.T) {
 		DeployUser: "test_user",
 		Notify:     "notify-command",
 		Pivotal: &config.PivotalConfiguration{
-			Project: "11111",
-			Token:   "pivotal token",
+			Token: "pivotal token",
 		},
 		Projects: []config.Project{
 			{

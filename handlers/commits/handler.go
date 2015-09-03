@@ -179,7 +179,7 @@ func (h handler) retrieveCommits(ctx context.Context, proj config.Project, deplo
 		env := &envs[i]
 		for j := range env.Deployments {
 			d := &env.Deployments[j]
-			d.SourceCodeDiffURL = c.SourceDiffURL(proj, env.SourceCodeRevision, d.SourceCodeRevision)
+			d.SourceCodeDiffURL = c.SourceDiffURL(proj, d.SourceCodeRevision, env.SourceCodeRevision)
 		}
 	}
 	return envs, nil
