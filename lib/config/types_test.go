@@ -42,7 +42,6 @@ func TestLoad(t *testing.T) {
 	}
 	compareStrings("deploy user", got.DeployUser, "test_user", t)
 	compareStrings("token", got.Pivotal.Token, "XXXXXX", t)
-	compareStrings("project", got.Pivotal.Project, "111111", t)
 	compareStrings("project name", got.Projects[0].Name, "pivotal_project", t)
 	compareStrings("repo path", got.Projects[0].Environments[0].RepoPath, "/repos/test_repo_name/.git", t)
 	compareStrings("repo branch", got.Projects[0].Environments[0].Branch, "master", t)
@@ -135,7 +134,6 @@ func (*MockEtcdClient) Get(s string, t bool, x bool) (*etcd.Response, error) {
 		Nodes: etcd.Nodes{
 			{Key: "/deploy_user", Value: "test_user", Dir: false},
 			{Key: "/pivotal_token", Value: "XXXXXX", Dir: false},
-			{Key: "/pivotal_project", Value: "111111", Dir: false},
 		}, Dir: true,
 	}, EtcdIndex: 1, RaftIndex: 1, RaftTerm: 1,
 	}

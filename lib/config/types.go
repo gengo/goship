@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -16,7 +17,7 @@ import (
 )
 
 const (
-	pivotalCommentURL    = "https://www.pivotaltracker.com/services/v5/projects/%s/stories/%s/comments"
+	pivotalBaseURL       = "https://www.pivotaltracker.com/services/v5/"
 	gitHubAPITokenEnvVar = "GITHUB_API_TOKEN"
 )
 
@@ -55,8 +56,7 @@ type Host struct {
 
 // PivotalConfiguration used to store Pivotal interface
 type PivotalConfiguration struct {
-	Project string
-	Token   string
+	Token string
 }
 
 func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current string) error {
@@ -116,13 +116,47 @@ func GetPivotalIDFromCommits(owner, repoName, latest, current string) ([]string,
 	return pivotalIDs, nil
 }
 
-func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err error) {
-	p := url.Values{}
-	p.Set("text", m)
-	req, err := http.NewRequest("POST", fmt.Sprintf(pivotalCommentURL, piv.Project, id), nil)
+func getProjectForStory(id string, piv *PivotalConfiguration) (int, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf(pivotalBaseURL+"stories/%s", id), nil)
 	if err != nil {
-		glog.Errorf("could not form put request to Pivotal: %v", err)
+		glog.Errorf("could not form get request to Pivotal: %v", err)
+		return 0, err
+	}
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("X-TrackerToken", piv.Token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		glog.Errorf("could not make put request to Pivotal: %v", err)
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		glog.Errorf("non-200 Response from Pivotal API: %s", resp.Status)
+		return 0, fmt.Errorf("non-200 Response from Pivotal API: %s", resp.Status)
+	}
+	p := struct {
+		ProjectID int `json:"project_id"`
+	}{}
+	err = json.NewDecoder(resp.Body).Decode(&p)
+	if err != nil {
+		return 0, err
+	}
+	return p.ProjectID, nil
+}
+
+func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err error) {
+	project, err := getProjectForStory(id, piv)
+	if err != nil {
+		glog.Errorf("error getting project for story %s: %v", id, err)
 		return err
+	}
+	req, err := http.NewRequest("POST", fmt.Sprintf(pivotalBaseURL+"projects/%d/stories/%s/comments", project, id), nil)
+	if err != nil {
+		glog.Errorf("could not form post request to Pivotal: %v", err)
+		return err
+	}
+	p := url.Values{
+		"text": []string{m},
 	}
 	req.URL.RawQuery = p.Encode()
 	req.Header.Add("Content-Type", "application/json")
