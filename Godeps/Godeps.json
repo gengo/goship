@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/gengo/goship",
-	"GoVersion": "go1.4.2",
+	"GoVersion": "go1.5",
 	"Packages": [
 		"github.com/gengo/goship/..."
 	],
@@ -90,6 +90,10 @@
 		{
 			"ImportPath": "golang.org/x/oauth2",
 			"Rev": "b5adcc2dcdf009d0391547edc6ecbaff889f5bb9"
+		},
+		{
+			"ImportPath": "gopkg.in/yaml.v2",
+			"Rev": "7ad95dd0798a40da1ccdff6dff35fd177b5edf40"
 		},
 		{
 			"ImportPath": "labix.org/v2/mgo/bson",

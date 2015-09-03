@@ -157,11 +157,11 @@ func main() {
 		}
 		for _, h := range servers {
 			if *bootstrap == true {
-				d = "knife solo bootstrap -c " + conf.knifePath + " -i " + conf.pemKey + " --no-host-key-verify " + e + conf.deployUser + "@" + h.URI
+				d = "knife solo bootstrap -c " + conf.knifePath + " -i " + conf.pemKey + " --no-host-key-verify " + e + conf.deployUser + "@" + h
 			} else {
-				d = "knife solo cook -c " + conf.knifePath + " -i " + conf.pemKey + " --no-host-key-verify " + e + conf.deployUser + "@" + h.URI
+				d = "knife solo cook -c " + conf.knifePath + " -i " + conf.pemKey + " --no-host-key-verify " + e + conf.deployUser + "@" + h
 			}
-			glog.Infof("Deploying to server: %s", h.URI)
+			glog.Infof("Deploying to server: %s", h)
 			glog.Infof("Preparing Knife command: %s", d)
 			_, err := execCmd(d, conf)
 			if err != nil {
