@@ -112,7 +112,7 @@
                 'href': deploy.revisionURL
               }).text(deploy.shortRevision);
               $hosts.append($host);
-              if (deploy.sourceCodeDiffURl) {
+              if (deploy.sourceCodeDiffURL) {
                 $host.find('.GitHubDiffURL').attr('href', deploy.sourceCodeDiffURL).closest('span.hidden').removeClass('hidden');
               }
             }
