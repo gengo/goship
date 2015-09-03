@@ -26,8 +26,6 @@ func loadV1(client config.ETCDInterface) (config.Config, error) {
 		switch path.Base(b.Key) {
 		case "deploy_user":
 			cfg.DeployUser = b.Value
-		case "pivotal_project":
-			cfg.Pivotal.Project = b.Value
 		case "pivotal_token":
 			cfg.Pivotal.Token = b.Value
 		case "notify":
