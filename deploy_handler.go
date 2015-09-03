@@ -104,12 +104,12 @@ func (h DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if (c.Pivotal.Token != "") && (c.Pivotal.Project != "") && success {
+	if (c.Pivotal.Token != "") && success {
 		err := config.PostToPivotal(c.Pivotal, env, owner, name, toRevision, fromRevision)
 		if err != nil {
 			glog.Errorf("Failed to post to pivotal: %v", err)
 		} else {
-			glog.Infof("Pivotal Info: %s %s", c.Pivotal.Token, c.Pivotal.Project)
+			glog.Infof("Pivotal Token: %s %s", c.Pivotal.Token)
 		}
 	}
 
