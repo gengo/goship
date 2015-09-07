@@ -43,7 +43,7 @@ GoShip SSHes into the machines that you list in ETCD and gets the latest revisio
 3. Create an ETCD server
    * Follow the instructions in the [etcd](https://github.com/coreos/etcd) README
    * There are various tools to update your ETCD server including the etcdctl client or curl, you can also use a variety of clients and JSON formatting:
-   * There is also a **goshipcfg** in [tools](#tools) that can be used to dump or restore etcd data as json
+   * There is also a **goshipcfg** in [tools](#tools) that can be used to dump or restore etcd data as YAML.
 
 
 # Example
