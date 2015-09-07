@@ -43,66 +43,65 @@ GoShip SSHes into the machines that you list in ETCD and gets the latest revisio
 3. Create an ETCD server
    * Follow the instructions in the [etcd](https://github.com/coreos/etcd) README
    * There are various tools to update your ETCD server including the etcdctl client or curl, you can also use a variety of clients and JSON formatting:
-   * There is also a convert.go in tools that can be used to 'bootstrap' etcd.
+   * There is also a **goshipcfg** in [tools](#tools) that can be used to dump or restore etcd data as YAML.
 
 
-# Examples
-1. example setup using [etcdctl](https://github.com/coreos/etcdctl/)
+# Example
+Sample etcd data structure using [etcdctl](https://github.com/coreos/etcdctl/)
    
    ```shell
-   etcdctl set /deploy_user 'deployer'
-   finish deployment. e.g. Notify chat room
-   etcdctl mkdir '/projects'
-   etcdctl mkdir '/projects/my-project'
-   etcdctl set /projects/my-project/repo_name 'my-project'
-   etcdctl set /projects/my-project/repo_owner 'github-user'
-   etcdctl set /projects/my-project/project_name 'My Project'
-   etcdctl mkdir /projects/my-project/environments
-   etcdctl mkdir /projects/my-project/environments/staging
-   etcdctl mkdir /projects/my-project/environments/staging/hosts
-   etcdctl mkdir /projects/my-project/environments/staging/hosts/myproject-staging-01.gengo.com
-   etcdctl set /projects/my-project/environments/staging/branch master
-   etcdctl set /projects/my-project/environments/staging/repo_path PATH_TO_REPOSITORY/.git
-   etcdctl set /projects/my-project/environments/staging/deploy "/tmp/deploy -p=my-project -e=staging" # You need to set your deployment command here. This is an example using `tools/deploy/deploy.go`
+   etcdctl mkdir '/goship'
+   etcdctl set /goship/config '{"deploy_user":"YOUR_SSH_USER_ON_SERVER"}'
+   etcdctl mkdir '/goship/projects'
+   etcdctl mkdir '/goship/projects/my-project'
+   etcdctl set /goship/projects/my-project/config '{"repo_name":"my-project","repo_owner":"github-user-or-org"}'
+   etcdctl mkdir /goship/projects/my-project/environments
+   etcdctl set /goship/projects/my-project/environments/staging '{"deploy":"/tmp/deploy -p=my-project -e=staging","repo_path":"PATH_TO_REPOSITORY/.git","hosts":["my-staging-server.example.com"],"branch":"master","comment":""}'
    ```
-   
-2. curl example
-   ```shell
-   curl -L http://127.0.0.1:4001/projects/my-project/environments/staging/deploy -XPUT -d value="/path/to/deployscripts/myproj_staging.sh"
-   ```
+   A quick explaination of keys used in this sample structure:
 
-3. convert.go example in the tools folder of goship.
-   
-   -- config.yml and etcd settings are configurable - run with -h for options
-   ```shell
-   go run convert.go -c /mnt/srv/http/gengo/goship/shared/config.yml
-   ```
+* **deploy_user:** This is your SSH user on the application server that Goship SSH user will have password-less auth to
+* **repo_name:** Name of your application project repository
+* **repo_owner:** Name of your Github user, or your Github org which owns the repo
+* **deploy:** This is your deploy command with necessary arguments. A sample script is included(tools/deploy)
+* **repo_path:** Path to your application code repository on the application server
+* **hosts:** An array of FQDN of the host(s), where Goship will deploy the code
+* **branch:** Application code branch to deploy
+* **comment:** Any comments/notes
 
 # Commandline Options
 
 ```
- -b [bind address]             Address to bind (default localhost:8000)
- -k [id_rsa key]               Path to private SSH key for connecting to Github (default id_rsa)
- -d [data path]                Path to data directory (default ./data/)
- -e [etcd location]            Full URL to ETCD Server. Defaults to localhost
- -f [deploy confirmation flag] Flag to specify if user is prompted with confirmation dialog before deploys. Defaults to True
+ -a [default Avatar]                 Default Avatar (default goship gopher image)
+ -b [bind address]                   Address to bind (default localhost:8000)
+ -c [cookie session hash]            Random cookie session key (default jhjhjhjhjhjjhjhhj)
+ -d [data path]                      Path to data directory (default ./data/)
+ -e [etcd location]                  Full URL to ETCD Server (default http://127.0.0.1:4001)
+ -f [deploy confirmation flag]       Flag to specify if user is prompted with confirmation dialog before deploys. Defaults to True
+ -k [id_rsa key]                     Path to private SSH key for connecting to Github (default id_rsa)
+ -s [static files]                   Path to directory for static files (default ./static/)
+ -u [default user]                   Default User if non auth (default genericUser)
+ -request-log [request log path]     Destination of request log (default '-', which is stdout)
 ```
+
+Since goship uses [glog](https://github.com/golang/glog), all glog [flags](https://github.com/golang/glog/blob/master/glog.go#L38) can also be supplied as per your deployment needs.
 
 # Chat Notifications
-To notify a chat room when the Deploy button is pushed, create a script that takes a message as an argument and sends the message to the room, and then add it to etcd:
+To notify a chat room when the Deploy button is pushed, create a script that takes a message as an argument and sends the message to the room. Then add it **notify** to etcd like this:
 
 ```
-etcdctl set /notify '/home/deployer/notify.sh'
+etcdctl set /goship/config '{"deploy_user":"YOUR_SSH_USER_ON_SERVER","notify":"/path/to/some/chat/notify.sh"}'
 ```
 
 [Sevabot](http://sevabot-skype-bot.readthedocs.org/en/latest/) is a good choice for Skype.
 
 # Tools
 
-There are some tools added in the /tools directory that can be used interface with Goship
-1) convert.go: takes a config.yml  file and converts it to ETCD. Used for bootstrapping ETCD from the original
-conf file.
-2) deploy.go:  Can be used as a script by the "deploy" to create a knife solo command which reads in the appropriate servers from ETCD and runs knife solo.
+There are some tools added in the **/tools** directory that can be used interface with Goship
+
+1) **goshipcfg**: It can be used to dump or restore etcd data as json. It can also be used to migrate from v1 config to current etcd data structure expected by Goship.
+
+2) **deploy**:  Can be used as a script by the "deploy" to create a knife solo command which reads in the appropriate servers from ETCD and runs knife solo.
 
 # Plugins
 
