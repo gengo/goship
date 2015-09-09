@@ -1,23 +1,20 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
-	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/coreos/go-etcd/etcd"
+	"github.com/gengo/goship/lib/pivotal"
 	"github.com/golang/glog"
 	"github.com/google/go-github/github"
 	"golang.org/x/oauth2"
 )
 
 const (
-	pivotalBaseURL       = "https://www.pivotaltracker.com/services/v5/"
 	gitHubAPITokenEnvVar = "GITHUB_API_TOKEN"
 )
 
@@ -69,14 +66,25 @@ func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current 
 	if err != nil {
 		return err
 	}
+	pivClient := pivotal.NewClient(piv.Token)
 	for _, id := range ids {
+		project, err := pivClient.FindProjectForStory(id)
+		if err != nil {
+			glog.Errorf("error getting project for story %d: %v", id, err)
+			continue
+		}
 		m := fmt.Sprintf("Deployed to %s: %s", env, timestamp.Format(layout))
-		go PostPivotalComment(id, m, piv)
+		go pivClient.AddComment(id, project, m)
+		if env == "live" {
+			year, week := time.Now().ISOWeek()
+			label := fmt.Sprintf("released_w%d/%d", week, year)
+			go pivClient.AddLabel(id, project, label)
+		}
 	}
 	return nil
 }
 
-func appendIfUnique(list []string, elem string) []string {
+func appendIfUnique(list []int, elem int) []int {
 	for _, item := range list {
 		if item == elem {
 			return list
@@ -85,7 +93,7 @@ func appendIfUnique(list []string, elem string) []string {
 	return append(list, elem)
 }
 
-func GetPivotalIDFromCommits(owner, repoName, latest, current string) ([]string, error) {
+func GetPivotalIDFromCommits(owner, repoName, latest, current string) ([]int, error) {
 	// gets a list pivotal IDs from commit messages from repository based on latest and current commit
 	gt := os.Getenv(gitHubAPITokenEnvVar)
 	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: gt})
@@ -98,75 +106,21 @@ func GetPivotalIDFromCommits(owner, repoName, latest, current string) ([]string,
 	if err != nil {
 		return nil, err
 	}
-	var pivotalIDs []string
+	var pivotalIDs []int
 	for _, commit := range comp.Commits {
 		cmi := *commit.Commit
 		cm := *cmi.Message
 		ids := pivRE.FindStringSubmatch(cm)
 		if ids != nil {
 			id := ids[1]
-			pivotalIDs = appendIfUnique(pivotalIDs, id)
+			n, err := strconv.Atoi(id)
+			if err != nil {
+				return nil, err
+			}
+			pivotalIDs = appendIfUnique(pivotalIDs, n)
 		}
 	}
 	return pivotalIDs, nil
-}
-
-func getProjectForStory(id string, piv *PivotalConfiguration) (int, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf(pivotalBaseURL+"stories/%s", id), nil)
-	if err != nil {
-		glog.Errorf("could not form get request to Pivotal: %v", err)
-		return 0, err
-	}
-	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("X-TrackerToken", piv.Token)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		glog.Errorf("could not make put request to Pivotal: %v", err)
-		return 0, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		glog.Errorf("non-200 Response from Pivotal API: %s", resp.Status)
-		return 0, fmt.Errorf("non-200 Response from Pivotal API: %s", resp.Status)
-	}
-	p := struct {
-		ProjectID int `json:"project_id"`
-	}{}
-	err = json.NewDecoder(resp.Body).Decode(&p)
-	if err != nil {
-		return 0, err
-	}
-	return p.ProjectID, nil
-}
-
-func PostPivotalComment(id string, m string, piv *PivotalConfiguration) (err error) {
-	project, err := getProjectForStory(id, piv)
-	if err != nil {
-		glog.Errorf("error getting project for story %s: %v", id, err)
-		return err
-	}
-	req, err := http.NewRequest("POST", fmt.Sprintf(pivotalBaseURL+"projects/%d/stories/%s/comments", project, id), nil)
-	if err != nil {
-		glog.Errorf("could not form post request to Pivotal: %v", err)
-		return err
-	}
-	p := url.Values{
-		"text": []string{m},
-	}
-	req.URL.RawQuery = p.Encode()
-	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("X-TrackerToken", piv.Token)
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		glog.Errorf("could not make put request to Pivotal: %v", err)
-		return err
-	}
-	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		glog.Errorf("non-200 Response from Pivotal API: %s %s ", resp.Status, body)
-	}
-	return nil
 }
 
 // ProjectFromName takes a project name as a string and returns
