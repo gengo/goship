@@ -30,6 +30,10 @@ func (s stub) ListCommits(owner, repo string, opts *github.CommitsListOptions) (
 	return nil, nil, fmt.Errorf("not implemented")
 }
 
+func (s stub) GetCommit(owner, repo, sha1 string) (*github.RepositoryCommit, *github.Response, error) {
+	return nil, nil, fmt.Errorf("not implemented")
+}
+
 func (s stub) IsTeamMember(team int, user string) (bool, *github.Response, error) {
 	if user == "read_only_user" && team == 1 {
 		return true, nil, nil

@@ -31,11 +31,20 @@ type Config struct {
 
 // Project stores information about a GitHub project, such as its GitHub URL and repo name, and a list of extra columns (PluginColumns)
 type Project struct {
-	Name         string        `json:"-" yaml:"name"`
-	RepoName     string        `json:"repo_name" yaml:"repo_name"`
-	RepoOwner    string        `json:"repo_owner" yaml:"repo_owner"`
-	Environments []Environment `json:"-" yaml:"envs"`
-	TravisToken  string        `json:"travis_token" yaml:"travis_token"`
+	Name         string `json:"-" yaml:"name"`
+	Repo         `json:",inline" yaml:",inline"`
+	Environments []Environment  `json:"-" yaml:"envs"`
+	TravisToken  string         `json:"travis_token" yaml:"travis_token"`
+	// Source is an additional revision control system.
+	// It is effective only if RepoType does not serve source codes.
+	Source *Repo `json:"source,omitempty" yaml:"source,omitempty"`
+}
+
+func (p Project) SourceRepo() Repo {
+	if p.Source != nil {
+		return *p.Source
+	}
+	return p.Repo
 }
 
 // Environment stores information about an individual environment, such as its name and whether it is deployable.
@@ -47,6 +56,12 @@ type Environment struct {
 	Branch   string   `json:"branch" yaml:"branch"`
 	Comment  string   `json:"comment" yaml:"comment"`
 	IsLocked bool     `json:"is_locked,omitempty" yaml:"is_locked,omitempty"`
+}
+
+// Repo identifies a revision repository
+type Repo struct {
+	RepoOwner string `json:"repo_owner" yaml:"repo_owner"`
+	RepoName  string `json:"repo_name" yaml:"repo_name"`
 }
 
 // PivotalConfiguration used to store Pivotal interface

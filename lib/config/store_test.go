@@ -16,9 +16,11 @@ func TestStore(t *testing.T) {
 		},
 		Projects: []config.Project{
 			{
-				Name:      "example-project",
-				RepoName:  "example",
-				RepoOwner: "gengo",
+				Name: "example-project",
+				Repo: config.Repo{
+					RepoName:  "example",
+					RepoOwner: "gengo",
+				},
 				Environments: []config.Environment{
 					{
 						Name:     "example-environment",

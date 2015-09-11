@@ -55,6 +55,7 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	envs, err := h.fetchStatuses(ctx, projName, u)
 	if err == projectUnaccessible {
+		glog.Errorf("project %s is not accessible for %s", projName, u.Name)
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
@@ -98,7 +99,8 @@ func (h handler) fetchStatuses(ctx context.Context, projName string, u auth.User
 			if env.Locked {
 				return true, append(comments, "repo is locked.")
 			}
-			if !h.ac.Deployable(p.RepoOwner, p.RepoName, u.Name) {
+			repo := p.SourceRepo()
+			if !h.ac.Deployable(repo.RepoOwner, repo.RepoName, u.Name) {
 				return true, append(comments, "you do not have permission to deploy")
 			}
 			return false, comments
@@ -121,7 +123,8 @@ func (h handler) loadProject(projName string, u auth.User) (p config.Project, de
 		glog.Errorf("Failed to get project from name: %v", err)
 		return config.Project{}, "", err
 	}
-	if !h.ac.Readable(p.RepoOwner, p.RepoName, u.Name) {
+	repo := p.SourceRepo()
+	if !h.ac.Readable(repo.RepoOwner, repo.RepoName, u.Name) {
 		return config.Project{}, "", projectUnaccessible
 	}
 	return p, c.DeployUser, nil
@@ -147,9 +150,9 @@ func (h handler) retrieveCommits(ctx context.Context, proj config.Project, deplo
 
 		for j, host := range e.Hosts {
 			wg.Add(1)
-			go func(st *deployStatus, host, repoPath string) {
+			go func(st *deployStatus, host string, e config.Environment) {
 				defer wg.Done()
-				rev, srcRev, err := c.LatestDeployed(ctx, host, repoPath)
+				rev, srcRev, err := c.LatestDeployed(ctx, host, proj, e)
 				if err != nil {
 					st.Revision = ""
 					return
@@ -158,12 +161,12 @@ func (h handler) retrieveCommits(ctx context.Context, proj config.Project, deplo
 				st.ShortRevision = rev.Short()
 				st.RevisionURL = c.RevisionURL(proj, rev)
 				st.SourceCodeRevision = srcRev
-			}(&env.Deployments[j], host, e.RepoPath)
+			}(&env.Deployments[j], host, e)
 		}
 		wg.Add(1)
-		go func(env *environment, ref string) {
+		go func(env *environment, e config.Environment) {
 			defer wg.Done()
-			rev, srcRev, err := c.Latest(ctx, proj.RepoOwner, proj.RepoName, ref)
+			rev, srcRev, err := c.Latest(ctx, proj, e)
 			if err != nil {
 				env.Revision = ""
 				return
@@ -171,7 +174,7 @@ func (h handler) retrieveCommits(ctx context.Context, proj config.Project, deplo
 			env.Revision = rev
 			env.SourceCodeRevision = srcRev
 			env.ShortRevision = rev.Short()
-		}(env, e.Branch)
+		}(env, e)
 	}
 	wg.Wait()
 

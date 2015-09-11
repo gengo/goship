@@ -16,9 +16,11 @@ func TestSourceDiffURL(t *testing.T) {
 	}{
 		{
 			p: config.Project{
-				Name:      "test project",
-				RepoOwner: "foo",
-				RepoName:  "test",
+				Name: "test project",
+				Repo: config.Repo{
+					RepoOwner: "foo",
+					RepoName:  "test",
+				},
 			},
 			from: "abc123",
 			to:   "abc123",
@@ -26,9 +28,11 @@ func TestSourceDiffURL(t *testing.T) {
 		},
 		{
 			p: config.Project{
-				Name:      "test project",
-				RepoOwner: "foo",
-				RepoName:  "test",
+				Name: "test project",
+				Repo: config.Repo{
+					RepoOwner: "foo",
+					RepoName:  "test",
+				},
 			},
 			from: "abc123",
 			to:   "abc456",

@@ -23,6 +23,7 @@ func Load(client ETCDInterface) (Config, error) {
 	if err := loadProjects(client, &cfg, "/goship"); err != nil {
 		return Config{}, err
 	}
+	glog.V(2).Infof("Loaded config: %#v", cfg)
 	return cfg, nil
 }
 

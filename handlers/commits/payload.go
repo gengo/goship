@@ -24,7 +24,7 @@ type sourceStatus struct {
 	// SourceCodeRevision is a revision in a source code management system corresponding to the revision.
 	// SourceCodeRevision can be equal to Revision if the underlying revision control system itself is
 	// a soruce code management system,
-	SourceCodeRevision revision.Revision `json:"sourceCodeRevison"`
+	SourceCodeRevision revision.Revision `json:"sourceCodeRevision"`
 }
 
 // deployStatus describes a latest deployed revision of a project in a host
@@ -39,7 +39,7 @@ type deployStatus struct {
 	// SourceCodeRevision is a revision in a source code management system corresponding to the revision.
 	// SourceCodeRevision can be equal to Revision if the underlying revision control system itself is
 	// a soruce code management system,
-	SourceCodeRevision revision.Revision `json:"sourceCodeRevison"`
+	SourceCodeRevision revision.Revision `json:"sourceCodeRevision"`
 	// SourceCodeDiffURL is an URL to a human-readable resource which describes difference between
 	// the latest deployable source code and SourceCodeRevision.
 	SourceCodeDiffURL string `json:"sourceCodeDiffURL"`

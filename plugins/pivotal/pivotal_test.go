@@ -34,8 +34,10 @@ func TestRenderHeader(t *testing.T) {
 func TestApply(t *testing.T) {
 	p := &PivotalPlugin{}
 	proj := config.Project{
-		RepoName:  "test_project",
-		RepoOwner: "test",
+		Repo: config.Repo{
+			RepoName:  "test_project",
+			RepoOwner: "test",
+		},
 	}
 	cols, err := p.Apply(proj)
 	if err != nil {

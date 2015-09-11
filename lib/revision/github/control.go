@@ -24,7 +24,8 @@ func New(gcl githublib.Client, ssh ssh.SSH) revision.Control {
 }
 
 // Latest returns the latest commit in the given reference.
-func (c control) Latest(ctx context.Context, owner, repo, ref string) (rev, srcRev revision.Revision, err error) {
+func (c control) Latest(ctx context.Context, proj config.Project, env config.Environment) (rev, srcRev revision.Revision, err error) {
+	owner, repo, ref := proj.RepoOwner, proj.RepoName, env.Branch
 	opts := &github.CommitsListOptions{SHA: ref}
 	commits, _, err := c.gcl.ListCommits(owner, repo, opts)
 	if err != nil {
@@ -40,11 +41,11 @@ func (c control) Latest(ctx context.Context, owner, repo, ref string) (rev, srcR
 }
 
 // LatestDeployed returns the latest commit deployed into the host.
-func (c control) LatestDeployed(ctx context.Context, hostname, repoPath string) (rev, srcRev revision.Revision, err error) {
-	cmd := fmt.Sprintf("git --git-dir=%s rev-parse HEAD", repoPath)
+func (c control) LatestDeployed(ctx context.Context, hostname string, proj config.Project, env config.Environment) (rev, srcRev revision.Revision, err error) {
+	cmd := fmt.Sprintf("git --git-dir=%s rev-parse HEAD", env.RepoPath)
 	buf, err := c.ssh.Output(ctx, hostname, cmd)
 	if err != nil {
-		glog.Errorf("Failed to get latest deployed commit from %s:%s : %v", hostname, repoPath, err)
+		glog.Errorf("Failed to get latest deployed commit from %s:%s : %v", hostname, env.RepoPath, err)
 		return "", "", err
 	}
 	rev = revision.Revision(strings.TrimSpace(string(buf)))
@@ -59,5 +60,18 @@ func (c control) SourceDiffURL(p config.Project, from, to revision.Revision) str
 	if from == to {
 		return ""
 	}
-	return fmt.Sprintf("https://github.com/%s/%s/compare/%s...%s", p.RepoOwner, p.RepoName, from, to)
+	repo := p.SourceRepo()
+	return fmt.Sprintf("https://github.com/%s/%s/compare/%s...%s", repo.RepoOwner, repo.RepoName, from, to)
+}
+
+func (c control) SourceRevMessage(ctx context.Context, p config.Project, rev revision.Revision) (string, error) {
+	repo := p.SourceRepo()
+	commit, _, err := c.gcl.GetCommit(repo.RepoOwner, repo.RepoName, string(rev))
+	if err != nil {
+		return "", err
+	}
+	if commit.Message == nil {
+		return "", nil
+	}
+	return *commit.Message, nil
 }
