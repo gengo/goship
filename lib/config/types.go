@@ -33,6 +33,7 @@ type Config struct {
 type Project struct {
 	Name         string `json:"-" yaml:"name"`
 	Repo         `json:",inline" yaml:",inline"`
+	RepoType     RepositoryType `json:"repo_type" yaml:"repo_type"`
 	Environments []Environment  `json:"-" yaml:"envs"`
 	TravisToken  string         `json:"travis_token" yaml:"travis_token"`
 	// Source is an additional revision control system.
@@ -45,6 +46,24 @@ func (p Project) SourceRepo() Repo {
 		return *p.Source
 	}
 	return p.Repo
+}
+
+// A RepositoryType describes a type of revision control system which manages target revisions of deployment.
+type RepositoryType string
+
+const (
+	// RepoTypeGithub means sources codes of the targets of deployment are stored in github and we deploy from the codes.
+	RepoTypeGithub = RepositoryType("github")
+	// RepoTypeDocker means prebuilt docker images are the targets of deployment.
+	RepoTypeDocker = RepositoryType("docker")
+)
+
+func (t RepositoryType) Valid() bool {
+	switch t {
+	case RepoTypeGithub, RepoTypeDocker:
+		return true
+	}
+	return false
 }
 
 // Environment stores information about an individual environment, such as its name and whether it is deployable.

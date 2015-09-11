@@ -79,6 +79,7 @@ func TestLoad(t *testing.T) {
 		Projects: []config.Project{
 			{
 				Name:     "example-project",
+				RepoType: config.RepoTypeGithub,
 				Repo: config.Repo{
 					RepoName:  "example",
 					RepoOwner: "gengo",

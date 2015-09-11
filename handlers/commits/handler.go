@@ -3,16 +3,18 @@ package commits
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 
 	"github.com/coreos/go-etcd/etcd"
+	docker "github.com/fsouza/go-dockerclient"
 	"github.com/gengo/goship/lib/acl"
 	"github.com/gengo/goship/lib/auth"
 	"github.com/gengo/goship/lib/config"
 	githublib "github.com/gengo/goship/lib/github"
-	"github.com/gengo/goship/lib/revision"
+	gcrrev "github.com/gengo/goship/lib/revision/gcr"
 	githubrev "github.com/gengo/goship/lib/revision/github"
 	"github.com/gengo/goship/lib/ssh"
 	"github.com/golang/glog"
@@ -27,12 +29,13 @@ type handler struct {
 	ac         acl.AccessControl
 	ecl        *etcd.Client
 	gcl        githublib.Client
+	dcl        *docker.Client
 	sshKeyPath string
 }
 
 // New returns a new http.Handler which serves latest revisions in deploy targets and the revision control system.
-func New(ac acl.AccessControl, ecl *etcd.Client, gcl githublib.Client, sshKeyPath string) http.Handler {
-	return handler{ac: ac, ecl: ecl, gcl: gcl, sshKeyPath: sshKeyPath}
+func New(ac acl.AccessControl, ecl *etcd.Client, gcl githublib.Client, dcl *docker.Client, sshKeyPath string) http.Handler {
+	return handler{ac: ac, ecl: ecl, gcl: gcl, dcl: dcl, sshKeyPath: sshKeyPath}
 }
 
 func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -136,7 +139,15 @@ func (h handler) retrieveCommits(ctx context.Context, proj config.Project, deplo
 	if err != nil {
 		return nil, err
 	}
-	c := revision.Control(githubrev.New(h.gcl, s))
+
+	c := githubrev.New(h.gcl, s)
+	switch t := proj.RepoType; t {
+	case config.RepoTypeGithub:
+	case config.RepoTypeDocker:
+		c = gcrrev.New(c, h.dcl, s)
+	default:
+		return nil, fmt.Errorf("unknown repository type %q", t)
+	}
 
 	var wg sync.WaitGroup
 	envs := make([]environment, len(proj.Environments))

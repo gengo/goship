@@ -4,12 +4,14 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"regexp"
 	"strings"
 
 	"github.com/coreos/go-etcd/etcd"
+	docker "github.com/fsouza/go-dockerclient"
 	"github.com/gengo/goship/handlers/comment"
 	"github.com/gengo/goship/handlers/commits"
 	deploypage "github.com/gengo/goship/handlers/deploy-page"
@@ -19,18 +21,21 @@ import (
 	"github.com/gengo/goship/lib/config"
 	githublib "github.com/gengo/goship/lib/github"
 	"github.com/gengo/goship/lib/notification"
+	"github.com/gengo/goship/lib/revision/gcr"
 	helpers "github.com/gengo/goship/lib/view-helpers"
 	_ "github.com/gengo/goship/plugins"
 	"github.com/golang/glog"
 	ghandlers "github.com/gorilla/handlers"
 	"golang.org/x/net/context"
 	"golang.org/x/net/websocket"
+	googleoauth "golang.org/x/oauth2/google"
 )
 
 var (
 	bindAddress       = flag.String("b", "localhost:8000", "Address to bind (default localhost:8000)")
 	sshPort           = "22"
 	keyPath           = flag.String("k", "id_rsa", "Path to private SSH key (default id_rsa)")
+	gcpJWTConfig      = flag.String("gcp-jwt-config", "", "Path to a JSON file which contains a JWT configuration of a service account in Google Cloud Platform")
 	dataPath          = flag.String("d", "data/", "Path to data directory (default ./data/)")
 	staticFilePath    = flag.String("s", "static/", "Path to directory for static files (default ./static/)")
 	ETCDServer        = flag.String("e", "http://127.0.0.1:4001", "Etcd Server (default http://127.0.0.1:4001)")
@@ -120,8 +125,8 @@ func buildHandler(ctx context.Context) (http.Handler, error) {
 		ac = acl.NewGithub(gcl)
 	}
 
-	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
-		glog.Errorf("could not create data dir: %v", err)
+	dcl, err := docker.NewClientFromEnv()
+	if err != nil {
 		return nil, err
 	}
 
@@ -146,7 +151,7 @@ func buildHandler(ctx context.Context) (http.Handler, error) {
 	dlh := DeployLogHandler{assets: assets}
 	mux.Handle("/deployLog/", auth.AuthenticateFunc(extractDeployLogHandler(ac, ecl, dlh.ServeHTTP)))
 	mux.Handle("/output/", auth.AuthenticateFunc(extractOutputHandler(DeployOutputHandler)))
-	mux.Handle("/commits/", auth.Authenticate(commits.New(ac, ecl, gcl, *keyPath)))
+	mux.Handle("/commits/", auth.Authenticate(commits.New(ac, ecl, gcl, dcl, *keyPath)))
 	mux.Handle("/deploy_handler", auth.Authenticate(DeployHandler{ecl: ecl, hub: hub}))
 	mux.Handle("/lock", auth.Authenticate(lock.NewLock(ecl)))
 	mux.Handle("/unlock", auth.Authenticate(lock.NewUnlock(ecl)))
@@ -155,6 +160,22 @@ func buildHandler(ctx context.Context) (http.Handler, error) {
 	mux.HandleFunc("/auth/github/callback", auth.CallbackHandler)
 
 	return mux, nil
+}
+
+func initGCP(ctx context.Context) error {
+	if *gcpJWTConfig == "" {
+		return nil
+	}
+	buf, err := ioutil.ReadFile(*gcpJWTConfig)
+	if err != nil {
+		return err
+	}
+	cfg, err := googleoauth.JWTConfigFromJSON(buf, gcr.Scope)
+	if err != nil {
+		return err
+	}
+	gcr.Initialize(cfg.TokenSource(ctx))
+	return nil
 }
 
 func main() {
@@ -166,6 +187,13 @@ func main() {
 	defer cancel()
 
 	auth.Initialize(auth.User{Name: *defaultUser, Avatar: *defaultAvatar}, []byte(*cookieSessionHash))
+	if err := initGCP(ctx); err != nil {
+		glog.Fatal("Failed to load Google Service Account credential: %v", err)
+	}
+
+	if err := os.Mkdir(*dataPath, 0777); err != nil && !os.IsExist(err) {
+		glog.Fatal("could not create data dir: %v", err)
+	}
 
 	h, err := buildHandler(ctx)
 	if err != nil {
