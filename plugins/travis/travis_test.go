@@ -86,8 +86,10 @@ func TestRenderDetailPrivate(t *testing.T) {
 func TestApply(t *testing.T) {
 	p := &TravisPlugin{}
 	proj := config.Project{
-		RepoName:    "test_project",
-		RepoOwner:   "test",
+		Repo: config.Repo{
+			RepoName:  "test_project",
+			RepoOwner: "test",
+		},
 		TravisToken: "XXXXXX",
 	}
 	cols, err := p.Apply(proj)

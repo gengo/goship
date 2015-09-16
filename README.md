@@ -40,26 +40,38 @@ GoShip SSHes into the machines that you list in ETCD and gets the latest revisio
    
    If authentication is 'turned on', organization 'team' members who are collaborators and exclusively on a 'pull' only team will be able to see a repo, however the deploy button will be diasbled for them.
    
-3. Create an ETCD server
-   * Follow the instructions in the [etcd](https://github.com/coreos/etcd) README
-   * There are various tools to update your ETCD server including the etcdctl client or curl, you can also use a variety of clients and JSON formatting:
-   * There is also a **goshipcfg** in [tools](#tools) that can be used to dump or restore etcd data as YAML.
+3. Create an etcd server
+   1. Follow the instructions in the [etcd](https://github.com/coreos/etcd) README
+   2. Write configurations in YAML.
+   3. Store the configuration into etcd with `goshipcfg` in [tools](#tools)
+      * You can also directly access to etcd entries for small amount of change.
+        * etcd exposes a single set of APIs. [[reference](https://coreos.com/etcd/docs/latest/api.html)].
+          There are many tools to call the APIs, e.g. [etcdctl](https://github.com/coreos/etcdctl/).
 
 
 # Example
-Sample etcd data structure using [etcdctl](https://github.com/coreos/etcdctl/)
-   
-   ```shell
-   etcdctl mkdir '/goship'
-   etcdctl set /goship/config '{"deploy_user":"YOUR_SSH_USER_ON_SERVER"}'
-   etcdctl mkdir '/goship/projects'
-   etcdctl mkdir '/goship/projects/my-project'
-   etcdctl set /goship/projects/my-project/config '{"repo_name":"my-project","repo_owner":"github-user-or-org"}'
-   etcdctl mkdir /goship/projects/my-project/environments
-   etcdctl set /goship/projects/my-project/environments/staging '{"deploy":"/tmp/deploy -p=my-project -e=staging","repo_path":"PATH_TO_REPOSITORY/.git","hosts":["my-staging-server.example.com"],"branch":"master","comment":""}'
+Configure a file `config.yaml`.
+   ```yaml
+   deploy_user: YOUR_SSH_USER_ON_SERVER
+   projects:
+   - name: my-project
+     repo_name: my-project
+     repo_owner: github-user-or-org
+     envs:
+     - name: staging
+       deploy: "/tmp/deploy -p=my-project -e=staging"
+       repo_path: "PATH_TO_REPOSITORY/.git"
+       hosts:
+       - my-staging-server.example.com
+       branch: master
    ```
-   A quick explaination of keys used in this sample structure:
 
+Run this command.
+   ```shell
+   goshipcfg -store -logtostderr < config.yaml
+   ```
+
+A quick explaination of keys used in this sample structure:
 * **deploy_user:** This is your SSH user on the application server that Goship SSH user will have password-less auth to
 * **repo_name:** Name of your application project repository
 * **repo_owner:** Name of your Github user, or your Github org which owns the repo
@@ -69,22 +81,18 @@ Sample etcd data structure using [etcdctl](https://github.com/coreos/etcdctl/)
 * **branch:** Application code branch to deploy
 * **comment:** Any comments/notes
 
-# Commandline Options
+# Commandline Flags
 
 ```
- -a [default Avatar]                 Default Avatar (default goship gopher image)
  -b [bind address]                   Address to bind (default localhost:8000)
- -c [cookie session hash]            Random cookie session key (default jhjhjhjhjhjjhjhhj)
  -d [data path]                      Path to data directory (default ./data/)
  -e [etcd location]                  Full URL to ETCD Server (default http://127.0.0.1:4001)
- -f [deploy confirmation flag]       Flag to specify if user is prompted with confirmation dialog before deploys. Defaults to True
  -k [id_rsa key]                     Path to private SSH key for connecting to Github (default id_rsa)
  -s [static files]                   Path to directory for static files (default ./static/)
- -u [default user]                   Default User if non auth (default genericUser)
  -request-log [request log path]     Destination of request log (default '-', which is stdout)
 ```
 
-Since goship uses [glog](https://github.com/golang/glog), all glog [flags](https://github.com/golang/glog/blob/master/glog.go#L38) can also be supplied as per your deployment needs.
+Run `goship -help` for more flags.
 
 # Chat Notifications
 To notify a chat room when the Deploy button is pushed, create a script that takes a message as an argument and sends the message to the room. Then add it **notify** to etcd like this:
@@ -112,3 +120,33 @@ To do so, head over to [Plugins](plugins).
 GoShip was inspired by [Rackspace's Dreadnot](https://github.com/racker/dreadnot) ([UI image](http://c179631.r31.cf0.rackcdn.com/dreadnot-overview.png)) and [Etsy's Deployinator](https://github.com/etsy/deployinator/) ([UI image](http://farm5.staticflickr.com/4065/4620552264_9e0fdf634d_b.jpg)).
 
 The GoShip logo is an adaptation of the [Go gopher](http://blog.golang.org/gopher) created by Renee French under the [Creative Commons Attribution 3.0 license](https://creativecommons.org/licenses/by/3.0/).
+
+# Docker support (Experimental)
+You can use Docker instead of Github to store target revision of deployment.
+
+Configuration with docker looks like this:
+   ```yaml
+   deploy_user: YOUR_SSH_USER_ON_SERVER
+   projects:
+   - name: my-project
+     repo_type: docker
+     repo_owner: gcr.io
+     repo_name: my-namespace/my-repo
+     source:
+       repo_name: my-project
+       repo_owner: github-user-or-org
+     envs:
+     - name: staging
+       deploy: "/tmp/deploy -p=my-project -e=staging"
+       repo_path: ""
+       hosts:
+       - my-staging-server.example.com
+       branch: latest
+   ```
+
+* `repo_owner` is used to specify docker registry.
+  Currently it must be `gcr.io` (Google Container Registry)
+* `repo_name` is used to specify docker image name
+* `branch` in `envs` is used to specify docker image tag 
+* You have to specify `source` section to keep corresponding github repository
+* `repo_path` in `envs` is ignored

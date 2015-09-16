@@ -3,16 +3,18 @@ package commits
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 
 	"github.com/coreos/go-etcd/etcd"
+	docker "github.com/fsouza/go-dockerclient"
 	"github.com/gengo/goship/lib/acl"
 	"github.com/gengo/goship/lib/auth"
 	"github.com/gengo/goship/lib/config"
 	githublib "github.com/gengo/goship/lib/github"
-	"github.com/gengo/goship/lib/revision"
+	gcrrev "github.com/gengo/goship/lib/revision/gcr"
 	githubrev "github.com/gengo/goship/lib/revision/github"
 	"github.com/gengo/goship/lib/ssh"
 	"github.com/golang/glog"
@@ -27,12 +29,13 @@ type handler struct {
 	ac         acl.AccessControl
 	ecl        *etcd.Client
 	gcl        githublib.Client
+	dcl        *docker.Client
 	sshKeyPath string
 }
 
 // New returns a new http.Handler which serves latest revisions in deploy targets and the revision control system.
-func New(ac acl.AccessControl, ecl *etcd.Client, gcl githublib.Client, sshKeyPath string) http.Handler {
-	return handler{ac: ac, ecl: ecl, gcl: gcl, sshKeyPath: sshKeyPath}
+func New(ac acl.AccessControl, ecl *etcd.Client, gcl githublib.Client, dcl *docker.Client, sshKeyPath string) http.Handler {
+	return handler{ac: ac, ecl: ecl, gcl: gcl, dcl: dcl, sshKeyPath: sshKeyPath}
 }
 
 func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -55,6 +58,7 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	envs, err := h.fetchStatuses(ctx, projName, u)
 	if err == projectUnaccessible {
+		glog.Errorf("project %s is not accessible for %s", projName, u.Name)
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
@@ -98,7 +102,8 @@ func (h handler) fetchStatuses(ctx context.Context, projName string, u auth.User
 			if env.Locked {
 				return true, append(comments, "repo is locked.")
 			}
-			if !h.ac.Deployable(p.RepoOwner, p.RepoName, u.Name) {
+			repo := p.SourceRepo()
+			if !h.ac.Deployable(repo.RepoOwner, repo.RepoName, u.Name) {
 				return true, append(comments, "you do not have permission to deploy")
 			}
 			return false, comments
@@ -121,7 +126,8 @@ func (h handler) loadProject(projName string, u auth.User) (p config.Project, de
 		glog.Errorf("Failed to get project from name: %v", err)
 		return config.Project{}, "", err
 	}
-	if !h.ac.Readable(p.RepoOwner, p.RepoName, u.Name) {
+	repo := p.SourceRepo()
+	if !h.ac.Readable(repo.RepoOwner, repo.RepoName, u.Name) {
 		return config.Project{}, "", projectUnaccessible
 	}
 	return p, c.DeployUser, nil
@@ -133,7 +139,15 @@ func (h handler) retrieveCommits(ctx context.Context, proj config.Project, deplo
 	if err != nil {
 		return nil, err
 	}
-	c := revision.Control(githubrev.New(h.gcl, s))
+
+	c := githubrev.New(h.gcl, s)
+	switch t := proj.RepoType; t {
+	case config.RepoTypeGithub:
+	case config.RepoTypeDocker:
+		c = gcrrev.New(c, h.dcl, s)
+	default:
+		return nil, fmt.Errorf("unknown repository type %q", t)
+	}
 
 	var wg sync.WaitGroup
 	envs := make([]environment, len(proj.Environments))
@@ -147,9 +161,9 @@ func (h handler) retrieveCommits(ctx context.Context, proj config.Project, deplo
 
 		for j, host := range e.Hosts {
 			wg.Add(1)
-			go func(st *deployStatus, host, repoPath string) {
+			go func(st *deployStatus, host string, e config.Environment) {
 				defer wg.Done()
-				rev, srcRev, err := c.LatestDeployed(ctx, host, repoPath)
+				rev, srcRev, err := c.LatestDeployed(ctx, host, proj, e)
 				if err != nil {
 					st.Revision = ""
 					return
@@ -158,12 +172,12 @@ func (h handler) retrieveCommits(ctx context.Context, proj config.Project, deplo
 				st.ShortRevision = rev.Short()
 				st.RevisionURL = c.RevisionURL(proj, rev)
 				st.SourceCodeRevision = srcRev
-			}(&env.Deployments[j], host, e.RepoPath)
+			}(&env.Deployments[j], host, e)
 		}
 		wg.Add(1)
-		go func(env *environment, ref string) {
+		go func(env *environment, e config.Environment) {
 			defer wg.Done()
-			rev, srcRev, err := c.Latest(ctx, proj.RepoOwner, proj.RepoName, ref)
+			rev, srcRev, err := c.Latest(ctx, proj, e)
 			if err != nil {
 				env.Revision = ""
 				return
@@ -171,7 +185,7 @@ func (h handler) retrieveCommits(ctx context.Context, proj config.Project, deplo
 			env.Revision = rev
 			env.SourceCodeRevision = srcRev
 			env.ShortRevision = rev.Short()
-		}(env, e.Branch)
+		}(env, e)
 	}
 	wg.Wait()
 

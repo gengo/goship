@@ -23,6 +23,7 @@ func Load(client ETCDInterface) (Config, error) {
 	if err := loadProjects(client, &cfg, "/goship"); err != nil {
 		return Config{}, err
 	}
+	glog.V(2).Infof("Loaded config: %#v", cfg)
 	return cfg, nil
 }
 
@@ -60,6 +61,16 @@ func loadProject(node *etcd.Node) (Project, error) {
 			envs = child
 		}
 	}
+	if proj.RepoType == "" {
+		proj.RepoType = RepoTypeGithub
+	}
+	if !proj.RepoType.Valid() {
+		return Project{}, fmt.Errorf("invalid repo_type %q", proj.RepoType)
+	}
+	if proj.RepoType == RepoTypeDocker && proj.Source == nil {
+		return Project{}, fmt.Errorf("source repo not configured in %s", name)
+	}
+
 	proj.Name = name
 	if err := loadEnvironments(envs, &proj); err != nil {
 		return Project{}, err

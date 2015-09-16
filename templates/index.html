@@ -121,6 +121,8 @@
                 $deployForm = $env.find('.form-deploy');
                 $deployForm.find('[name="from_revision"]').val(deploy.revision);
                 $deployForm.find('[name="to_revision"]').val(env.latestDeployable);
+                $deployForm.find('[name="from_source_revision"]').val(deploy.sourceCodeRevision);
+                $deployForm.find('[name="to_source_revision"]').val(env.sourceCodeRevision);
               if (deploy.sourceCodeDiffURL) {
                 $deployForm.find('[name="diffUrl"]').val(deploy.sourceCodeDiffURL);
                 break;

@@ -13,6 +13,7 @@ import (
 
 	"github.com/gengo/goship/lib/auth"
 	"github.com/gengo/goship/lib/config"
+	"github.com/gengo/goship/lib/revision"
 	helpers "github.com/gengo/goship/lib/view-helpers"
 	"github.com/golang/glog"
 )
@@ -102,7 +103,13 @@ func readEntries(env string) ([]DeployLogEntry, error) {
 	return d, nil
 }
 
+type RevRange struct {
+	From revision.Revision `json:"from"`
+	To   revision.Revision `json:"to"`
+}
+
 type DeployLogEntry struct {
+	Range         RevRange `json:"range"`
 	DiffURL       string
 	ToRevisionMsg string
 	User          string

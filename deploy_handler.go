@@ -19,17 +19,20 @@ import (
 	"github.com/gengo/goship/lib/auth"
 	"github.com/gengo/goship/lib/config"
 	"github.com/gengo/goship/lib/notification"
+	"github.com/gengo/goship/lib/revision"
 	"github.com/golang/glog"
-	"github.com/google/go-github/github"
-	"golang.org/x/oauth2"
+	"golang.org/x/net/context"
 )
 
 type DeployHandler struct {
-	ecl *etcd.Client
-	hub *notification.Hub
+	ecl  *etcd.Client
+	ctrl revision.Control
+	hub  *notification.Hub
 }
 
 func (h DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+
 	c, err := config.Load(h.ecl)
 	if err != nil {
 		glog.Errorf("Failed to fetch latest configuration: %v", err)
@@ -42,28 +45,57 @@ func (h DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
-	user := u.Name
-	p := r.FormValue("project")
-	env := r.FormValue("environment")
-	fromRevision := r.FormValue("from_revision")
-	toRevision := r.FormValue("to_revision")
-	owner := r.FormValue("repo_owner")
-	name := r.FormValue("repo_name")
+
+	var (
+		user              = u.Name
+		projName, envName string
+		deploy            RevRange
+		src               = RevRange{
+			From: revision.Revision(r.FormValue("from_source_revision")),
+			To:   revision.Revision(r.FormValue("to_source_revision")),
+		}
+	)
+	for _, spec := range []struct {
+		name  string
+		value *string
+	}{
+		{name: "project", value: &projName},
+		{name: "environment", value: &envName},
+		{name: "from_revision", value: (*string)(&deploy.From)},
+		{name: "to_revision", value: (*string)(&deploy.To)},
+	} {
+		*spec.value = r.FormValue(spec.name)
+		if *spec.value == "" {
+			glog.Errorf("%s not specified", spec.name)
+			http.Error(w, fmt.Sprintf("%s not specified", spec.name), http.StatusBadRequest)
+			return
+		}
+	}
+	proj, err := config.ProjectFromName(c.Projects, projName)
+	if err != nil {
+		http.Error(w, "no such project", http.StatusNotFound)
+		return
+	}
+	env, err := config.EnvironmentFromName(c.Projects, projName, envName)
+	if err != nil {
+		http.Error(w, "no such project/environment", http.StatusNotFound)
+		return
+	}
+
+	h.deploy(ctx, w, c, user, proj, *env, deploy, src)
+}
+
+func (h DeployHandler) deploy(ctx context.Context, w http.ResponseWriter, c config.Config, user string, proj config.Project, env config.Environment, deploy, src RevRange) {
 	if c.Notify != "" {
-		err := startNotify(c.Notify, user, p, env)
+		err := startNotify(c.Notify, user, proj.Name, env.Name)
 		if err != nil {
-			glog.Errorf("Failed to notify start-deployment event of %s (%s): %v", p, env, err)
+			glog.Errorf("Failed to notify start-deployment event of %s (%s): %v", proj.Name, env.Name, err)
 		}
 	}
 
 	deployTime := time.Now()
 	success := true
-	command, err := getDeployCommand(c.Projects, p, env)
-	if err != nil {
-		glog.Errorf("Failed to fetch deploy command: %v", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	command := deployCommand(env)
 	cmd := exec.Command(command[0], command[1:]...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -77,7 +109,8 @@ func (h DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	glog.Infof("Starting deployment of %s-%s (%s/%s) from %s to %s; requested by %s", p, env, owner, name, fromRevision, toRevision, user)
+	repo := proj.SourceRepo()
+	glog.Infof("Starting deployment of %s-%s (%s/%s) from %s to %s; requested by %s", proj.Name, env.Name, repo.RepoOwner, repo.RepoName, deploy.From, deploy.To, user)
 	if err = cmd.Start(); err != nil {
 		glog.Errorf("Could not run deployment command: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -86,26 +119,26 @@ func (h DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
-	go h.sendOutput(&wg, bufio.NewScanner(stdout), p, env, deployTime)
-	go h.sendOutput(&wg, bufio.NewScanner(stderr), p, env, deployTime)
+	go h.sendOutput(&wg, bufio.NewScanner(stdout), proj.Name, env.Name, deployTime)
+	go h.sendOutput(&wg, bufio.NewScanner(stderr), proj.Name, env.Name, deployTime)
 	wg.Wait()
 
 	err = cmd.Wait()
 	if err != nil {
 		success = false
-		glog.Errorf("Deployment of %s failed: %v", p, err)
+		glog.Errorf("Deployment of %s failed: %v", proj.Name, err)
 	} else {
-		glog.Infof("Successfully deployed %s", p)
+		glog.Infof("Successfully deployed %s", proj.Name)
 	}
 	if c.Notify != "" {
-		err = endNotify(c.Notify, p, env, success)
+		err = endNotify(c.Notify, proj.Name, env.Name, success)
 		if err != nil {
-			glog.Errorf("Failed to notify start-deployment event of %s (%s): %v", p, env, err)
+			glog.Errorf("Failed to notify start-deployment event of %s (%s): %v", proj.Name, env.Name, err)
 		}
 	}
 
 	if (c.Pivotal.Token != "") && success {
-		err := config.PostToPivotal(c.Pivotal, env, owner, name, toRevision, fromRevision)
+		err := config.PostToPivotal(c.Pivotal, env.Name, repo.RepoOwner, repo.RepoName, string(deploy.From), string(deploy.To))
 		if err != nil {
 			glog.Errorf("Failed to post to pivotal: %v", err)
 		} else {
@@ -113,7 +146,7 @@ func (h DeployHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err = insertEntry(fmt.Sprintf("%s-%s", p, env), owner, name, fromRevision, toRevision, user, success, deployTime)
+	err = h.insertEntry(ctx, proj, env, deploy, src, user, success, deployTime)
 	if err != nil {
 		glog.Errorf("Failed to insert an entry: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -202,51 +235,53 @@ func endNotify(n, p, env string, success bool) error {
 	return nil
 }
 
-// getDeployCommand returns the deployment command for a given
+// deployCommand returns the deployment command for a given
 // environment as a string slice that has been split on spaces.
-func getDeployCommand(projects []config.Project, projectName, environmentName string) (s []string, err error) {
-	e, err := config.EnvironmentFromName(projects, projectName, environmentName)
-	if err != nil {
-		return s, err
-	}
-
-	return strings.Split(e.Deploy, " "), nil
+func deployCommand(e config.Environment) []string {
+	// TODO(yugui) better handling of shell escape
+	return strings.Split(e.Deploy, " ")
 }
 
-func insertEntry(env, owner, repoName, fromRevision, toRevision, user string, success bool, time time.Time) error {
-	path := path.Join(*dataPath, env+".json")
+func (h DeployHandler) insertEntry(ctx context.Context, proj config.Project, env config.Environment, deploy, src RevRange, user string, success bool, time time.Time) error {
+	basename := fmt.Sprintf("%s-%s", proj.Name, env.Name)
+	path := path.Join(*dataPath, basename+".json")
 	err := prepareDataFiles(path)
 	if err != nil {
 		return err
 	}
 
-	e, err := readEntries(env)
+	e, err := readEntries(basename)
 	if err != nil {
 		return err
 	}
-	gt := os.Getenv(gitHubAPITokenEnvVar)
-	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: gt})
-	c := github.NewClient(oauth2.NewClient(oauth2.NoContext, ts))
-	com, _, err := c.Git.GetCommit(owner, repoName, toRevision)
-	if err != nil {
-		glog.Errorf("Failed to get commit %s (%s/%s): %v", toRevision, owner, repoName, err)
+
+	repo := proj.SourceRepo()
+	var msg string
+	if src.To != "" {
+		msg, err = h.ctrl.SourceRevMessage(ctx, proj, src.To)
+		if err != nil {
+			glog.Errorf("Failed to get commit %s (%s/%s): %v", src.To, repo.RepoOwner, repo.RepoName, err)
+			msg = ""
+		}
 	}
-	var m string
-	if com.Message != nil {
-		m = *com.Message
+	var diffURL string
+	if src.From != "" && src.To != "" {
+		diffURL = h.ctrl.SourceDiffURL(proj, src.From, src.To)
 	}
-	diffURL := diffURL(owner, repoName, fromRevision, toRevision)
-	d := DeployLogEntry{DiffURL: diffURL, ToRevisionMsg: m, User: user, Time: time, Success: success}
+	d := DeployLogEntry{
+		Range:         deploy,
+		DiffURL:       diffURL,
+		ToRevisionMsg: msg,
+		User:          user,
+		Time:          time,
+		Success:       success,
+	}
 	e = append(e, d)
 	err = writeJSON(e, path)
 	if err != nil {
 		return err
 	}
 	return nil
-}
-
-func diffURL(owner, repoName, fromRevision, toRevision string) string {
-	return fmt.Sprintf("https://github.com/%s/%s/compare/%s...%s", owner, repoName, fromRevision, toRevision)
 }
 
 func prepareDataFiles(path string) error {

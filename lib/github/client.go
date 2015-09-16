@@ -10,6 +10,7 @@ import (
 type Client interface {
 	ListTeams(string, string, *github.ListOptions) ([]github.Team, *github.Response, error)
 	ListCommits(owner, repo string, opts *github.CommitsListOptions) ([]github.RepositoryCommit, *github.Response, error)
+	GetCommit(owner, repo, sha1 string) (*github.RepositoryCommit, *github.Response, error)
 	IsTeamMember(int, string) (bool, *github.Response, error)
 	IsCollaborator(string, string, string) (bool, *github.Response, error)
 }
@@ -38,6 +39,10 @@ func (c prodClient) ListTeams(owner string, repo string, opt *github.ListOptions
 
 func (c prodClient) ListCommits(owner, repo string, opt *github.CommitsListOptions) ([]github.RepositoryCommit, *github.Response, error) {
 	return c.repo.ListCommits(owner, repo, opt)
+}
+
+func (c prodClient) GetCommit(owner, repo, sha1 string) (*github.RepositoryCommit, *github.Response, error) {
+	return c.repo.GetCommit(owner, repo, sha1)
 }
 
 func (c prodClient) IsTeamMember(team int, user string) (bool, *github.Response, error) {
