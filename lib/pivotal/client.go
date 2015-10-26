@@ -52,10 +52,13 @@ func (c pivClient) request(method string, endpoint string, form url.Values) ([]b
 	}
 	defer resp.Body.Close()
 	b, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		m := fmt.Sprintf("bad status code returned by Pivotal: %s [%d] (%s)", resp.Status, resp.StatusCode, string(b))
 		glog.Error(m)
-		return b, fmt.Errorf(m)
+		return nil, fmt.Errorf(m)
 	}
 	return b, nil
 }
@@ -66,9 +69,9 @@ func (c pivClient) FindProjectForStory(id int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	p := struct {
+	var p struct {
 		ProjectID int `json:"project_id"`
-	}{}
+	}
 	err = json.Unmarshal(b, &p)
 	if err != nil {
 		return 0, err
