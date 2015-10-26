@@ -74,11 +74,19 @@ func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current 
 			continue
 		}
 		m := fmt.Sprintf("Deployed to %s: %s", env, timestamp.Format(layout))
-		go pivClient.AddComment(id, project, m)
+		go func() {
+			if err := pivClient.AddComment(id, project, m); err != nil {
+				glog.Errorf("failed to post a comment %q to story %d", m, id)
+			}
+		}()
 		if env == "live" {
 			year, week := time.Now().ISOWeek()
 			label := fmt.Sprintf("released_w%d/%d", week, year)
-			go pivClient.AddLabel(id, project, label)
+			go func() {
+				if err := pivClient.AddLabel(id, project, label); err != nil {
+					glog.Errorf("Failed to add a label %q to story %d", label, id)
+				}
+			}()
 		}
 	}
 	return nil
