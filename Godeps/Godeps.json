@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/gengo/goship",
-	"GoVersion": "go1.5",
+	"GoVersion": "go1.5.1",
 	"Packages": [
 		"github.com/gengo/goship/..."
 	],
@@ -13,6 +13,10 @@
 			"ImportPath": "github.com/coreos/go-etcd/etcd",
 			"Comment": "v2.0.0",
 			"Rev": "f02171fbd43c7b9b53ce8679b03235a1ef3c7b12"
+		},
+		{
+			"ImportPath": "github.com/fsouza/go-dockerclient",
+			"Rev": "c0187cbf588c59709e8881fd2bba082b02231356"
 		},
 		{
 			"ImportPath": "github.com/golang/glog",
@@ -90,6 +94,14 @@
 		{
 			"ImportPath": "golang.org/x/oauth2",
 			"Rev": "b5adcc2dcdf009d0391547edc6ecbaff889f5bb9"
+		},
+		{
+			"ImportPath": "google.golang.org/cloud/compute/metadata",
+			"Rev": "c97f5f9979a8582f3ab72873a51979619801248b"
+		},
+		{
+			"ImportPath": "google.golang.org/cloud/internal",
+			"Rev": "c97f5f9979a8582f3ab72873a51979619801248b"
 		},
 		{
 			"ImportPath": "gopkg.in/yaml.v2",
