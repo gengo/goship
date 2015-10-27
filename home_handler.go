@@ -60,7 +60,10 @@ func (h HomeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	js, css := h.assets.Templates()
 	gt := os.Getenv(gitHubAPITokenEnvVar)
-	pt := c.Pivotal.Token
+	var pt string
+	if c.Pivotal != nil {
+		pt = c.Pivotal.Token
+	}
 
 	params := map[string]interface{}{
 		"Javascript":        js,
