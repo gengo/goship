@@ -85,7 +85,7 @@ type PivotalConfiguration struct {
 	Token string `json:"token" yaml:"token"`
 }
 
-func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current string) error {
+func PostToPivotal(piv *PivotalConfiguration, env, owner, name, current, latest string) error {
 	layout := "2006-01-02 15:04:05"
 	timestamp := time.Now()
 	loc, err := time.LoadLocation("Asia/Tokyo")
@@ -96,7 +96,7 @@ func PostToPivotal(piv *PivotalConfiguration, env, owner, name, latest, current 
 		layout += " (JST)"
 		timestamp = timestamp.In(loc)
 	}
-	ids, err := GetPivotalIDFromCommits(owner, name, latest, current)
+	ids, err := GetPivotalIDFromCommits(owner, name, current, latest)
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func appendIfUnique(list []int, elem int) []int {
 	return append(list, elem)
 }
 
-func GetPivotalIDFromCommits(owner, repoName, latest, current string) ([]int, error) {
+func GetPivotalIDFromCommits(owner, repoName, current, latest string) ([]int, error) {
 	// gets a list pivotal IDs from commit messages from repository based on latest and current commit
 	gt := os.Getenv(gitHubAPITokenEnvVar)
 	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: gt})
