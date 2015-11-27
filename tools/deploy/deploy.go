@@ -3,11 +3,14 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/coreos/go-etcd/etcd"
@@ -78,13 +81,17 @@ func updateChefRepo(conf config) {
 	os.Setenv("GIT_SSH", "/tmp/private_code/wrap-ssh4git.sh")
 	os.Setenv("EMAIL", "devops@gengo.com")
 	os.Setenv("NAME", "gengodev")
-	// TODO: refactor "execCmd" and run commands at once
-	gitPullCmd := "/usr/bin/git --git-dir=" + conf.ChefRepo + "/.git --work-tree=" + conf.ChefRepo + " pull origin " + *deployToolBranch
+	gitBase := []string{
+		"/usr/bin/git",
+		"--git-dir", filepath.Join(conf.ChefRepo, ".git"),
+		"--work-tree", conf.ChefRepo,
+	}
+	gitPullCmd := append(gitBase, "pull", "origin", *deployToolBranch)
 	_, err := execCmd(gitPullCmd, conf)
 	if err != nil {
 		glog.Fatal("Failed to pull: ", err)
 	}
-	gitCheckoutCmd := "/usr/bin/git --git-dir=" + conf.ChefRepo + "/.git --work-tree=" + conf.ChefRepo + " checkout " + *deployToolBranch
+	gitCheckoutCmd := append(gitBase, "checkout", *deployToolBranch)
 	_, err = execCmd(gitCheckoutCmd, conf)
 	if err != nil {
 		glog.Fatal("Failed to checkout: ", err)
@@ -92,55 +99,46 @@ func updateChefRepo(conf config) {
 	glog.Infof("Updated devops-tools to the latest %s branch", *deployToolBranch)
 }
 
-func execCmd(icmd string, conf config) (output string, err error) {
-	os.Chdir(conf.ChefPath)
+func execCmd(argv []string, conf config) (string, error) {
+	var output bytes.Buffer
 
-	parts := strings.Fields(icmd)
-	head := parts[0]
-	parts = parts[1:len(parts)]
-
-	cmd := exec.Command(head, parts...)
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		glog.Fatal(err)
-	}
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Dir = conf.ChefPath
+	cmd.Stdout = io.MultiWriter(&output, os.Stdout)
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		glog.Fatal(err)
 	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			glog.Infof(scanner.Text())
+		}
+		if err := scanner.Err(); err != nil {
+			glog.Errorf("Error reading standard error stream: %s", err)
+		}
+	}()
 	if err := cmd.Start(); err != nil {
 		glog.Fatal(err)
-	}
-	scanner := bufio.NewScanner(stdout)
-	for scanner.Scan() {
-		o := scanner.Text()
-		output += o
-		fmt.Println(o)
-
-	}
-	if err := scanner.Err(); err != nil {
-		glog.Errorf("Error reading standard output stream: %s", err)
-	}
-	scanner = bufio.NewScanner(stderr)
-	for scanner.Scan() {
-		glog.Infof(scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		glog.Errorf("Error reading standard error stream: %s", err)
 	}
 	if err := cmd.Wait(); err != nil {
 		glog.Fatalf("Error waiting for Chef to complete %s", err)
 	}
-	return output, err
+	<-done
+	return output.String(), err
 }
 
 func main() {
 	flag.Parse()
+	defer glog.Flush()
+
 	conf := parseConfig()
-	if *skipUpdate == false {
+	if !*skipUpdate {
 		updateChefRepo(conf)
 	}
-	if *pullOnly == false {
+	if !*pullOnly {
 		c, err := gsconfig.Load(etcd.NewClient([]string{conf.EtcdServer}))
 		if err != nil {
 			glog.Fatalf("Error parsing ETCD: %s", err)
@@ -150,24 +148,33 @@ func main() {
 			glog.Fatalf("Error getting project %s %s %s", *deployProj, *deployEnv, err)
 		}
 		glog.Infof("Deploying project name: %s environment Name: %s", *deployEnv, projectEnv.Name)
-		servers := projectEnv.Hosts
-		var d, e string
-		if *chefRunlist != "" {
-			e = " -o \"" + *chefRunlist + "\" "
-		}
-		for _, h := range servers {
-			if *bootstrap == true {
-				d = "knife solo bootstrap -c " + conf.KnifePath + " -i " + conf.PemKey + " --no-host-key-verify " + e + conf.DeployUser + "@" + h
+		for _, h := range projectEnv.Hosts {
+			var cmd []string
+			if *bootstrap {
+				cmd = []string{
+					"knife", "solo", "bootstrap",
+					"-c", conf.KnifePath,
+					"-i", conf.PemKey,
+					"--no-host-key-verify",
+				}
 			} else {
-				d = "knife solo cook -c " + conf.KnifePath + " -i " + conf.PemKey + " --no-host-key-verify " + e + conf.DeployUser + "@" + h
+				cmd = []string{
+					"knife", "solo", "cook",
+					"-c", conf.KnifePath,
+					"-i", conf.PemKey,
+					"--no-host-key-verify",
+				}
 			}
+			if *chefRunlist != "" {
+				cmd = append(cmd, "-o", *chefRunlist)
+			}
+			cmd = append(cmd, fmt.Sprintf("%s@%s", conf.DeployUser, h))
 			glog.Infof("Deploying to server: %s", h)
-			glog.Infof("Preparing Knife command: %s", d)
-			_, err := execCmd(d, conf)
+			glog.Infof("Preparing Knife command: %s", strings.Join(cmd, ""))
+			_, err := execCmd(cmd, conf)
 			if err != nil {
 				glog.Fatalf("Error Executing command %s", err)
 			}
 		}
 	}
-
 }
