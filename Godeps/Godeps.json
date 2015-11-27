@@ -47,11 +47,6 @@
 			"Rev": "f61c3ec2cf65d69e7efedfd4d060fe128882c951"
 		},
 		{
-			"ImportPath": "github.com/kylelemons/go-gypsy/yaml",
-			"Comment": "go.weekly.2011-11-02-19-g42fc2c7",
-			"Rev": "42fc2c7ee9b8bd0ff636cd2d7a8c0a49491044c5"
-		},
-		{
 			"ImportPath": "github.com/stretchr/codecs",
 			"Rev": "8e29b38960a541ed1264b001dcb21701283c590d"
 		},
