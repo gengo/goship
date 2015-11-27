@@ -96,6 +96,16 @@ func updateChefRepo(conf config) {
 	if err != nil {
 		glog.Fatal("Failed to checkout: ", err)
 	}
+	_, err = os.Stat(filepath.Join(conf.ChefRepo, "Berksfile"))
+	if !os.IsNotExist(err) {
+		if err != nil {
+			glog.Fatal("Failed to access to Berksfile: %v", err)
+		}
+		_, err = execCmd([]string{"berks", "--path", "cookbooks"}, conf)
+		if err != nil {
+			glog.Fatal("Failed to fetch third-party cookbooks: ", err)
+		}
+	}
 	glog.Infof("Updated devops-tools to the latest %s branch", *deployToolBranch)
 }
 
