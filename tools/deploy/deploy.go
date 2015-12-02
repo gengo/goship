@@ -1,11 +1,11 @@
+// Command deploy is a Gengo-specific deployment script which can be invoked by Goship.
 package main
-
-// This script polls ETCD and executes Chef knife solo cook.
 
 import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -13,7 +13,7 @@ import (
 	"github.com/coreos/go-etcd/etcd"
 	gsconfig "github.com/gengo/goship/lib/config"
 	"github.com/golang/glog"
-	"github.com/kylelemons/go-gypsy/yaml"
+	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -35,37 +35,37 @@ const (
 
 // config contains the information from config.yml.
 type config struct {
-	chefRepo   string
-	chefPath   string
-	knifePath  string
-	pemKey     string
-	deployUser string
-	etcdServer string
+	chefRepo   string `yaml:"chef_repo,omitempty"`
+	chefPath   string `yaml:"chef_path,omitempty"`
+	knifePath  string `yaml:"knife_path,omitempty"`
+	pemKey     string `yaml:"pem_key,omitempty"`
+	deployUser string `yaml:"deploy_user,omitempty"`
+	etcdServer string `yaml:"etcd_server,omitempty"`
 }
 
-func checkMissingConf(s, v, f string) {
-	if len(s) < 1 {
-		glog.Fatalf("Warning: Missing %s in config file [%s]", v, f)
-	}
-}
-
-func parseConfig() (c config) {
-	config, err := yaml.ReadFile(*configFile)
+func parseConfig() config {
+	buf, err := ioutil.ReadFile(*configFile)
 	if err != nil {
-		glog.Fatalf("Fatal: Can't parse conf file %s", *configFile)
+		glog.Fatalf("Can't open conf file %s: %v", *configFile, err)
 	}
-	c.chefRepo, err = config.Get("chef_repo")
-	checkMissingConf(c.chefRepo, "chef_repo", *configFile)
-	c.chefPath, err = config.Get("chef_path")
-	checkMissingConf(c.chefPath, "chef_path", *configFile)
-	c.knifePath, err = config.Get("knife_path")
-	checkMissingConf(c.knifePath, "knife_path", *configFile)
-	c.pemKey, err = config.Get("pem_key")
-	checkMissingConf(c.pemKey, "pem_key", *configFile)
-	c.deployUser, err = config.Get("deploy_user")
-	checkMissingConf(c.deployUser, "deploy_user", *configFile)
-	c.etcdServer, err = config.Get("etcd_server")
-	if len(c.etcdServer) < 1 {
+	var c config
+	if err := yaml.Unmarshal(buf, &c); err != nil {
+		glog.Fatalf("Can't parse conf file %s: %v", *configFile, err)
+	}
+	for _, item := range []struct {
+		attr, value string
+	}{
+		{"chef_repo", c.chefRepo},
+		{"chef_path", c.chefPath},
+		{"knife_path", c.knifePath},
+		{"pem_key", c.pemKey},
+		{"deploy_user", c.deployUser},
+	} {
+		if item.value == "" {
+			glog.Fatal("configuration %s is missing in %s", item.attr, *configFile)
+		}
+	}
+	if c.etcdServer == "" {
 		c.etcdServer = "http://127.0.0.1:4001"
 	}
 	return c
