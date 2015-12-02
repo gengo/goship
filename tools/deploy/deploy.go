@@ -35,12 +35,12 @@ const (
 
 // config contains the information from config.yml.
 type config struct {
-	chefRepo   string `yaml:"chef_repo,omitempty"`
-	chefPath   string `yaml:"chef_path,omitempty"`
-	knifePath  string `yaml:"knife_path,omitempty"`
-	pemKey     string `yaml:"pem_key,omitempty"`
-	deployUser string `yaml:"deploy_user,omitempty"`
-	etcdServer string `yaml:"etcd_server,omitempty"`
+	ChefRepo   string `yaml:"chef_repo,omitempty"`
+	ChefPath   string `yaml:"chef_path,omitempty"`
+	KnifePath  string `yaml:"knife_path,omitempty"`
+	PemKey     string `yaml:"pem_key,omitempty"`
+	DeployUser string `yaml:"deploy_user,omitempty"`
+	EtcdServer string `yaml:"etcd_server,omitempty"`
 }
 
 func parseConfig() config {
@@ -55,18 +55,18 @@ func parseConfig() config {
 	for _, item := range []struct {
 		attr, value string
 	}{
-		{"chef_repo", c.chefRepo},
-		{"chef_path", c.chefPath},
-		{"knife_path", c.knifePath},
-		{"pem_key", c.pemKey},
-		{"deploy_user", c.deployUser},
+		{"chef_repo", c.ChefRepo},
+		{"chef_path", c.ChefPath},
+		{"knife_path", c.KnifePath},
+		{"pem_key", c.PemKey},
+		{"deploy_user", c.DeployUser},
 	} {
 		if item.value == "" {
-			glog.Fatal("configuration %s is missing in %s", item.attr, *configFile)
+			glog.Fatalf("configuration %s is missing in %s", item.attr, *configFile)
 		}
 	}
-	if c.etcdServer == "" {
-		c.etcdServer = "http://127.0.0.1:4001"
+	if c.EtcdServer == "" {
+		c.EtcdServer = "http://127.0.0.1:4001"
 	}
 	return c
 }
@@ -79,12 +79,12 @@ func updateChefRepo(conf config) {
 	os.Setenv("EMAIL", "devops@gengo.com")
 	os.Setenv("NAME", "gengodev")
 	// TODO: refactor "execCmd" and run commands at once
-	gitPullCmd := "/usr/bin/git --git-dir=" + conf.chefRepo + "/.git --work-tree=" + conf.chefRepo + " pull origin " + *deployToolBranch
+	gitPullCmd := "/usr/bin/git --git-dir=" + conf.ChefRepo + "/.git --work-tree=" + conf.ChefRepo + " pull origin " + *deployToolBranch
 	_, err := execCmd(gitPullCmd, conf)
 	if err != nil {
 		glog.Fatal("Failed to pull: ", err)
 	}
-	gitCheckoutCmd := "/usr/bin/git --git-dir=" + conf.chefRepo + "/.git --work-tree=" + conf.chefRepo + " checkout " + *deployToolBranch
+	gitCheckoutCmd := "/usr/bin/git --git-dir=" + conf.ChefRepo + "/.git --work-tree=" + conf.ChefRepo + " checkout " + *deployToolBranch
 	_, err = execCmd(gitCheckoutCmd, conf)
 	if err != nil {
 		glog.Fatal("Failed to checkout: ", err)
@@ -93,7 +93,7 @@ func updateChefRepo(conf config) {
 }
 
 func execCmd(icmd string, conf config) (output string, err error) {
-	os.Chdir(conf.chefPath)
+	os.Chdir(conf.ChefPath)
 
 	parts := strings.Fields(icmd)
 	head := parts[0]
@@ -141,7 +141,7 @@ func main() {
 		updateChefRepo(conf)
 	}
 	if *pullOnly == false {
-		c, err := gsconfig.Load(etcd.NewClient([]string{conf.etcdServer}))
+		c, err := gsconfig.Load(etcd.NewClient([]string{conf.EtcdServer}))
 		if err != nil {
 			glog.Fatalf("Error parsing ETCD: %s", err)
 		}
@@ -157,9 +157,9 @@ func main() {
 		}
 		for _, h := range servers {
 			if *bootstrap == true {
-				d = "knife solo bootstrap -c " + conf.knifePath + " -i " + conf.pemKey + " --no-host-key-verify " + e + conf.deployUser + "@" + h
+				d = "knife solo bootstrap -c " + conf.KnifePath + " -i " + conf.PemKey + " --no-host-key-verify " + e + conf.DeployUser + "@" + h
 			} else {
-				d = "knife solo cook -c " + conf.knifePath + " -i " + conf.pemKey + " --no-host-key-verify " + e + conf.deployUser + "@" + h
+				d = "knife solo cook -c " + conf.KnifePath + " -i " + conf.PemKey + " --no-host-key-verify " + e + conf.DeployUser + "@" + h
 			}
 			glog.Infof("Deploying to server: %s", h)
 			glog.Infof("Preparing Knife command: %s", d)
