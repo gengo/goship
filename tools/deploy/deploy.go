@@ -27,7 +27,7 @@ var (
 	pullOnly         = flag.Bool("o", false, "chef update only (default false)")
 	chefRunlist      = flag.String("r", "", "custom run-list for Chef (default none)")
 	skipUpdate       = flag.Bool("m", false, "skip the chef update (default false)")
-	bootstrap        = flag.Bool("b", false, "bootstrap a server ( default false)")
+	bootstrap        = flag.Bool("b", true, "bootstrap a server ( default true)")
 )
 
 // gitHubPaginationLimit is the default pagination limit for requests to the GitHub API that return multiple items.
