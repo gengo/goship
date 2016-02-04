@@ -85,7 +85,7 @@
     for (f in pt_info) {
       var story = pt_info[f];
       var status = '<span class="label label-'+ mapStatusLabelClass(story.status) +'">'+ story.status +'</span>';
-      var dep = '<span class="badge" data-toggle="tooltip" data-placement="top" title="'+ story.dependencies.join(', ') +'">'+ story.dependencies.length +'</span>';
+      var dep = '<span class="badge" data-toggle="popover" data-content="<li>'+ info.dependencies.join('</li><li>') +'</li>">'+ story.dependencies.length +'</span>';
 
       links.push('<a href="'+ story.url +'" target="_blank">#'+ story.id +'</a>'+ status + dep +'<br/>');
     }
@@ -97,7 +97,11 @@
     var project_selector = config.selectors.project + '[' + config.selectors.project_id + '="' + project_id + '"]';
     var $project = $(project_selector).find(config.selectors.story_column);
     $project.append(getLinkDiv(pt_info));
-    $project.find('[data-toggle="tooltip"]').tooltip();
+    $project.find('[data-toggle="popover"]').popover({
+      html: true,
+      trigger: 'hover',
+      placement: 'top'
+    });
   }
 
   /**
