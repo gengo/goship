@@ -107,7 +107,7 @@ func PostToPivotal(piv *PivotalConfiguration, env, owner, name, current, latest 
 			glog.Errorf("error getting project for story %d: %v", id, err)
 			continue
 		}
-		m := fmt.Sprintf("Deployed to %s: %s", env, timestamp.Format(layout))
+		m := fmt.Sprintf("Deployed %s to %s: %s", name, env, timestamp.Format(layout))
 		if err := pivClient.AddComment(id, project, m); err != nil {
 			glog.Errorf("failed to post a comment %q to story %d", m, id)
 		}
