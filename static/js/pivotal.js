@@ -85,7 +85,7 @@
     for (f in pt_info) {
       var story = pt_info[f];
       var status = '<span class="label label-'+ mapStatusLabelClass(story.status) +'">'+ story.status +'</span>';
-      var dep = '<span class="badge" data-toggle="popover" data-content="<li>'+ info.dependencies.join('</li><li>') +'</li>">'+ story.dependencies.length +'</span>';
+      var dep = '<span class="badge" data-toggle="popover" data-content="<li>'+ story.dependencies.join('</li><li>') +'</li>">'+ story.dependencies.length +'</span>';
 
       links.push('<a href="'+ story.url +'" target="_blank">#'+ story.id +'</a>'+ status + dep +'<br/>');
     }
@@ -184,7 +184,7 @@
       success: function(data) {
         // Find all git commit messages
         var list = data.filter(function(obj) {
-          return obj.commit_type ? true : false;
+          return obj.commit_type;
         });
         // Find repo name from comment body text
         list = list.map(function(item) {
@@ -211,7 +211,7 @@
       $(this).html(button);
     });
 
-    // When reset button clecked add Get stories button
+    // When reset button clicked add Get stories button
     $(config.selectors.refresh_button).click(function() {
       $(this).closest(config.selectors.project).find(config.selectors.story_column).html(button);
     });
