@@ -108,13 +108,12 @@
    * getGithubCommits returns Github commits for a given repository
    * @param  {String}   github_token Github token
    * @param  {String}   repo         Github repository name
-   * @param  {String}   sha1         Current commit hash
-   * @param  {String}   sha2         Latest commit hash
+   * @param  {String}   commitHashes Current and Latest commit hash
    * @param  {Function} callback
    */
-  function getGithubCommits(github_token, repo, sha1, sha2, callback) {
+  function getGithubCommits(github_token, repo, commitHashes, callback) {
     $.ajax({
-      url: 'https://api.github.com/repos/gengo/'+ repo +'/compare/'+ sha1 +'...'+ sha2,
+      url: 'https://api.github.com/repos/gengo/'+ repo +'/compare/'+ commitHashes[0] +'...'+ commitHashes[1],
       type: 'GET',
       headers: {
         'Authorization': 'token '+ github_token
@@ -235,7 +234,7 @@
           var commitHashes = (url.substr(url.lastIndexOf('/') + 1)).split('...');
           var repositoryName = url.match(config.github.url_compare_regexp)[1];
 
-          getGithubCommits(GITHUB_TOKEN, repositoryName, commitHashes[0], commitHashes[1], function(commits) {
+          getGithubCommits(GITHUB_TOKEN, repositoryName, commitHashes, function(commits) {
             // Array of comitt messages
             var messages = commits.map(function(obj) {
               return obj.commit.message;
