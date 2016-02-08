@@ -1,21 +1,8 @@
 (function($) {
   var config = {
-    selectors: { // according to query selector standards
-      project: '.project',
-      project_id: 'data-id',
-      environment: '.environment',
-      story_column: '.story',
-      github_link: '.GitHubDiffURL',
-      refresh_button: '.refresh',
-    },
-    github: {
-      url_compare_regexp: /.*\/(.*)\/compare/
-    },
     urls: {
       pivotal: {
-        base: 'https://www.pivotaltracker.com',
-        story: '/story/show',
-        api: '/services/v5',
+        api: 'https://www.pivotaltracker.com/services/v5',
       }
     }
   };
@@ -61,10 +48,10 @@
   function getProjectDiffs() {
     var diffURLs = {};
 
-    $(config.selectors.project).each(function() {
+    $('.project').each(function() {
       var $this = $(this);
       var project = $this.data('id');
-      var url = $this.find(config.selectors.github_link).attr('href');
+      var url = $this.find('.GitHubDiffURL').attr('href');
 
       if (url) {
         diffURLs[project] = url;
@@ -72,36 +59,6 @@
     });
 
     return diffURLs;
-  }
-
-  /**
-   * getLinkDiv return an HTML string of story link and status
-   * @param  {Object} pt_info Pivotal story object
-   * @return {String}         HTML string
-   */
-  function getLinkDiv(pt_info) {
-    var links = [];
-
-    for (f in pt_info) {
-      var story = pt_info[f];
-      var status = '<span class="label label-'+ mapStatusLabelClass(story.status) +'">'+ story.status +'</span>';
-      var dep = '<span class="badge" data-toggle="popover" data-content="<li>'+ story.dependencies.join('</li><li>') +'</li>">'+ story.dependencies.length +'</span>';
-
-      links.push('<a href="'+ story.url +'" target="_blank">#'+ story.id +'</a>'+ status + dep +'<br/>');
-    }
-
-    return links.join('');
-  }
-
-  function injectPivotalStatus(project_id, pt_info) {
-    var project_selector = config.selectors.project + '[' + config.selectors.project_id + '="' + project_id + '"]';
-    var $project = $(project_selector).find(config.selectors.story_column);
-    $project.append(getLinkDiv(pt_info));
-    $project.find('[data-toggle="popover"]').popover({
-      html: true,
-      trigger: 'hover',
-      placement: 'top'
-    });
   }
 
   /**
@@ -148,7 +105,7 @@
    */
   function getPivotalStoryInfo(pt_token, story_id, callback) {
     $.ajax({
-      url: config.urls.pivotal.base + config.urls.pivotal.api + '/stories/' + story_id,
+      url: config.urls.pivotal.api + '/stories/' + story_id,
       type: 'GET',
       headers: {
         'X-TrackerToken': pt_token
@@ -175,7 +132,7 @@
    */
   function getRepoDependencies(pt_token, project_id, story_id, callback) {
     $.ajax({
-      url: config.urls.pivotal.base + config.urls.pivotal.api +'/projects/'+ project_id +'/stories/'+ story_id +'/comments',
+      url: config.urls.pivotal.api + '/projects/' + project_id + '/stories/' + story_id + '/comments',
       type: 'GET',
       headers: {
         'X-TrackerToken': pt_token
@@ -196,69 +153,94 @@
   }
 
   /**
+   * onGetPivotalStoryInfoComplete is triggered when pitotal info loading completted,
+   * and building up HTML to insert into the Story block.
+   * @param  {String} project   GitHub project name
+   * @param  {Array} storyList  Pivotal story info array
+   */
+  function onGetPivotalStoryInfoComplete(project, storyList) {
+    var html = storyList.map(function(story) {
+      return '<div> \
+                <a href="'+ story.url +'" target="_blank">#'+ story.id +'</a> \
+                &nbsp; \
+                <span class="label label-'+ mapStatusLabelClass(story.status) +'">'+ story.status +'</span> \
+                &nbsp; \
+                <span class="badge" data-toggle="popover" data-content="<li>'+ story.dependencies.join('</li><li>') +'</li>">'+ story.dependencies.length +'</span> \
+             </div>';
+    });
+
+    $('.project[data-id="'+ project +'"]')
+      .find('.story')
+        .append(html.join(''))
+      .find('[data-toggle="popover"]')
+        .popover({
+          html: true,
+          trigger: 'hover',
+          placement: 'top'
+        });
+  }
+
+  /**
    * showNoStoriesMessage
    * @param  {jQuery} $target jQuery button object
    */
   function showNoStoriesMessage($target) {
-    $target.closest(config.selectors.story_column).text('No stories found.');
+    $target.closest('.story').text('No stories found.');
   }
 
   $(document).ready(function() {
     // add button to story columns
     var button = '<button class="btn btn-default getStories">Get stories</button><span class="loading" style="display:none">Loading...</span>';
-    $(config.selectors.story_column).each(function() {
+    $('.project .story').each(function() {
       $(this).html(button);
     });
 
     // When reset button clicked add Get stories button
-    $(config.selectors.refresh_button).click(function() {
-      $(this).closest(config.selectors.project).find(config.selectors.story_column).html(button);
+    $('.refresh').click(function() {
+      $(this).closest('.project').find('.story').html(button);
     });
 
     $('.project').on('click', '.getStories', function(e) {
       e.preventDefault();
 
       var $this_button = $(e.currentTarget);
-      var project = $this_button.parents(config.selectors.project).data('id');
+      var project = $this_button.parents('.project').data('id');
       var diffs = getProjectDiffs();
 
-      $this_button.hide(); // do not show button
+      $this_button.hide();
 
       if (project in diffs) {
-        // great! we found diffs for this project; load the pivotal stories
         $this_button.siblings('.loading').show();
 
-        (function(project) {
-          var url = diffs[project];
-          // hashes: currentCommit...latestCommit
-          var commitHashes = (url.substr(url.lastIndexOf('/') + 1)).split('...');
-          var repositoryName = url.match(config.github.url_compare_regexp)[1];
+        var url = diffs[project];
+        // hashes: currentCommit...latestCommit
+        var commitHashes = (url.substr(url.lastIndexOf('/') + 1)).split('...');
+        var repositoryName = url.match(/.*\/(.*)\/compare/)[1];
 
-          getGithubCommits(GITHUB_TOKEN, repositoryName, commitHashes, function(commits) {
-            // Array of comitt messages
-            var messages = commits.map(function(obj) {
-              return obj.commit.message;
-            });
-            // Array of pivotal story IDs
-            var pivotal_ids = getPivotalStoryIDs(messages);
-            if (!pivotal_ids) {
-              showNoStoriesMessage($this_button);
-              return;
-            };
-
-            $this_button.siblings('.loading').hide();
-
-            var display_message = [];
-            for (pt_id in pivotal_ids) {
-              var id = pivotal_ids[pt_id];
-
-              getPivotalStoryInfo(PIVOTAL_TOKEN, id, function(info) {
-                display_message[id] = info;
-                injectPivotalStatus(project, display_message);
-              });
-            }
+        getGithubCommits(GITHUB_TOKEN, repositoryName, commitHashes, function(commits) {
+          // Array of comitt messages
+          var messages = commits.map(function(obj) {
+            return obj.commit.message;
           });
-        })(project);
+          // Array of pivotal story IDs
+          var pivotal_ids = getPivotalStoryIDs(messages);
+          if (!pivotal_ids) {
+            showNoStoriesMessage($this_button);
+            return;
+          };
+
+          var storyList = [];
+          for (var i = 0, imax = pivotal_ids.length; i < imax; i++) {
+            getPivotalStoryInfo(PIVOTAL_TOKEN, pivotal_ids[i], function(info) {
+              storyList.push(info);
+
+              if (storyList.length === pivotal_ids.length) {
+                $this_button.siblings('.loading').hide();
+                onGetPivotalStoryInfoComplete(project, storyList);
+              }
+            });
+          }
+        });
       }
       else {
         showNoStoriesMessage($this_button);
