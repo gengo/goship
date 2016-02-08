@@ -70,7 +70,7 @@
    */
   function getGithubCommits(github_token, repo, commitHashe, callback) {
     $.ajax({
-      url: 'https://api.github.com/repos/gengo/'+ repo +'/compare/'+ commitHashes,
+      url: 'https://api.github.com/repos/gengo/'+ repo +'/compare/'+ commitHashe,
       type: 'GET',
       headers: {
         'Authorization': 'token '+ github_token
@@ -90,9 +90,13 @@
    * @return {Array}      Array of pivotal IDs
    */
   function getPivotalStoryIDs(msgs) {
-    var storyIDs = msgs.map(function(str) {
-      return parseInt(str.match(/\[#(\d+)\]/)[1], 10);
-    });
+    var storyIDs = msgs
+      .filter(function(str) {
+        return /\[#(\d+)\]/.test(str);
+      })
+      .map(function(str) {
+        return parseInt(str.match(/\[#(\d+)\]/)[1], 10);
+      });
 
     return removeDupesFromArray(storyIDs);
   }
