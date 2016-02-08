@@ -65,12 +65,12 @@
    * getGithubCommits returns Github commits for a given repository
    * @param  {String}   github_token Github token
    * @param  {String}   repo         Github repository name
-   * @param  {String}   commitHashes Current and Latest commit hash
+   * @param  {String}   commitHashe  Current and Latest commit hash
    * @param  {Function} callback
    */
-  function getGithubCommits(github_token, repo, commitHashes, callback) {
+  function getGithubCommits(github_token, repo, commitHashe, callback) {
     $.ajax({
-      url: 'https://api.github.com/repos/gengo/'+ repo +'/compare/'+ commitHashes[0] +'...'+ commitHashes[1],
+      url: 'https://api.github.com/repos/gengo/'+ repo +'/compare/'+ commitHashes,
       type: 'GET',
       headers: {
         'Authorization': 'token '+ github_token
@@ -171,7 +171,7 @@
 
     $('.project[data-id="'+ project +'"]')
       .find('.story')
-        .append(html.join(''))
+        .html(html)
       .find('[data-toggle="popover"]')
         .popover({
           html: true,
@@ -214,17 +214,17 @@
 
         var url = diffs[project];
         // hashes: currentCommit...latestCommit
-        var commitHashes = (url.substr(url.lastIndexOf('/') + 1)).split('...');
+        var commitHashe = url.substr(url.lastIndexOf('/') + 1);
         var repositoryName = url.match(/.*\/(.*)\/compare/)[1];
 
-        getGithubCommits(GITHUB_TOKEN, repositoryName, commitHashes, function(commits) {
+        getGithubCommits(GITHUB_TOKEN, repositoryName, commitHashe, function(commits) {
           // Array of comitt messages
           var messages = commits.map(function(obj) {
             return obj.commit.message;
           });
           // Array of pivotal story IDs
           var pivotal_ids = getPivotalStoryIDs(messages);
-          if (!pivotal_ids) {
+          if (pivotal_ids.length === 0) {
             showNoStoriesMessage($this_button);
             return;
           };
@@ -234,7 +234,7 @@
             getPivotalStoryInfo(PIVOTAL_TOKEN, pivotal_ids[i], function(info) {
               storyList.push(info);
 
-              if (storyList.length === pivotal_ids.length) {
+              if (storyList.length === imax) {
                 $this_button.siblings('.loading').hide();
                 onGetPivotalStoryInfoComplete(project, storyList);
               }
