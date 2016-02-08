@@ -90,12 +90,13 @@
    * @return {Array}      Array of pivotal IDs
    */
   function getPivotalStoryIDs(msgs) {
+    var reg = /\[#(\d+)\]/; // Pivotal story ID, ex) [#12345]
     var storyIDs = msgs
       .filter(function(str) {
-        return /\[#(\d+)\]/.test(str);
+        return reg.test(str);
       })
       .map(function(str) {
-        return parseInt(str.match(/\[#(\d+)\]/)[1], 10);
+        return parseInt(str.match(reg)[1], 10);
       });
 
     return removeDupesFromArray(storyIDs);
