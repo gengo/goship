@@ -1,5 +1,6 @@
 (function($) {
   var config = {
+    environment: $('.environment').eq(0).data('id'),
     urls: {
       pivotal: {
         api: 'https://www.pivotaltracker.com/services/v5',
@@ -16,6 +17,16 @@
     return arr.filter(function(elem, i) {
       return arr.indexOf(elem) == i;
     });
+  }
+
+  /**
+   * isStringInArray return a boolean if item exists in an Array
+   * @param  {String}  value  Some string
+   * @param  {Array}   array  Array of strings
+   * @return {Boolean}
+   */
+  function isStringInArray(value, array) {
+    return array.indexOf(value) > -1;
   }
 
   /**
@@ -143,18 +154,77 @@
         'X-TrackerToken': pt_token
       },
       success: function(data) {
-        // Find all git commit messages
-        var list = data.filter(function(obj) {
-          return obj.commit_type;
-        });
-        // Find repo name from comment body text
-        list = list.map(function(item) {
-          return item.text.split('https://github.com/gengo/')[1].split('/commit/')[0];
-        });
+        var PULL_REQEST_REGEX = /Merge pull request/;
+        var COMMIT_REPO_REGEX = /https:\/\/github.com\/gengo\/(.+)\/commit\//;
+        var DEPLOY_REPO_REGEX = new RegExp('Deployed (.+) to '+ config.environment +': ');
 
-        callback(removeDupesFromArray(list));
+        var list = data.filter(function(activity) {
+          return activity.commit_type === 'github' || DEPLOY_REPO_REGEX.test(activity.text);
+        }).reverse();
+
+        var dependencies = [];
+        var deployed = [];
+        var notDeployed = [];
+
+        for (var i = 0; i < list.length; i++) {
+          var activity = list[i];
+
+          // Deployed repos
+          if (DEPLOY_REPO_REGEX.test(activity.text)) {
+            var deployedRepo = activity.text.match(DEPLOY_REPO_REGEX)[1];
+
+            if (!isStringInArray(deployedRepo, deployed)) {
+              deployed.push(deployedRepo);
+            }
+          }
+
+          // Merged repos
+          if (PULL_REQEST_REGEX.test(activity.text)) {
+            var mergedRepo = activity.text.match(COMMIT_REPO_REGEX)[1];
+
+            if (!isStringInArray(mergedRepo, deployed) && !isStringInArray(mergedRepo, notDeployed)) {
+              notDeployed.push(mergedRepo);
+            }
+            if (!isStringInArray(mergedRepo, dependencies)) {
+              dependencies.push(mergedRepo);
+            }
+          }
+          // Active repos
+          else if (COMMIT_REPO_REGEX.test(activity.text)) {
+            var activeRepo = activity.text.match(COMMIT_REPO_REGEX)[1];
+
+            if (!isStringInArray(activeRepo, dependencies)) {
+              dependencies.push(activeRepo);
+            }
+          }
+        }
+
+        callback({ 'all': dependencies, 'deployed': deployed, 'not_deployed': notDeployed });
       }
     });
+  }
+
+  /**
+   * getPopoverHTML return a HTML string
+   * @param  {Array} list Array of strings
+   * @return {String}     HTML text string
+   */
+  function getPopoverHTML(dependencies) {
+    var d = dependencies.deployed.map(function(repo) {
+      return '<p><s><span class=\'label label-success\'>'+ repo +'</span></s></p>';
+    }).join('');
+
+    var n = dependencies.not_deployed.map(function(repo) {
+      return '<p><span class=\'label label-primary\'>'+ repo +'</span></p>';
+    }).join('');
+
+    var p = dependencies.all.map(function(repo) {
+      if (!isStringInArray(repo, dependencies.deployed) && !isStringInArray(repo, dependencies.not_deployed)) {
+        return '<p><span class=\'label label-default\'>'+ repo +'</span></p>';
+      }
+    }).join('');
+
+    return p + n + d;
   }
 
   /**
@@ -170,7 +240,7 @@
                 &nbsp; \
                 <span class="label label-'+ mapStatusLabelClass(story.status) +'">'+ story.status +'</span> \
                 &nbsp; \
-                <span class="badge" data-toggle="popover" data-content="<li>'+ story.dependencies.join('</li><li>') +'</li>">'+ story.dependencies.length +'</span> \
+                <span class="badge" data-toggle="popover" data-content="'+ getPopoverHTML(story.dependencies) +'">'+ story.dependencies.all.length +'</span> \
              </div>';
     });
 
