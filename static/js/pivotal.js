@@ -158,7 +158,7 @@
         var COMMIT_REPO_REGEX = /https:\/\/github.com\/gengo\/(.+)\/commit\//;
         var DEPLOY_REPO_REGEX = new RegExp('Deployed (.+) to '+ config.environment +': ');
 
-        var list = data.filter(function(activity) {
+        var activities = data.filter(function(activity) {
           return activity.commit_type === 'github' || DEPLOY_REPO_REGEX.test(activity.text);
         }).reverse();
 
@@ -166,8 +166,8 @@
         var deployed = [];
         var notDeployed = [];
 
-        for (var i = 0; i < list.length; i++) {
-          var activity = list[i];
+        for (var i = 0; i < activities.length; i++) {
+          var activity = activities[i];
 
           // Deployed repos
           if (DEPLOY_REPO_REGEX.test(activity.text)) {
