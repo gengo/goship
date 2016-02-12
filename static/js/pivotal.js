@@ -154,7 +154,7 @@
         'X-TrackerToken': pt_token
       },
       success: function(data) {
-        var PULL_REQEST_REGEX = /Merge pull request/;
+        var PULL_REQUEST_REGEX = /Merge pull request/;
         var COMMIT_REPO_REGEX = /https:\/\/github.com\/gengo\/(.+)\/commit\//;
         var DEPLOY_REPO_REGEX = new RegExp('Deployed (.+) to '+ config.environment +': ');
 
@@ -179,7 +179,7 @@
           }
 
           // Merged repos
-          if (PULL_REQEST_REGEX.test(activity.text)) {
+          if (PULL_REQUEST_REGEX.test(activity.text)) {
             var mergedRepo = activity.text.match(COMMIT_REPO_REGEX)[1];
 
             if (!isStringInArray(mergedRepo, deployed) && !isStringInArray(mergedRepo, notDeployed)) {
