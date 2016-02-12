@@ -181,7 +181,7 @@
           return activity.commit_type === 'github' || DEPLOY_REPO_REGEX.test(activity.text);
         }).reverse();
 
-        var activitiesGrouped = groupBy(activities, function(activity) {
+        var activitiesByRepo = groupBy(activities, function(activity) {
           // With commit message
           if (COMMIT_REPO_REGEX.test(activity.text)) {
             return activity.text.match(COMMIT_REPO_REGEX)[1];
@@ -193,29 +193,29 @@
         });
 
         var inProgress = [];
+        var readyToDeploy = [];
         var deployed = [];
-        var notDeployed = [];
-        for (key in activitiesGrouped) {
-          var activity = activitiesGrouped[key][0];
+        for (repo in activitiesByRepo) {
+          var activity = activitiesByRepo[repo][0];
 
           // Merged repo
           if (PULL_REQUEST_REGEX.test(activity.text)) {
-            notDeployed.push(activity.text.match(COMMIT_REPO_REGEX)[1]);
+            readyToDeploy.push(repo);
           }
           // In Progress repo
           else if (COMMIT_REPO_REGEX.test(activity.text)) {
-            inProgress.push(activity.text.match(COMMIT_REPO_REGEX)[1]);
+            inProgress.push(repo);
           }
           // Deployed repo
           if (DEPLOY_REPO_REGEX.test(activity.text)) {
-            deployed.push(activity.text.match(DEPLOY_REPO_REGEX)[1]);
+            deployed.push(repo);
           }
         }
 
         callback({
-          'all': inProgress.concat(notDeployed, deployed),
+          'all': inProgress.concat(readyToDeploy, deployed),
           'in_progress': inProgress,
-          'not_deployed': notDeployed,
+          'ready_to_deploy': readyToDeploy,
           'deployed': deployed
         });
       }
@@ -228,20 +228,19 @@
    * @return {String}     HTML text string
    */
   function getPopoverHTML(dependencies) {
-    // In progress
-    var p = dependencies.in_progress.map(function(repo) {
+    var inProgress = dependencies.in_progress.map(function(repo) {
       return '<p><span class=\'label label-default\'>'+ repo +'</span></p>';
     }).join('');
-    // Not deployed
-    var n = dependencies.not_deployed.map(function(repo) {
+
+    var readyToDeploy = dependencies.ready_to_deploy.map(function(repo) {
       return '<p><span class=\'label label-primary\'>'+ repo +'</span></p>';
     }).join('');
-    // Deployed
-    var d = dependencies.deployed.map(function(repo) {
+
+    var deployed = dependencies.deployed.map(function(repo) {
       return '<p><s><span class=\'label label-success\'>'+ repo +'</span></s></p>';
     }).join('');
 
-    return p + n + d;
+    return inProgress + readyToDeploy + deployed;
   }
 
   /**
