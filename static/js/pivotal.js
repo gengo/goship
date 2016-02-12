@@ -1,5 +1,6 @@
 (function($) {
   var config = {
+    environment: $('.environment').eq(0).data('id'),
     urls: {
       pivotal: {
         api: 'https://www.pivotaltracker.com/services/v5',
@@ -16,6 +17,35 @@
     return arr.filter(function(elem, i) {
       return arr.indexOf(elem) == i;
     });
+  }
+
+  /**
+   * isStringInArray return a boolean if item exists in an Array
+   * @param  {String}  value  Some string
+   * @param  {Array}   array  Array of strings
+   * @return {Boolean}
+   */
+  function isStringInArray(value, array) {
+    return array.indexOf(value) > -1;
+  }
+
+  /**
+   * groupBy is a similar method as in underscore groupBy
+   * @param  {Array}   list      Array of items
+   * @param  {Function} callback Call back with context
+   * @return {Object}            Object with the result
+   */
+  function groupBy(list, callback) {
+    return list.reduce(function(result, current) {
+      var key = callback(current);
+
+      if (key) {
+        result[key] = result[key] || [];
+        result[key].push(current);
+      }
+
+      return result;
+    }, {});
   }
 
   /**
@@ -143,18 +173,74 @@
         'X-TrackerToken': pt_token
       },
       success: function(data) {
-        // Find all git commit messages
-        var list = data.filter(function(obj) {
-          return obj.commit_type;
-        });
-        // Find repo name from comment body text
-        list = list.map(function(item) {
-          return item.text.split('https://github.com/gengo/')[1].split('/commit/')[0];
+        var PULL_REQUEST_REGEX = /Merge pull request/;
+        var COMMIT_REPO_REGEX = /https:\/\/github.com\/gengo\/(.+)\/commit\//;
+        var DEPLOY_REPO_REGEX = new RegExp('Deployed (.+) to '+ config.environment +': ');
+
+        var activities = data.filter(function(activity) {
+          return activity.commit_type === 'github' || DEPLOY_REPO_REGEX.test(activity.text);
+        }).reverse();
+
+        var activitiesByRepo = groupBy(activities, function(activity) {
+          // With commit message
+          if (COMMIT_REPO_REGEX.test(activity.text)) {
+            return activity.text.match(COMMIT_REPO_REGEX)[1];
+          }
+          // Deployed message
+          if (DEPLOY_REPO_REGEX.test(activity.text)) {
+            return activity.text.match(DEPLOY_REPO_REGEX)[1];
+          }
         });
 
-        callback(removeDupesFromArray(list));
+        var inProgress = [];
+        var readyToDeploy = [];
+        var deployed = [];
+        for (repo in activitiesByRepo) {
+          var activity = activitiesByRepo[repo][0];
+
+          // Merged repo
+          if (PULL_REQUEST_REGEX.test(activity.text)) {
+            readyToDeploy.push(repo);
+          }
+          // In Progress repo
+          else if (COMMIT_REPO_REGEX.test(activity.text)) {
+            inProgress.push(repo);
+          }
+          // Deployed repo
+          if (DEPLOY_REPO_REGEX.test(activity.text)) {
+            deployed.push(repo);
+          }
+        }
+
+        callback({
+          'all': inProgress.concat(readyToDeploy, deployed),
+          'in_progress': inProgress,
+          'ready_to_deploy': readyToDeploy,
+          'deployed': deployed
+        });
       }
     });
+  }
+
+  /**
+   * getPopoverHTML return a HTML string
+   * @param  {Array} list Array of strings
+   * @return {String}     HTML text string
+   */
+  function getPopoverHTML(dependencies) {
+    var inProgress = dependencies.in_progress.map(function(repo) {
+      return '<p><span class=\'label label-default\'>'+ repo +'</span></p>';
+    }).join('');
+
+    var readyToDeploy = dependencies.ready_to_deploy.map(function(repo) {
+      return '<p><span class=\'label label-primary\'>'+ repo +'</span></p>';
+    }).join('');
+
+    var deployed = dependencies.deployed.map(function(repo) {
+      return '<p><s><span class=\'label label-success\'>'+ repo +'</span></s></p>';
+    }).join('');
+
+    return inProgress + readyToDeploy + deployed;
   }
 
   /**
@@ -170,7 +256,7 @@
                 &nbsp; \
                 <span class="label label-'+ mapStatusLabelClass(story.status) +'">'+ story.status +'</span> \
                 &nbsp; \
-                <span class="badge" data-toggle="popover" data-content="<li>'+ story.dependencies.join('</li><li>') +'</li>">'+ story.dependencies.length +'</span> \
+                <span class="badge" data-toggle="popover" data-content="'+ getPopoverHTML(story.dependencies) +'">'+ story.dependencies.all.length +'</span> \
              </div>';
     });
 
