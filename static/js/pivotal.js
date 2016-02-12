@@ -30,6 +30,25 @@
   }
 
   /**
+   * groupBy is a similar method as in underscore groupBy
+   * @param  {Array}   list      Array of items
+   * @param  {Function} callback Call back with context
+   * @return {Object}            Object with the result
+   */
+  function groupBy(list, callback) {
+    return list.reduce(function(result, current) {
+      var key = callback(current);
+
+      if (key) {
+        result[key] = result[key] || [];
+        result[key].push(current);
+      }
+
+      return result;
+    }, {});
+  }
+
+  /**
    * mapStatusLabelClass returns label class type (as of Twitter Bootstrap 3)
    * @param  {string} status Pivotal story status
    * @return {string}        Bootstrap class name
@@ -162,44 +181,38 @@
           return activity.commit_type === 'github' || DEPLOY_REPO_REGEX.test(activity.text);
         }).reverse();
 
-        var dependencies = [];
+        var activitiesGrouped = groupBy(activities, function(activity) {
+          // With commit message
+          if (COMMIT_REPO_REGEX.test(activity.text)) {
+            return activity.text.match(COMMIT_REPO_REGEX)[1];
+          }
+          // Deployed message
+          if (DEPLOY_REPO_REGEX.test(activity.text)) {
+            return activity.text.match(DEPLOY_REPO_REGEX)[1];
+          }
+        });
+
+        var inProgress = [];
         var deployed = [];
         var notDeployed = [];
+        for (key in activitiesGrouped) {
+          var activity = activitiesGrouped[key][0];
 
-        for (var i = 0; i < activities.length; i++) {
-          var activity = activities[i];
-
-          // Deployed repos
-          if (DEPLOY_REPO_REGEX.test(activity.text)) {
-            var deployedRepo = activity.text.match(DEPLOY_REPO_REGEX)[1];
-
-            if (!isStringInArray(deployedRepo, deployed)) {
-              deployed.push(deployedRepo);
-            }
-          }
-
-          // Merged repos
+          // Merged repo
           if (PULL_REQUEST_REGEX.test(activity.text)) {
-            var mergedRepo = activity.text.match(COMMIT_REPO_REGEX)[1];
-
-            if (!isStringInArray(mergedRepo, deployed) && !isStringInArray(mergedRepo, notDeployed)) {
-              notDeployed.push(mergedRepo);
-            }
-            if (!isStringInArray(mergedRepo, dependencies)) {
-              dependencies.push(mergedRepo);
-            }
+            notDeployed.push(activity.text.match(COMMIT_REPO_REGEX)[1]);
           }
-          // Active repos
+          // In Progress repo
           else if (COMMIT_REPO_REGEX.test(activity.text)) {
-            var activeRepo = activity.text.match(COMMIT_REPO_REGEX)[1];
-
-            if (!isStringInArray(activeRepo, dependencies)) {
-              dependencies.push(activeRepo);
-            }
+            inProgress.push(activity.text.match(COMMIT_REPO_REGEX)[1]);
+          }
+          // Deployed repo
+          if (DEPLOY_REPO_REGEX.test(activity.text)) {
+            deployed.push(activity.text.match(DEPLOY_REPO_REGEX)[1]);
           }
         }
 
-        callback({ 'all': dependencies, 'deployed': deployed, 'not_deployed': notDeployed });
+        callback({ 'all': inProgress.concat(notDeployed, deployed), 'in_progress': inProgress, 'not_deployed': notDeployed, 'deployed': deployed });
       }
     });
   }
@@ -210,18 +223,17 @@
    * @return {String}     HTML text string
    */
   function getPopoverHTML(dependencies) {
-    var d = dependencies.deployed.map(function(repo) {
-      return '<p><s><span class=\'label label-success\'>'+ repo +'</span></s></p>';
+    // In progress
+    var p = dependencies.in_progress.map(function(repo) {
+      return '<p><span class=\'label label-default\'>'+ repo +'</span></p>';
     }).join('');
-
+    // Not deployed
     var n = dependencies.not_deployed.map(function(repo) {
       return '<p><span class=\'label label-primary\'>'+ repo +'</span></p>';
     }).join('');
-
-    var p = dependencies.all.map(function(repo) {
-      if (!isStringInArray(repo, dependencies.deployed) && !isStringInArray(repo, dependencies.not_deployed)) {
-        return '<p><span class=\'label label-default\'>'+ repo +'</span></p>';
-      }
+    // Deployed
+    var d = dependencies.deployed.map(function(repo) {
+      return '<p><s><span class=\'label label-success\'>'+ repo +'</span></s></p>';
     }).join('');
 
     return p + n + d;
