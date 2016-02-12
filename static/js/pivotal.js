@@ -233,11 +233,11 @@
     }).join('');
 
     var readyToDeploy = dependencies.ready_to_deploy.map(function(repo) {
-      return '<p><span class=\'label label-primary\'>'+ repo +'</span></p>';
+      return '<p><span class=\'label label-success\'>'+ repo +'</span></p>';
     }).join('');
 
     var deployed = dependencies.deployed.map(function(repo) {
-      return '<p><s><span class=\'label label-success\'>'+ repo +'</span></s></p>';
+      return '<p><s><span class=\'label label-info\'>'+ repo +'</span></s></p>';
     }).join('');
 
     return inProgress + readyToDeploy + deployed;
