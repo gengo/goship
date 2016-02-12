@@ -212,7 +212,12 @@
           }
         }
 
-        callback({ 'all': inProgress.concat(notDeployed, deployed), 'in_progress': inProgress, 'not_deployed': notDeployed, 'deployed': deployed });
+        callback({
+          'all': inProgress.concat(notDeployed, deployed),
+          'in_progress': inProgress,
+          'not_deployed': notDeployed,
+          'deployed': deployed
+        });
       }
     });
   }
