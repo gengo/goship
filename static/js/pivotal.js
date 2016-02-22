@@ -8,6 +8,9 @@
     }
   };
 
+  // register common error handler on Ajax errors / failures
+  $(document).ajaxError(console.error);
+
   /**
    * removeDupesFromArray returns an array without dupes
    * @param  {Array} arr Any array
@@ -107,9 +110,6 @@
       },
       success: function(data) {
         callback(data.commits);
-      },
-      error: function(err) {
-        console.error(err);
       }
     });
   }
