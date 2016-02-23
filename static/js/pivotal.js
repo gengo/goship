@@ -154,6 +154,10 @@
             dependencies: list
           });
         });
+      },
+      error: function(err) {
+        // e.g., no pivotal story found
+        callback(undefined);
       }
     });
   }
@@ -323,9 +327,10 @@
           var storyList = [];
           for (var i = 0, imax = pivotal_ids.length; i < imax; i++) {
             getPivotalStoryInfo(PIVOTAL_TOKEN, pivotal_ids[i], function(info) {
-              storyList.push(info);
-
-              if (storyList.length === imax) {
+              // if getPivtoalStoryInfo is unsuccessful, info is undefined
+              !!info && storyList.push(info);
+              // we have cycled through all possible pivotal stories (some unsuccessful perhaps)
+              if (i === imax) {
                 $this_button.siblings('.loading').hide();
                 onGetPivotalStoryInfoComplete(project, storyList);
               }
