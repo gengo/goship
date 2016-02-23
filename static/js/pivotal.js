@@ -9,7 +9,7 @@
   };
 
   // register common error handler on Ajax errors / failures
-  $(document).ajaxError(console.error);
+  $(document).ajaxError(console.error.bind(console));
 
   /**
    * removeDupesFromArray returns an array without dupes
