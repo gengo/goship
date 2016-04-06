@@ -61,6 +61,12 @@ func loadProject(node *etcd.Node) (Project, error) {
 			envs = child
 		}
 	}
+	if proj.HostType == "" {
+		proj.HostType = HostTypeNode
+	}
+	if !proj.HostType.Valid() {
+		return Project{}, fmt.Errorf("invalid host_type %q", proj.HostType)
+	}
 	if proj.RepoType == "" {
 		proj.RepoType = RepoTypeGithub
 	}

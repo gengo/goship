@@ -31,6 +31,7 @@ type Project struct {
 	Name         string `json:"-" yaml:"name"`
 	Repo         `json:",inline" yaml:",inline"`
 	RepoType     RepositoryType `json:"repo_type" yaml:"repo_type"`
+	HostType     HostType       `json:"host_type" yaml:"host_type"`
 	Environments []Environment  `json:"-" yaml:"envs"`
 	TravisToken  string         `json:"travis_token" yaml:"travis_token"`
 	// Source is an additional revision control system.
@@ -48,16 +49,31 @@ func (p Project) SourceRepo() Repo {
 // A RepositoryType describes a type of revision control system which manages target revisions of deployment.
 type RepositoryType string
 
+type HostType string
+
 const (
 	// RepoTypeGithub means sources codes of the targets of deployment are stored in github and we deploy from the codes.
 	RepoTypeGithub = RepositoryType("github")
 	// RepoTypeDocker means prebuilt docker images are the targets of deployment.
 	RepoTypeDocker = RepositoryType("docker")
+
+	// HostTypeNode means deploy target host is a normal server
+	HostTypeNode = HostType("node")
+	// HostTypeK8s means deploy target host is a k8s cluster
+	HostTypeK8s = HostType("k8s")
 )
 
 func (t RepositoryType) Valid() bool {
 	switch t {
 	case RepoTypeGithub, RepoTypeDocker:
+		return true
+	}
+	return false
+}
+
+func (t HostType) Valid() bool {
+	switch t {
+	case HostTypeNode, HostTypeK8s:
 		return true
 	}
 	return false

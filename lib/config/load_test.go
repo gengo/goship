@@ -80,6 +80,7 @@ func TestLoad(t *testing.T) {
 			{
 				Name:     "example-project",
 				RepoType: config.RepoTypeGithub,
+				HostType: config.HostTypeNode,
 				Repo: config.Repo{
 					RepoName:  "example",
 					RepoOwner: "gengo",
