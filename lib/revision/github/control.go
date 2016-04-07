@@ -43,6 +43,9 @@ func (c control) Latest(ctx context.Context, proj config.Project, env config.Env
 // LatestDeployed returns the latest commit deployed into the host.
 func (c control) LatestDeployed(ctx context.Context, hostname string, proj config.Project, env config.Environment) (rev, srcRev revision.Revision, err error) {
 	cmd := fmt.Sprintf("git --git-dir=%s rev-parse HEAD", env.RepoPath)
+	if proj.HostType == config.HostTypeK8s {
+		cmd = fmt.Sprintf("kubectl get rc -L git_version --no-headers -l app=%s | awk '{printf $5}'", proj.Name)
+	}
 	buf, err := c.ssh.Output(ctx, hostname, cmd)
 	if err != nil {
 		glog.Errorf("Failed to get latest deployed commit from %s:%s : %v", hostname, env.RepoPath, err)
