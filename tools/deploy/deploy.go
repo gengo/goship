@@ -165,6 +165,7 @@ func main() {
 					"knife", "solo", "bootstrap",
 					"-c", conf.KnifePath,
 					"-i", conf.PemKey,
+					"-E", *deployEnv,
 					"--no-host-key-verify",
 				}
 			} else {
@@ -172,6 +173,7 @@ func main() {
 					"knife", "solo", "cook",
 					"-c", conf.KnifePath,
 					"-i", conf.PemKey,
+					"-E", *deployEnv,
 					"--no-host-key-verify",
 				}
 			}
