@@ -34,6 +34,8 @@ type Project struct {
 	HostType     HostType       `json:"host_type" yaml:"host_type"`
 	Environments []Environment  `json:"-" yaml:"envs"`
 	TravisToken  string         `json:"travis_token" yaml:"travis_token"`
+	K8sResource  string         `json:"k8s_resource" yaml:"k8s_resource"`
+	K8sSelector  string         `json:"k8s_selector" yaml:"k8s_selector"`
 	// Source is an additional revision control system.
 	// It is effective only if RepoType does not serve source codes.
 	Source *Repo `json:"source,omitempty" yaml:"source,omitempty"`
