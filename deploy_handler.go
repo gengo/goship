@@ -142,7 +142,7 @@ func (h DeployHandler) deploy(ctx context.Context, w http.ResponseWriter, c conf
 		if err != nil {
 			glog.Errorf("Failed to post to pivotal: %v", err)
 		} else {
-			glog.Infof("Pivotal Token: %s %s", c.Pivotal.Token)
+			glog.Infof("Pivotal Token: %s", c.Pivotal.Token)
 		}
 	}
 
