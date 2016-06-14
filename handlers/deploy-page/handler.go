@@ -48,6 +48,7 @@ func (h deployPage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	toRevision := r.FormValue("to_revision")
 	repoOwner := r.FormValue("repo_owner")
 	repoName := r.FormValue("repo_name")
+	timestamp := r.FormValue("timestamp")
 	t, err := template.New("deploy.html").ParseFiles("templates/deploy.html", "templates/base.html")
 	if err != nil {
 		glog.Errorf("Failed to parse templates: %v", err)
@@ -67,6 +68,7 @@ func (h deployPage) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		"RepoName":     repoName,
 		"ToRevision":   toRevision,
 		"FromRevision": fromRevision,
+		"Timestamp":    timestamp,
 	}
 	helpers.RespondWithTemplate(w, "text/html", t, "base", params)
 }

@@ -32,7 +32,11 @@
       var scrollBtnStopText = 'Stop auto scroll';
 
       ws.onopen = function () {
-        $.post('deploy_handler', { project: project, repo_owner: repo_owner, repo_name: repo_name, from_revision: from_revision, to_revision: to_revision, environment: environment, user: user});
+        var timestamp = Date.parse({{.Timestamp}})
+        validTimestamp = timestamp + 10000 //only valid for 10 seconds after pressing deploy button
+        if(new Date().getTime() < validTimestamp) {
+          $.post('deploy_handler', { project: project, repo_owner: repo_owner, repo_name: repo_name, from_revision: from_revision, to_revision: to_revision, environment: environment, user: user});
+        }
       }
       ws.onmessage = function(e) {
         var obj = jQuery.parseJSON(e.data);
