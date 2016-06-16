@@ -100,7 +100,8 @@ type Repo struct {
 
 // PivotalConfiguration used to store Pivotal interface
 type PivotalConfiguration struct {
-	Token string `json:"token" yaml:"token"`
+	Token    string `json:"token" yaml:"token"`
+	AddLabel bool   `json:"add_label" yaml:"add_label"`
 }
 
 func PostToPivotal(piv *PivotalConfiguration, env, owner, name, current, latest string) error {
@@ -129,7 +130,7 @@ func PostToPivotal(piv *PivotalConfiguration, env, owner, name, current, latest 
 		if err := pivClient.AddComment(id, project, m); err != nil {
 			glog.Errorf("failed to post a comment %q to story %d", m, id)
 		}
-		if env == "live" {
+		if piv.AddLabel {
 			year, week := time.Now().ISOWeek()
 			label := fmt.Sprintf("released_w%d/%d", week, year)
 			if err := pivClient.AddLabel(id, project, label); err != nil {
