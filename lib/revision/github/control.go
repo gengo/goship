@@ -44,11 +44,7 @@ func (c control) Latest(ctx context.Context, proj config.Project, env config.Env
 func (c control) LatestDeployed(ctx context.Context, hostname string, proj config.Project, env config.Environment) (rev, srcRev revision.Revision, err error) {
 	cmd := fmt.Sprintf("git --git-dir=%s rev-parse HEAD", env.RepoPath)
 	if proj.HostType == config.HostTypeK8s {
-		selector := proj.Name
-		if proj.K8sSelector != "" {
-			selector = proj.K8sSelector
-		}
-		cmd = fmt.Sprintf("kubectl get %s -L git_version --no-headers -l name=%s | awk '{printf $NF}'", proj.K8sResource, selector)
+		cmd = fmt.Sprintf("kubectl get %s -L git_version --no-headers -l name=%s --namespace=%s | awk '{printf $NF}'", proj.K8sResource, proj.K8sSelector, env.K8sNamespace)
 	}
 	buf, err := c.ssh.Output(ctx, hostname, cmd)
 	if err != nil {

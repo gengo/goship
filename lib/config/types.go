@@ -83,13 +83,14 @@ func (t HostType) Valid() bool {
 
 // Environment stores information about an individual environment, such as its name and whether it is deployable.
 type Environment struct {
-	Name     string   `json:"-" yaml:"name"`
-	Deploy   string   `json:"deploy" yaml:"deploy"`
-	RepoPath string   `json:"repo_path" yaml:"repo_path"`
-	Hosts    []string `json:"hosts" yaml:"hosts,omitempty"`
-	Branch   string   `json:"branch" yaml:"branch"`
-	Comment  string   `json:"comment" yaml:"comment"`
-	IsLocked bool     `json:"is_locked,omitempty" yaml:"is_locked,omitempty"`
+	Name         string   `json:"-" yaml:"name"`
+	Deploy       string   `json:"deploy" yaml:"deploy"`
+	RepoPath     string   `json:"repo_path" yaml:"repo_path"`
+	Hosts        []string `json:"hosts" yaml:"hosts,omitempty"`
+	Branch       string   `json:"branch" yaml:"branch"`
+	Comment      string   `json:"comment" yaml:"comment"`
+	IsLocked     bool     `json:"is_locked,omitempty" yaml:"is_locked,omitempty"`
+	K8sNamespace string   `json:"k8s_namespace" yaml:"k8s_namespace"`
 }
 
 // Repo identifies a revision repository
