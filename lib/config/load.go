@@ -76,6 +76,9 @@ func loadProject(node *etcd.Node) (Project, error) {
 	if proj.RepoType == RepoTypeDocker && proj.Source == nil {
 		return Project{}, fmt.Errorf("source repo not configured in %s", name)
 	}
+	if proj.K8sSelector == "" {
+		proj.K8sSelector = name
+	}
 
 	proj.Name = name
 	if err := loadEnvironments(envs, &proj); err != nil {
@@ -107,6 +110,9 @@ func loadEnvironment(node *etcd.Node) (Environment, error) {
 	env.Name = path.Base(node.Key)
 	if env.Branch == "" {
 		env.Branch = "master"
+	}
+	if env.K8sNamespace == "" {
+		env.K8sNamespace = "default"
 	}
 	return env, nil
 }
