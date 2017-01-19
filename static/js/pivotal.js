@@ -133,6 +133,41 @@
   }
 
   /**
+   * getPivotalStoryIDs return true if there is a commit without pivotal story
+   * @param  {Array}   msgs Array of string messages
+   * @return {Boolean}
+   */
+  function hasCommitWithoutStory(msgs) {
+    var reg = /\[#(\d+)\]/; // Pivotal story ID, ex) [#12345]
+    for (var i = 0; i < msgs.length; i++) {
+      if (!reg.test(msgs[i])) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * hasSqlMigration return true if there is a sql-migrations repo dependency
+   * @param  {Array}   storyList Array of stories
+   * @return {Boolean}
+   */
+  function hasSqlMigration(storyList) {
+    for (var i = 0; i < storyList.length; i++) {
+      dependencies = storyList[i].dependencies.all;
+      for (var d = 0; d < dependencies.length; d++) {
+        dependency = dependencies[d];
+        if (dependency === 'sql-migrations') {
+          return true
+        }
+      }
+    }
+
+    return false
+  }
+
+  /**
    * getPivotalStoryInfo return pivotal story data
    * @param  {string}   pt_token Pivotal token
    * @param  {number}   story_id Story id
@@ -283,6 +318,22 @@
     $target.closest('.story').text('No stories found.');
   }
 
+  /**
+   * showCommitWithoutStoryMessage
+   * @param  {jQuery} $target jQuery button object
+   */
+  function showCommitWithoutStoryMessage($target) {
+    $target.append('<div>Found commit without story.</div>');
+  }
+
+  /**
+   * showSqlMigrationWarning
+   * @param  {jQuery} $target jQuery button object
+   */
+  function showSqlMigrationMessage($target) {
+    $target.append('<div>Found SQL-migrations.</div>');
+  }
+
   $(document).ready(function() {
     // add button to story columns
     var button = '<button class="btn btn-default getStories">Get stories</button><span class="loading" style="display:none">Loading...</span>';
@@ -299,6 +350,7 @@
       e.preventDefault();
 
       var $this_button = $(e.currentTarget);
+      var $this_story = $this_button.closest('.story')
       var project = $this_button.parents('.project').data('id');
       var diffs = getProjectDiffs();
 
@@ -321,6 +373,9 @@
           var pivotal_ids = getPivotalStoryIDs(messages);
           if (pivotal_ids.length === 0) {
             showNoStoriesMessage($this_button);
+            if (hasCommitWithoutStory(messages)) {
+              showCommitWithoutStoryMessage($this_story);
+            }
             return;
           };
 
@@ -333,6 +388,12 @@
               if (i === imax) {
                 $this_button.siblings('.loading').hide();
                 onGetPivotalStoryInfoComplete(project, storyList);
+                if (hasCommitWithoutStory(messages)) {
+                  showCommitWithoutStoryMessage($this_story);
+                }
+                if(hasSqlMigration(storyList)) {
+                  showSqlMigrationMessage($this_story);
+                }
               }
             });
           }
