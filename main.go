@@ -136,9 +136,7 @@ func buildHandler(ctx context.Context) (http.Handler, error) {
 
 	mux := http.NewServeMux()
 	mux.Handle("/", auth.Authenticate(HomeHandler{ac: ac, ecl: ecl, assets: assets}))
-	mux.HandleFunc("/static/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, r.URL.Path[1:])
-	})
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	dph, err := deploypage.New(assets, fmt.Sprintf("ws://%s/web_push", *bindAddress))
 	if err != nil {
